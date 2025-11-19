@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hcocena-py"
+version = "0.1.0"
+description = "Pure Python reimplementation of the hCoCena transcriptomics integration workflow"
+readme = "README.md"
+license = {text = "GPL-3.0-or-later"}
+authors = [
+  {name = "OpenAI Assistant"}
+]
+dependencies = []
+requires-python = ">=3.9"
+
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+hcocena-cli = "hcocena_py.cli:main"
+
+[tool.setuptools]
+packages = ["hcocena_py"]

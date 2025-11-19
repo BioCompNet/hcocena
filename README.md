@@ -6,6 +6,18 @@ hCoCena is an R-package that allows you to integrate and jointly analyse multipl
 To install hcocena (v1.1.2) from this repo, run the codeline provided in the `install_hcocena.R` script.
 To install versioned dependencies, use the script `install_versioned_dependecies.R`.
 
+### Python port
+This repository now also ships a light-weight Python implementation that mirrors the original workflow. The implementation is
+pure Python and does not rely on any external libraries which makes it easy to execute in restricted environments. After
+cloning the repository you can immediately process one or multiple expression matrices via the CLI:
+
+```
+hcocena-cli --dataset cohort_a=data/cohort_a.csv --dataset cohort_b=data/cohort_b.csv --output results/
+```
+
+The Python module exposes the :class:`hcocena_py.HCoCena` class for programmatic access and ships command line helpers, simple
+textual visualisations and automated tests.
+
 ## Usage
 **hCoCena is divided into 2 parts:** 
 

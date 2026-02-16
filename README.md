@@ -1,29 +1,95 @@
-# hCoCena - Horizontal integration and analysis of transcriptomics datasets [[paper](https://academic.oup.com/bioinformatics/advance-article/doi/10.1093/bioinformatics/btac589/6677225)]
+# hCoCena
+Horizontal integration and analysis of transcriptomics datasets  
+Paper: https://doi.org/10.1093/bioinformatics/btac589
 
-hCoCena is an R-package that allows you to integrate and jointly analyse multiple transcriptomic datasets or simply analyse a single dataset if you don't want to do any data integration! hCoCena uses network representations of the data as the basis for integration. You can find more details of how that works in our [paper](https://academic.oup.com/bioinformatics/advance-article/doi/10.1093/bioinformatics/btac589/6677225) . Below, you will find some info on how to install the package and tips for using it. 
+hCoCena is an R package for network-based transcriptomics analysis.  
+It supports both:
+- multi-layer integration (e.g. RNA-seq + array), and
+- single-layer analyses (seq-only workflows).
+
+The repository is maintained at: https://github.com/BioCompNet/hcocena
+
+## Current Version
+This repository currently tracks **hcocena v1.27**.
+
+## What hCoCena Can Do (v1.27)
+- S4-first workflow (`HCoCenaExperiment`) with `hc_*` API wrappers.
+- Backward compatibility with legacy workflows.
+- Correlation cutoff tuning with tiered selection (`hc_tune_cutoff` / `hc_auto_tune_cutoff_tiered`).
+- Automatic cutoff application via `hc_set_cutoff(auto = TRUE, fallback_cutoff = ...)`.
+- Resolution tuning for clustering (`hc_tune_resolution` / `hc_auto_tune`).
+- Leiden default partition set to `RBConfigurationVertexPartition`.
+- Module splitting and undo (`hc_split_modules`, `hc_unsplit_modules`) including resolution testing.
+- Advanced functional enrichment:
+  - per DB plots,
+  - mixed/combined DB plots,
+  - selected terms and all-significant exports,
+  - merged Excel outputs across DBs.
+- Upstream inference (DoRothEA TF + PROGENy pathway via decoupleR):
+  - `activity_input = "gfc"` or `"fc"` (with user-defined comparisons),
+  - per-comparison plotting,
+  - consistent-term mode for comparability.
+- Module knowledge network plot combining enrichment + upstream results.
+- Automatic module cell-type annotation with Enrichr DBs (`hc_celltype_annotation`), plus DB discovery/preview helpers:
+  - `hc_list_celltype_databases`
+  - `hc_preview_celltype_database`
+
+## Repository Layout
+- `hCoCena-r-package/`: R package source.
+- `hcocena_main.Rmd`: main multi-layer workflow.
+- `hcocena_main_seq_only.Rmd`: main single-layer workflow.
+- `hcocena_satellite.Rmd`: optional analyses and extended utilities.
+- `legacy_rmd/`: archived legacy script variants.
+- `STAR_protocol/`: STAR protocol-oriented materials.
+- `reference_files/`: reference GMT/TF files for enrichment workflows.
+- `scripts/`: maintenance/helpers (e.g. reinstall helpers).
 
 ## Installation
-To install hcocena (v1.1.2) from this repo, run the codeline provided in the `install_hcocena.R` script.
-To install versioned dependencies, use the script `install_versioned_dependecies.R`.
 
-## Usage
-**hCoCena is divided into 2 parts:** 
+### Option A: Reproducible install using provided scripts
+Run, in order:
+1. `install_versioned_dependencies.R`
+2. `install_hcocena.R`
 
-**1.** the main analysis that comprises the mandatory steps to process and integrate the data and
+### Option B: Direct install from GitHub
+```r
+install.packages("remotes")
+remotes::install_github("BioCompNet/hcocena", subdir = "hCoCena-r-package", dependencies = TRUE)
+```
 
-**2.** the satellite functions that offer you a plethora of analysis options in a pick & mix kind of fashion. 
+### Option C: Install from local checkout
+```r
+install.packages("remotes")
+remotes::install_local("hCoCena-r-package", dependencies = TRUE, upgrade = "never")
+```
 
-The figure below illustrates this: the main analysis is at the center, while the satellite functions can be found in the orbits around it. 
-A step-by-step walkthrough of the main analysis steps can be found in the `hcocena_main.Rmd`, the satellite functions are in the `hcocena_saltellite.Rmd`. 
+## Minimal S4 Workflow
+```r
+library(hcocena)
 
-hCoCena was written with user-friendliness and customizability in mind. We are doing our best to provide you with plenty of supplementary information that make the usage of the tool easy for you. You can also always extend the tool's functionalities with your on custom scripts and functions to adapt the analysis to your needs! For more details on hCoCena's object structure and where to find the outputs of different analysis steps for customization, please refer to the overview in the [Wiki](https://github.com/MarieOestreich/hCoCena/wiki/Structure-of-the-hcobject) and the extensive function documentations you can access from within R Studio.
+hc <- hc_init()
+# ... set paths/layers/settings/import ...
+hc <- hc_run_expression_analysis_1(hc, corr_method = "pearson")
+hc <- hc_set_cutoff(hc, auto = TRUE, fallback_cutoff = 0.982)
+hc <- hc_run_expression_analysis_2(hc)
+hc <- hc_build_integrated_network(hc, mode = "u", multi_edges = "min")
+hc <- hc_cluster_calculation(hc, cluster_algo = "cluster_leiden")
+hc <- hc_plot_cluster_heatmap(hc)
+hc <- hc_functional_enrichment(hc, gene_sets = c("Hallmark", "Kegg", "Go"))
+```
 
+For end-to-end examples, use:
+- `hcocena_main.Rmd`
+- `hcocena_main_seq_only.Rmd`
+- `hcocena_satellite.Rmd`
 
-![hCoCenaFig1](https://user-images.githubusercontent.com/50077786/158609782-2048c06e-0420-4c3f-8680-5d99f91d6905.jpg)
-*Marie Oestreich, Lisa Holsten, Shobhit Agrawal, Kilian Dahm, Philipp Koch, Han Jin, Matthias Becker, Thomas Ulas, hCoCena: horizontal integration and analysis of transcriptomics datasets, Bioinformatics, Volume 38, Issue 20, 15 October 2022, Pages 4727–4734, https://doi.org/10.1093/bioinformatics/btac589*
+## Legacy Workflow
+Legacy behavior is still available.  
+If needed, use conversion helpers:
+- `as_hcocena()` (legacy -> S4)
+- `as_hcobject()` (S4 -> legacy)
 
-## Showcase
-To rerun the showcase example from our original publication, please refer to the branch of version [1.0.1](https://github.com/MarieOestreich/hCoCena/tree/v-1.0.1).
-
-## Wiki
-For loads of additional information regarding the [satellite functions](https://github.com/MarieOestreich/hCoCena/wiki/Satellite-Functions), [community detection](https://github.com/MarieOestreich/hCoCena/wiki/Background-Info-on-the-Community-Detection-Algorithms) algorithms etc. please check out our carefully curated Wiki pages!
+## Citation
+Marie Oestreich, Lisa Holsten, Shobhit Agrawal, Kilian Dahm, Philipp Koch, Han Jin, Matthias Becker, Thomas Ulas,  
+**hCoCena: horizontal integration and analysis of transcriptomics datasets**, Bioinformatics, 38(20), 2022, 4727-4734.  
+https://doi.org/10.1093/bioinformatics/btac589

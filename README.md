@@ -12,6 +12,8 @@ The repository is maintained at: https://github.com/BioCompNet/hcocena
 ## Current Version
 This repository currently tracks **hcocena v1.27**.
 
+![hCoCena overview v1.27](assets/hCocena_updated_1.27.png)
+
 ## What hCoCena Can Do (v1.27)
 - S4-first workflow (`HCoCenaExperiment`) with `hc_*` API wrappers.
 - Backward compatibility with legacy workflows.
@@ -93,3 +95,6 @@ If needed, use conversion helpers:
 Marie Oestreich, Lisa Holsten, Shobhit Agrawal, Kilian Dahm, Philipp Koch, Han Jin, Matthias Becker, Thomas Ulas,  
 **hCoCena: horizontal integration and analysis of transcriptomics datasets**, Bioinformatics, 38(20), 2022, 4727-4734.  
 https://doi.org/10.1093/bioinformatics/btac589
+
+STAR Protocol reference:  
+https://star-protocols.cell.com/protocols/3341

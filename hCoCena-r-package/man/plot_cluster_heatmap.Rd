@@ -12,7 +12,23 @@ plot_cluster_heatmap(
   k = 0,
   return_HM = T,
   cat_as_bp = NULL,
-  file_name = "Heatmap_modules.pdf"
+  file_name = "Heatmap_modules.pdf",
+  module_label_mode = "prefix",
+  module_prefix = "M",
+  module_label_numbering = "after_clustering",
+  show_module_color_names = FALSE,
+  gene_count_mode = "text",
+  module_label_preset = "balanced",
+  module_label_color = "white",
+  module_label_fontsize = NULL,
+  module_label_pt_size = NULL,
+  module_box_width_cm = NULL,
+  gene_count_fontsize = NULL,
+  gene_count_fontface = "plain",
+  gene_count_renderer = "pch",
+  gene_count_pt_size = NULL,
+  gfc_colors = NULL,
+  overall_plot_scale = 1
 )
 }
 \arguments{
@@ -34,7 +50,53 @@ If the parameter cluster_columns is not set to FALSE, this order will be overwri
 Each Boolean states whether or not the categorical variable should be annotated as a bar plot (TRUE) or as a line plot (FALSE).
 If you did not perform any meta data annotation, ignore this parameter.}
 
-\item{file_name}{A string giving the name of the file (with .pdf ending) to which the heatmap should be written. Default is "module_heatmap.pdf".}
+\item{file_name}{A string giving the name of the file (with .pdf ending) to which the heatmap should be written. Default is "Heatmap_modules.pdf".}
+
+\item{module_label_mode}{Controls labels in module color boxes. One of "legacy", "prefix", "color", "none".
+"legacy" keeps the current behavior. "prefix" writes indexed labels like "M1", "M2", ...
+Default is "prefix".}
+
+\item{module_prefix}{Prefix used when \code{module_label_mode = "prefix"}. Default is "M".}
+
+\item{module_label_numbering}{Controls when prefix labels are numbered.
+One of "before_clustering" or "after_clustering". With "after_clustering",
+modules are numbered along the clustered row order (M1, M2, ...).}
+
+\item{show_module_color_names}{A Boolean. If FALSE, row names with legacy module color names are hidden.}
+
+\item{gene_count_mode}{Controls how gene counts per module are shown. One of "legacy", "bar_and_text", "bar", "text", "none".
+Default is "text".}
+
+\item{module_label_preset}{Layout preset for module labels. One of "auto", "compact", "balanced", "presentation".
+Presets adjust automatic sizing only; explicitly set sizing parameters still take precedence.
+Default is "balanced".}
+
+\item{module_label_color}{Text color for labels drawn in module boxes.}
+
+\item{module_label_fontsize}{Optional numeric fontsize for module box labels. If NULL, a data-driven size is chosen.}
+
+\item{module_label_pt_size}{Optional numeric scale for label glyph size inside module boxes.
+Uses \code{snpc} units in \code{anno_simple()}. If NULL, a data-driven size is chosen.}
+
+\item{module_box_width_cm}{Optional numeric width (cm) for module boxes. If NULL, width adapts to label length and fontsize.}
+
+\item{gene_count_fontsize}{Optional numeric fontsize for textual gene counts. If NULL,
+it defaults to the module label fontsize to keep both visually consistent.}
+
+\item{gene_count_fontface}{Font face for textual gene counts. One of "plain", "bold", "italic", "bold.italic".}
+
+\item{gene_count_renderer}{Renderer for textual gene counts. One of "pch" or "text".
+Use "pch" to match module-label rendering as closely as possible.
+Default is "pch".}
+
+\item{gene_count_pt_size}{Optional numeric scale for gene-count glyph size when \code{gene_count_renderer = "pch"}.
+Uses \code{snpc} units. If NULL, it follows the module-label glyph size.}
+
+\item{gfc_colors}{Optional character vector of colors for the GFC color scale.
+If NULL, uses the legacy default \code{rev(RColorBrewer::brewer.pal(11, "RdBu"))}.}
+
+\item{overall_plot_scale}{Numeric scaling factor for the overall heatmap output.
+Values > 1 enlarge the plot, values < 1 shrink it. Default is 1.}
 }
 \description{
 Plots a heatmap with sample groups as columns and gene clusters as rows. The cells are coloured according to the mean GFC of a given cluster in the respective sample group.

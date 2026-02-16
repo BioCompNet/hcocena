@@ -23,7 +23,7 @@ library(hcocena)
 ## 1.2 Create hCoCena-Object
 
 ```{r}
-init_object()
+hc <- hc_init()
 ```
 
 
@@ -40,17 +40,20 @@ init_object()
 
 ```{r}
 
-init_wd(dir_count_data = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_GENE_EXPRESSION_TABLES",
-        dir_annotation = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_ANNOTATION_TABLES",
-        dir_reference_files = "PATH_TO_REFERENCE_FILES_FOLDER",
-        dir_output = "PATH_TO_FOLDER_WHERE_HCOCENA_SHOULD_SAVE_ALL_ANALYSIS_OUTPUTS")
+hc <- hc_set_paths(
+  hc,
+  dir_count_data = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_GENE_EXPRESSION_TABLES",
+  dir_annotation = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_ANNOTATION_TABLES",
+  dir_reference_files = "PATH_TO_REFERENCE_FILES_FOLDER",
+  dir_output = "PATH_TO_FOLDER_WHERE_HCOCENA_SHOULD_SAVE_ALL_ANALYSIS_OUTPUTS"
+)
 
 ```
 
   Ensure that all directories exist with the following chunk:
 
 ```{r check directories}
-check_dirs()
+hc <- hc_check_dirs(hc)
 ```
 
   Please define a folder in which your results shall be saved using the 'name' variable. 
@@ -58,45 +61,56 @@ check_dirs()
   
 ```{r, warning = FALSE}
 
-init_save_folder(name = "outputs")
+hc <- hc_init_save_folder(hc, name = "outputs")
 
 ```
 
 
 ## 1.4 Defining layers
 
-  For detailed information regarding the structures of the count and annotation data as well as different options for providing data, refer to the function documentation by entering ?hcocena::define_layers into the console.
-  For detailed information regarding the structures of custom pathway to gene files or databases, refer to the function documentation by entering ?hcocena::set_supp_files into the console.
+  For detailed information regarding the structures of the count and annotation data as well as different options for providing data, refer to the function documentation by entering `?hcocena::hc_define_layers` into the console.
+  For detailed information regarding the structures of custom pathway to gene files or databases, refer to the function documentation by entering `?hcocena::hc_set_supp_files` into the console.
 
     
 ```{r defining Omics Layers}
 
-define_layers(list(RNA_Seq = c("data_batch_donor.txt", "annotation_seq.txt") ,
-                   Array = c("data.txt", "annotation_array.txt")))
+hc <- hc_define_layers(
+  hc,
+  data_sets = list(
+    RNA_Seq = c("data_batch_donor.txt", "annotation_seq.txt"),
+    Array = c("data.txt", "annotation_array.txt")
+  )
+)
 
-set_supp_files(Tf = "TFcat.txt", 
-               Go = "c5.go.bp.v2023.1.Hs.symbols.gmt",
-               Hallmark = "h.all.v2023.1.Hs.symbols.gmt",
-               Kegg = "c2.cp.kegg.v2023.1.Hs.symbols.gmt")
+hc <- hc_set_supp_files(
+  hc,
+  Tf = "TFcat.txt",
+  Go = "c5.go.bp.v2023.1.Hs.symbols.gmt",
+  Hallmark = "h.all.v2023.1.Hs.symbols.gmt",
+  Kegg = "c2.cp.kegg.v2023.1.Hs.symbols.gmt"
+)
 
 ```
 
 
 ## 1.5 Data import
 
-  For detailed information regarding the different parameters, enter ?hcocena::read_data into the console.
+  For detailed information regarding the different parameters, enter `?hcocena::hc_read_data` into the console.
 
 
 ```{r data import}
 
-read_data(sep_counts = "\t",
-           sep_anno = "\t", 
-           gene_symbol_col = "SYMBOL",
-           sample_col = "SampleID",
-           count_has_rn = F,
-           anno_has_rn = F)
+hc <- hc_read_data(
+  hc,
+  sep_counts = "\t",
+  sep_anno = "\t",
+  gene_symbol_col = "SYMBOL",
+  sample_col = "SampleID",
+  count_has_rn = FALSE,
+  anno_has_rn = FALSE
+)
 
-read_supplementary()
+hc <- hc_read_supplementary(hc)
 
 ```
 
@@ -104,18 +118,21 @@ read_supplementary()
 
 ## 1.6 Define global settings
 
-  For detailed information regarding the different settings, enter ?hcocena::set_global_settings into the console.
+  For detailed information regarding the different settings, enter `?hcocena::hc_set_global_settings` into the console.
 
 ```{r global settings}
 
-set_global_settings(organism = "human",
-                    control_keyword = "baseline", 
-    								variable_of_interest = "merged", 
-    								min_nodes_number_for_network = 15, 
-    								min_nodes_number_for_cluster = 15,
-    								range_GFC = 2.0,
-    								layout_algorithm = "layout_with_fr",
-    								data_in_log = T)
+hc <- hc_set_global_settings(
+  hc,
+  organism = "human",
+  control_keyword = "baseline",
+  variable_of_interest = "merged",
+  min_nodes_number_for_network = 15,
+  min_nodes_number_for_cluster = 15,
+  range_GFC = 2.0,
+  layout_algorithm = "layout_with_fr",
+  data_in_log = TRUE
+)
 
 ```
 
@@ -128,15 +145,18 @@ set_global_settings(organism = "human",
 
 ## 1.7 Define layer-specific settings
 
-  For detailed information regarding the different settings, enter ?hcocena::set_layer_settings into the console.
+  For detailed information regarding the different settings, enter `?hcocena::hc_set_layer_settings` into the console.
   
 
 ```{r layer-specific settings}
 
-set_layer_settings(top_var = c("all", "all"), 
-                   min_corr = rep(0.9, length(hcobject[["layers"]])), 
-                   range_cutoff_length = rep(100, length(hcobject[["layers"]])),
-                   print_distribution_plots = rep(F, length(hcobject[["layers"]])))
+hc <- hc_set_layer_settings(
+  hc,
+  top_var = c("all", "all"),
+  min_corr = c(0.9, 0.9),
+  range_cutoff_length = c(100, 100),
+  print_distribution_plots = c(FALSE, FALSE)
+)
 
 
 ```
@@ -159,12 +179,12 @@ set_layer_settings(top_var = c("all", "all"),
   
 ## 1.8 Data processing part I
 
-  For detailed information on what happens in this step and what parameters can be set, enter ?hcocena::run_expression_analysis_1 into the console.
+  For detailed information on what happens in this step and what parameters can be set, enter `?hcocena::hc_run_expression_analysis_1` into the console.
   
 
 ```{r expression analysis up to cutoff}
 
-run_expression_analysis_1(corr_method = "pearson")
+hc <- hc_run_expression_analysis_1(hc, corr_method = "pearson")
 
 ```
 
@@ -174,12 +194,12 @@ run_expression_analysis_1(corr_method = "pearson")
 
   **Choosing the cut-offs:**
 
-  Set a correlation cut-off for each of your data sets. To aid this choice, the following plot presents the different cut-off statistics per data set. For more details on cut-offs and the information in this plot as well as the parameters, enter ?hcocena::plot_cutoffs into the console.
+  Set a correlation cut-off for each of your data sets. To aid this choice, the following plot presents the different cut-off statistics per data set. For more details on cut-offs and the information in this plot as well as the parameters, enter `?hcocena::hc_plot_cutoffs` into the console.
   
   
 ```{r fig.height = 8, fig.width = 15}
 
-plot_cutoffs(interactive = T)
+hc <- hc_plot_cutoffs(hc, interactive = TRUE)
 
 ```
   
@@ -189,7 +209,7 @@ plot_cutoffs(interactive = T)
 
 ```{r choose cutoff}
 
-set_cutoff(cutoff_vector = c(0.974, 0.984))
+hc <- hc_set_cutoff(hc, cutoff_vector = c(0.974, 0.984))
 
 ```
 
@@ -202,7 +222,7 @@ set_cutoff(cutoff_vector = c(0.974, 0.984))
 
 ```{r plot degree distribution for chosen cutoff, message = F, warning = F}
 
-plot_deg_dist()
+hc <- hc_plot_deg_dist(hc)
 
 ```
 
@@ -214,7 +234,7 @@ plot_deg_dist()
 
 ```{r, fig.width = 10, fig.height = 7}
 
-run_expression_analysis_2()
+hc <- hc_run_expression_analysis_2(hc)
 
 ```
 
@@ -228,7 +248,7 @@ run_expression_analysis_2()
   
 ```{r merge networks}
 
-build_integrated_network(mode = "u", multi_edges = "min")
+hc <- hc_build_integrated_network(hc, mode = "u", multi_edges = "min")
 
 ```
 
@@ -240,17 +260,20 @@ build_integrated_network(mode = "u", multi_edges = "min")
 
   **Clustering the network**
   
-  In this step, modules of strong co-expression will be detected in the network and their expression pattern across conditions will be represented in a GFC heatmap. For more information on the available clustering algorithms and setting the clustering resolution, run ?hcocena::cluster_calculation and visit the repository's Wiki pages.
+  In this step, modules of strong co-expression will be detected in the network and their expression pattern across conditions will be represented in a GFC heatmap. For more information on the available clustering algorithms and setting the clustering resolution, run `?hcocena::hc_cluster_calculation` and visit the repository's Wiki pages.
   NOTE: You can export your clustering for future use. To do so, please refer to the satellite script, section "Export clustering".
   NOTE 2: Instead of clustering your network here, you can alternatively import a clustering model. To do so, please use the import_clusters() function (see satellite markdown for infos).
   
 ```{r compute clusters and plot module heatmap}
-cluster_calculation(cluster_algo = "cluster_leiden", 
-                    no_of_iterations = 2, 
-                    resolution = 0.1, 
-                    partition_type = "ModularityVertexPartition",  
-                    max_cluster_count_per_gene = 1)
-plot_cluster_heatmap()
+hc <- hc_cluster_calculation(
+  hc,
+  cluster_algo = "cluster_leiden",
+  no_of_iterations = 2,
+  resolution = 0.1,
+  partition_type = "RBConfigurationVertexPartition",
+  max_cluster_count_per_gene = 1
+)
+hc <- hc_plot_cluster_heatmap(hc)
 ```
 
 
@@ -271,7 +294,7 @@ NOTE: due to issues in the communication between R and Cytoscape, please refer t
 
 ```{r plot network coloured by cluster, fig.width=10, fig.height=7}
 
-plot_integrated_network() 
+hc <- hc_plot_integrated_network(hc)
 
 ```
 
@@ -283,27 +306,30 @@ plot_integrated_network()
 
 ## 3.3 Database enrichment
 
-  Enrichment analysis of the found modules using the GO, KEGG, Hallmark and Reactome databases or based on a user-defined enrichment file. For detailed information on parameter settings, please run ?hcocena::functional_enrichment.
-  The outputs all have a slot called "enrichment"(find the results at hcobject[["integrated_output"]][["enrichments"]]).
+  Enrichment analysis of the found modules using the GO, KEGG, Hallmark and Reactome databases or based on a user-defined enrichment file. For detailed information on parameter settings, please run `?hcocena::hc_functional_enrichment`.
+  Results are written to the output folder and stored in the `hc` object.
   
 ```{r GO profiling, fig.width = 10, fig.height = 7, message = F, warning = F}
 
-functional_enrichment(gene_sets = c("Hallmark", "Go", "Kegg"), 
-                      clusters = "all",
-                      top = 5, 
-                      padj = "BH", 
-                      qval = 0.1)
+hc <- hc_functional_enrichment(
+  hc,
+  gene_sets = c("Hallmark", "Go", "Kegg"),
+  clusters = "all",
+  top = 5,
+  padj = "BH",
+  qval = 0.1
+)
 
 ```
 
 
 ## 3.4 Transcription factor enrichment analyses with ChEA3
 
-  Transcription factor enrichment analysis for each module and for the entire network based on ChEA3 (Kennan AB, 2019). For more details, refer to the function documentations with ?hcocena::TF_overrep and ?hcocena::TF_enrich_all. The plots can be found in the save folder, descriptions on how to read them can be found running ?hcocena::plot_TF_enrichment.
+  Transcription factor enrichment analysis for each module and for the entire network based on ChEA3 (Kennan AB, 2019). For more details, refer to the function documentations with `?hcocena::hc_tf_overrep_module` and `?hcocena::hc_tf_enrich_all`. The plots can be found in the save folder.
   
 ```{r , fig.width = 10, fig.height = 7}
 
-TF_overrep_module(clusters = "all", topTF = 5, topTarget = 5)
+hc <- hc_tf_overrep_module(hc, clusters = "all", topTF = 5, topTarget = 5)
 
 ```
 
@@ -361,10 +387,10 @@ TF_overrep_module(clusters = "all", topTF = 5, topTarget = 5)
   
 ```{r create module heatmap, fig.width = 10, fig.height = 7}
 
-plot_cluster_heatmap()
+layout_obj <- hc@integration@cluster[["layout"]]
 
-plot_integrated_network(layout = hcobject[["integrated_output"]][["cluster_calc"]][["layout"]], 
-                        save = F)
+hc <- hc_plot_cluster_heatmap(hc)
+hc <- hc_plot_integrated_network(hc, layout = layout_obj, save = FALSE)
 
 ```
 
@@ -376,7 +402,7 @@ plot_integrated_network(layout = hcobject[["integrated_output"]][["cluster_calc"
   
 ```{r write session info}
 
-write_session_info()
+hc <- hc_write_session_info(hc)
 
 ```
 

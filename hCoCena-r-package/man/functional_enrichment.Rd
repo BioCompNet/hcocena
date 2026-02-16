@@ -5,16 +5,31 @@
 \title{Functional enrichment analysis}
 \usage{
 functional_enrichment(
-  gene_sets = c("Go", "Kegg", "Hallmark", "Reactome"),
+  gene_sets = "Hallmark",
   top = 5,
   clusters = c("all"),
   padj = "BH",
-  qval = 0.05
+  qval = 0.05,
+  heatmap_side = "left",
+  heatmap_cluster_rows = FALSE,
+  heatmap_cluster_columns = FALSE,
+  heatmap_show_row_dend = FALSE,
+  heatmap_show_column_dend = FALSE,
+  heatmap_order = NULL,
+  heatmap_module_label_mode = "same",
+  heatmap_show_gene_counts = FALSE,
+  enrichment_vertical_line_mode = "to_term",
+  enrichment_row_height_scale = 0.9,
+  enrichment_column_spacing_scale = 1,
+  enrichment_line_width_scale = 1,
+  gfc_colors = NULL,
+  overall_plot_scale = 1
 )
 }
 \arguments{
 \item{gene_sets}{A vector. The names of databases enrichment should be performed for. Choose one or multiple of "Go", "Kegg", "Hallmark", and/or "Reactome".
-Available databases depend on supplement files previously set}
+Available databases depend on supplement files previously set
+Default is "Hallmark".}
 
 \item{top}{Integer. The number of most strongly enriched terms to return per cluster. Default is 5.}
 
@@ -23,6 +38,51 @@ Available databases depend on supplement files previously set}
 \item{padj}{Method to use for multiple testing correction. Can be one of "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none".  Default is "BH" (Benjamini-Hochberg).}
 
 \item{qval}{Upper threshold for the adjusted p-value. Default is 0.05.}
+
+\item{heatmap_side}{Position of the hCoCena heatmap in the combined output.
+Choose one of "left" (default) or "right".}
+
+\item{heatmap_cluster_rows}{A Boolean whether or not to cluster rows in the hCoCena heatmap.}
+
+\item{heatmap_cluster_columns}{A Boolean whether or not to cluster columns in the hCoCena heatmap.}
+
+\item{heatmap_show_row_dend}{A Boolean whether to show the row dendrogram when \code{heatmap_cluster_rows = TRUE}.}
+
+\item{heatmap_show_column_dend}{A Boolean whether to show the column dendrogram when \code{heatmap_cluster_columns = TRUE}.}
+
+\item{heatmap_order}{Optional character vector specifying module order in the hCoCena heatmap.
+Entries can be module colors (e.g. "turquoise") or module labels from the main heatmap
+(e.g. "M1", "M2", ...). Modules not listed are appended afterwards.}
+
+\item{heatmap_module_label_mode}{Controls labels inside module color boxes of the hCoCena heatmap.
+One of "same" or "none". "same" reuses the prefix from \code{plot_cluster_heatmap()}
+and reindexes modules consecutively (M1, M2, ...) after final module ordering.}
+
+\item{heatmap_show_gene_counts}{A Boolean whether or not to show gene counts per module
+in the right annotation of the hCoCena heatmap. Default is FALSE.}
+
+\item{enrichment_vertical_line_mode}{Controls vertical helper lines in the enrichment panel.
+One of "to_term" (default, current behavior), "full" (full-height lines), or "none".}
+
+\item{enrichment_row_height_scale}{Numeric scaling factor for module/enrichment row height
+in the combined plot. Values < 1 make rows slimmer; values > 1 make rows taller.
+Default is 0.9.}
+
+\item{enrichment_column_spacing_scale}{Numeric scaling factor for spacing between
+enrichment terms (x direction). Values < 1 reduce spacing and make the enrichment
+panel narrower; values > 1 increase spacing. Default is 1.}
+
+\item{enrichment_line_width_scale}{Numeric scaling factor for line widths in the
+enrichment panel (module guide lines and vertical helper lines). Values < 1 make
+lines thinner; values > 1 make lines thicker. Default is 1.}
+
+\item{gfc_colors}{Optional character vector of colors for the hCoCena heatmap
+GFC scale. If NULL, uses the legacy default
+\code{rev(RColorBrewer::brewer.pal(11, "RdBu"))}.}
+
+\item{overall_plot_scale}{Numeric scaling factor for the entire combined output
+(hCoCena heatmap + enrichment panel + title/labels/legend). Values > 1 enlarge
+the full plot, values < 1 make it smaller. Default is 1.}
 }
 \description{
 Returns a cluster-wise Gene Ontology Database enrichment.

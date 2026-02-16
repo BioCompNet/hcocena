@@ -6,6 +6,7 @@
 \usage{
 plot_integrated_network(
   layout = NULL,
+  layout_algorithm = NULL,
   gene_labels = NULL,
   save = T,
   label_offset = 50
@@ -13,6 +14,11 @@ plot_integrated_network(
 }
 \arguments{
 \item{layout}{NULL or a precalculated layout. If NULL (default) the layout is calculated.}
+
+\item{layout_algorithm}{Optional layout algorithm for this plot only.
+If \code{NULL} (default), the algorithm from \code{set_global_settings()} is used.
+Supported values are \code{"layout_with_fr"}, \code{"layout_with_stress"},
+\code{"layout_with_sparse_stress"}, \code{"layout_with_drl"}, \code{"layout_with_kk"} and \code{"cytoscape"}.}
 
 \item{gene_labels}{A vector of character strings containing the names of genes to be labelled. Labels will be placed with an offset, which can be adjusted using the label_offset parameter.}
 

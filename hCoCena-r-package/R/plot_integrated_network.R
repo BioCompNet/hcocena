@@ -2,19 +2,45 @@
 #' 
 #' Creates an igraph of the integrated network.
 #' @param layout NULL or a precalculated layout. If NULL (default) the layout is calculated.
+#' @param layout_algorithm Optional layout algorithm for this plot only.
+#'   If `NULL` (default), the algorithm from `set_global_settings()` is used.
+#'   Supported values are `"layout_with_fr"`, `"layout_with_stress"`,
+#'   `"layout_with_sparse_stress"`, `"layout_with_drl"`, `"layout_with_kk"` and `"cytoscape"`.
 #' @param gene_labels A vector of character strings containing the names of genes to be labelled. Labels will be placed with an offset, which can be adjusted using the label_offset parameter.
 #' @param save A Boolean stating whether of not to save the network to a PDF. Default is TRUE.
 #' @param label_offset The offset of provided gene labels to the network center. Default is 50, depends on network size.
 #' @export
 
 plot_integrated_network <- function(layout = NULL, 
+                                    layout_algorithm = NULL,
 									gene_labels = NULL, 
 									save = T, 
 									label_offset = 50){
 
   network <- hcobject[["integrated_output"]][["merged_net"]]
+  if (!base::is.null(layout_algorithm)) {
+    layout_algorithm <- .hc_normalize_layout_algorithm(layout_algorithm)
+  } else {
+    layout_algorithm <- hcobject[["global_settings"]][["layout_algorithm"]]
+    if (base::is.null(layout_algorithm) || base::length(layout_algorithm) == 0 || base::is.na(layout_algorithm)) {
+      layout_algorithm <- "layout_with_fr"
+    } else {
+      layout_algorithm <- base::as.character(layout_algorithm[[1]])
+    }
+    layout_algorithm <- tryCatch(
+      .hc_normalize_layout_algorithm(layout_algorithm),
+      error = function(e) {
+        warning(
+          "Invalid global `layout_algorithm` in settings. Falling back to `layout_with_fr`.\n",
+          "Details: ", conditionMessage(e),
+          call. = FALSE
+        )
+        "layout_with_fr"
+      }
+    )
+  }
 
-  if(hcobject[["global_settings"]][["layout_algorithm"]] == "cytoscape"){
+  if(layout_algorithm == "cytoscape"){
     if(is.null(layout)){
       message("Please calculate the Cytoscape layout in the satellite markdown. If you have already done that, set the 'layout' parameter to hcobject[['integrated_output']][['cluster_calc']][['layout']].")
       return()
@@ -43,7 +69,7 @@ plot_integrated_network <- function(layout = NULL,
 
   if(base::is.null(layout)){
     base::set.seed(123)
-    if(hcobject[["global_settings"]][["layout_algorithm"]] == "cytoscape"){
+    if(layout_algorithm == "cytoscape"){
   
       if("layout" %in% base::names(hcobject[["integrated_output"]][["cluster_calc"]])){
         l <- base::as.matrix(hcobject[["integrated_output"]][["cluster_calc"]][["layout"]])
@@ -51,7 +77,45 @@ plot_integrated_network <- function(layout = NULL,
         stop("Please create a Cytoscape-based network layout first. To do so, refer to the satellite markdown, section 'Cytoscape'")
       }
     }else{
-      l <- igraph::layout.fruchterman.reingold(network)
+      l <- switch(
+        layout_algorithm,
+        "layout_with_fr" = igraph::layout_with_fr(network),
+        "layout_with_drl" = igraph::layout_with_drl(network),
+        "layout_with_kk" = igraph::layout_with_kk(network),
+        "layout_with_stress" = {
+          if (!requireNamespace("graphlayouts", quietly = TRUE)) {
+            stop(
+              "layout_with_stress requires the optional package `graphlayouts`.\n",
+              "Install it via: install.packages('graphlayouts')"
+            )
+          }
+          graphlayouts::layout_with_stress(network)
+        },
+        "layout_with_sparse_stress" = {
+          if (!requireNamespace("graphlayouts", quietly = TRUE)) {
+            stop(
+              "layout_with_sparse_stress requires the optional package `graphlayouts`.\n",
+              "Install it via: install.packages('graphlayouts')"
+            )
+          }
+          n_nodes <- igraph::vcount(network)
+          if (n_nodes < 3) {
+            igraph::layout_with_fr(network)
+          } else {
+            pivots <- as.integer(max(10, min(100, floor(sqrt(n_nodes)))))
+            pivots <- as.integer(min(pivots, n_nodes - 1L))
+            graphlayouts::layout_with_sparse_stress(network, pivots = pivots)
+          }
+        },
+        {
+          warning(
+            "Unknown `layout_algorithm` value '", layout_algorithm,
+            "'. Falling back to `layout_with_fr`.",
+            call. = FALSE
+          )
+          igraph::layout_with_fr(network)
+        }
+      )
       base::rownames(l) <- igraph::V(network)$name
     }
     

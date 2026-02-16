@@ -15,5 +15,6 @@
 
 set_supp_files <- function (Tf = NULL, Hallmark = NULL, Go = NULL, Kegg = NULL, Reactome = NULL, ...) 
 {
+  .hc_legacy_warning("set_supp_files")
   hcobject[["supplement"]] <<- base::list(Tf = Tf, Hallmark = Hallmark, Go = Go, Kegg = Kegg, Reactome = Reactome, ...)
 }

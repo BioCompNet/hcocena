@@ -1,0 +1,60 @@
+---
+title: "Main Workflow (S4)"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Main Workflow (S4)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r}
+library(hcocena)
+```
+
+The S4 API mirrors the classical hCoCena workflow while returning an
+`HCoCenaExperiment` object at every step.
+
+```{r eval=FALSE}
+hc <- hc_init()
+
+hc <- hc_set_paths(
+  hc,
+  dir_count_data = "inst/extdata/",
+  dir_annotation = "inst/extdata/",
+  dir_reference_files = "inst/extdata/",
+  dir_output = tempdir()
+)
+
+hc <- hc_define_layers(
+  hc,
+  data_sets = list(
+    Layer1 = c("toy_layer1_counts.tsv", "toy_layer1_anno.tsv"),
+    Layer2 = c("toy_layer2_counts.tsv", "toy_layer2_anno.tsv")
+  )
+)
+
+hc <- hc_read_data(
+  hc,
+  sep_counts = "\t",
+  sep_anno = "\t",
+  gene_symbol_col = "SYMBOL",
+  sample_col = "SampleID",
+  count_has_rn = FALSE,
+  anno_has_rn = FALSE
+)
+
+hc <- hc_set_global_settings(
+  hc,
+  organism = "human",
+  control_keyword = "none",
+  variable_of_interest = "group",
+  data_in_log = TRUE
+)
+```
+
+Satellite and plotting functions are currently still based on legacy internals
+and are executed via compatibility wrappers.

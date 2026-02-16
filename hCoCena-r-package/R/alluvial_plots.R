@@ -5,6 +5,10 @@
 #' @export
 
 algo_alluvial <- function(){
+  .hc_legacy_warning("algo_alluvial")
+  if (!requireNamespace("networkD3", quietly = TRUE)) {
+    stop("Package `networkD3` is required for `algo_alluvial()`. Install it first.")
+  }
 
   network <- hcobject[["integrated_output"]][["merged_net"]]
 
@@ -38,15 +42,22 @@ algo_alluvial <- function(){
     base::set.seed(1)
     base::set.seed(.Random.seed[1])
 
-    # add exception for leiden:
-    if(a == "cluster_leiden"){
-      partition <- leidenAlg::leiden.community(graph = network)
-      partition_df <- base::data.frame(gene = partition$names, cluster = base::as.numeric(partition$membership))
-      partition_df$cluster <- partition_df$cluster + 1
-    }else{
-      cfg = base::get(a)(network)
-      partition_df <- base::data.frame(gene = igraph::get.vertex.attribute(network)$name, cluster = cfg$membership)
-      
+    partition_df <- tryCatch({
+      if(a == "cluster_leiden"){
+        partition <- leidenAlg::leiden.community(graph = network)
+        partition_df <- base::data.frame(gene = partition$names, cluster = base::as.numeric(partition$membership))
+        partition_df$cluster <- partition_df$cluster + 1
+      }else{
+        cfg <- base::getExportedValue("igraph", a)(network)
+        partition_df <- base::data.frame(gene = igraph::get.vertex.attribute(network)$name, cluster = cfg$membership)
+      }
+      partition_df
+    }, error = function(e) {
+      warning(base::paste0("Skipping `", a, "` in `algo_alluvial()`: ", base::conditionMessage(e)), call. = FALSE)
+      NULL
+    })
+    if (base::is.null(partition_df) || base::nrow(partition_df) == 0) {
+      next
     }
 
     partition_df$cluster <- base::lapply(partition_df$cluster, function(x){
@@ -92,16 +103,27 @@ algo_alluvial <- function(){
     node_col <- base::data.frame(name=base::c(base::as.character(links$source_col)%>% base::unique(), base::as.character(links$target_col)%>% base::unique()))
     my_color <- base::paste0('d3.scaleOrdinal() .domain([', base::paste0(base::paste0('"', base::as.character(nodes$name), collapse = '", '),'"', collapse = '"'),
                        ']) .range([', base::paste0(base::paste0('"', base::as.character(node_col$name), collapse = '", '), '"',collapse = '"'), '])')
-    p <- networkD3::sankeyNetwork(Links = links, Nodes = nodes,
-                       Source = "IDsource", Target = "IDtarget",
-                       Value = "value", NodeID = "name",
-                       sinksRight=FALSE, colourScale=my_color,
-                       nodeWidth=40, fontSize=13, nodePadding=10)
-  
-    print(p)
+    p <- tryCatch({
+      networkD3::sankeyNetwork(Links = links, Nodes = nodes,
+                         Source = "IDsource", Target = "IDtarget",
+                         Value = "value", NodeID = "name",
+                         sinksRight=FALSE, colourScale=my_color,
+                         nodeWidth=40, fontSize=13, nodePadding=10)
+    }, error = function(e) {
+      warning(base::paste0("Could not render Sankey for `", a, "`: ", base::conditionMessage(e)), call. = FALSE)
+      NULL
+    })
+
+    if (!base::is.null(p)) {
+      print(p)
+    }
     output[[a]] <- partition_df
   }
 
+  if (base::length(output) <= 1) {
+    warning("No alternative clustering algorithm completed in `algo_alluvial()`.", call. = FALSE)
+  }
+
   hcobject[["integrated_output"]][["alluvials"]] <<- output
-  
+  invisible(output)
 }

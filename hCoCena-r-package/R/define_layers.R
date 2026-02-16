@@ -16,6 +16,7 @@
 #' 								  influenzaSet = c("influenzaSetCountDf", "influenzaSetAnnoDf")))
 
 define_layers <- function(data_sets = list()){
+	.hc_legacy_warning("define_layers")
 
 	hcobject[["layers"]] <<- list()
 	for(setnum in 1:base::length(data_sets)){

@@ -8,8 +8,12 @@
 #' @param min_nodes_number_for_network An integer. The minimum number of nodes in the subsequently created network that can define a graph component. Graph components with less nodes will be discarded. Default is 15.
 #' @param min_nodes_number_for_cluster An integer. The minimum number of nodes that constitute a module/cluster when detecting community structures in the network. Default is 15.
 #' @param range_GFC A float. Defines the maximum value the group fold changes (GFCs) can acquire, all values above this value or beneath its negative will be truncated. Default is 2.0.
-#' @param layout_algorithm Layout algorithm used for the network. Can be either "layout_with_fr" (default), which uses the e force directed Fruchtermann-Rheingold-Layout Algorithm, or "cytoscape", in which case the layout is modelled using the force-directed layout 
-#' 	option from the Cytoscape software. Cytoscape must be open in order for R to successfully build the connection. The cutoscape option is reccommended since the layout is oftentimes visually superior.
+#' @param layout_algorithm Layout algorithm used for the network. Supported values are:
+#'  `"layout_with_fr"` (default), `"layout_with_stress"`, `"layout_with_sparse_stress"`,
+#'  `"layout_with_drl"`, `"layout_with_kk"` and `"cytoscape"`.
+#'  The stress-based layouts require the optional `graphlayouts` package and are typically
+#'  more stable/readable than Fruchterman-Reingold for medium/large graphs.
+#'  `"cytoscape"` uses an externally calculated Cytoscape layout.
 #' @param data_in_log Boolean. Whether or not the provided gene expression data is logged to the base of 2.
 #' @export
 
@@ -23,6 +27,9 @@ set_global_settings <- function(organism,
 								range_GFC = 2.0,
 								layout_algorithm = "layout_with_fr",
 								data_in_log){
+	.hc_legacy_warning("set_global_settings")
+
+  layout_algorithm <- .hc_normalize_layout_algorithm(layout_algorithm)
 
   hcobject[["global_settings"]][["organism"]] <<- organism 
   
@@ -40,4 +47,39 @@ set_global_settings <- function(organism,
 
 	hcobject[["global_settings"]][["data_in_log"]] <<- data_in_log
 
+}
+
+.hc_normalize_layout_algorithm <- function(layout_algorithm) {
+  if (!is.character(layout_algorithm) || length(layout_algorithm) != 1 || is.na(layout_algorithm)) {
+    stop("`layout_algorithm` must be a single character string.")
+  }
+  x <- tolower(trimws(layout_algorithm))
+  aliases <- list(
+    layout_with_fr = c("layout_with_fr", "fr", "fruchterman", "fruchterman_reingold", "fruchterman-rheingold"),
+    layout_with_stress = c("layout_with_stress", "stress"),
+    layout_with_sparse_stress = c("layout_with_sparse_stress", "sparse_stress", "sparsestress"),
+    layout_with_drl = c("layout_with_drl", "drl"),
+    layout_with_kk = c("layout_with_kk", "kk", "kamada_kawai", "kamada-kawai"),
+    cytoscape = c("cytoscape")
+  )
+  for (canonical in names(aliases)) {
+    if (x %in% aliases[[canonical]]) {
+      return(canonical)
+    }
+  }
+  stop(
+    "`layout_algorithm` not supported. Use one of: ",
+    paste(
+      c(
+        "\"layout_with_fr\"",
+        "\"layout_with_stress\"",
+        "\"layout_with_sparse_stress\"",
+        "\"layout_with_drl\"",
+        "\"layout_with_kk\"",
+        "\"cytoscape\""
+      ),
+      collapse = ", "
+    ),
+    "."
+  )
 }

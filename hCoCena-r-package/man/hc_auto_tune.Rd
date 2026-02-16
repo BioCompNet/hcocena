@@ -1,0 +1,62 @@
+\name{hc_auto_tune}
+\alias{hc_auto_tune}
+\title{Automatically tune key hCoCena parameters}
+\usage{
+hc_auto_tune(
+  hc,
+  tune_cutoff = TRUE,
+  tune_clustering = TRUE,
+  apply = TRUE,
+  cluster_algorithms = c("auto", "cluster_leiden", "cluster_louvain"),
+  resolution_grid = base::seq(0.05, 0.5, by = 0.05),
+  no_of_iterations = 2,
+  partition_type = "RBConfigurationVertexPartition",
+  max_cluster_count_per_gene = 1,
+  module_count_bounds = c(3, 60),
+  prefer_resolution = 0.1,
+  verbose = TRUE
+)
+}
+\arguments{
+\item{hc}{A \code{HCoCenaExperiment} object.}
+
+\item{tune_cutoff}{Logical; tune per-layer correlation cutoffs.}
+
+\item{tune_clustering}{Logical; tune clustering algorithm / resolution.}
+
+\item{apply}{Logical; if \code{TRUE}, apply best recommendations to \code{hc}.}
+
+\item{cluster_algorithms}{Character vector of candidate algorithms for clustering tuning.}
+
+\item{resolution_grid}{Numeric vector of Leiden resolutions to evaluate for \code{"auto"} and \code{"cluster_leiden"}.}
+
+\item{no_of_iterations}{Passed to \code{hc_cluster_calculation()}.}
+
+\item{partition_type}{Passed to \code{hc_cluster_calculation()}.
+Note: for Leiden with \code{"ModularityVertexPartition"}, sweeping
+\code{resolution_grid} usually does not change the partition. If you want
+resolution-driven module-count tuning, use \code{"CPMVertexPartition"} or
+\code{"RBConfigurationVertexPartition"}.}
+
+\item{max_cluster_count_per_gene}{Passed to \code{hc_cluster_calculation()}.}
+
+\item{module_count_bounds}{Optional length-2 numeric vector (\code{min_modules}, \code{max_modules}) used as a soft constraint during ranking.}
+
+\item{prefer_resolution}{Tie-break preference for Leiden resolution.}
+
+\item{verbose}{Logical; print progress messages.}
+}
+\value{
+Updated \code{HCoCenaExperiment} with tuning report in \code{hc@satellite$auto_tune}.
+}
+\description{
+\code{hc_auto_tune()} recommends and optionally applies:
+\enumerate{
+\item layer-wise cutoffs based on \code{run_expression_analysis_1()} output.
+\item clustering settings based on modularity across candidate algorithms.
+}
+}
+\details{
+The tuning report (including evaluated clustering candidates) is stored in
+\code{hc@satellite$auto_tune}.
+}

@@ -29,8 +29,12 @@ The string must only be contained in the descriptor, e.g. "healthy" would work f
 
 \item{range_GFC}{A float. Defines the maximum value the group fold changes (GFCs) can acquire, all values above this value or beneath its negative will be truncated. Default is 2.0.}
 
-\item{layout_algorithm}{Layout algorithm used for the network. Can be either "layout_with_fr" (default), which uses the e force directed Fruchtermann-Rheingold-Layout Algorithm, or "cytoscape", in which case the layout is modelled using the force-directed layout
-option from the Cytoscape software. Cytoscape must be open in order for R to successfully build the connection. The cutoscape option is reccommended since the layout is oftentimes visually superior.}
+\item{layout_algorithm}{Layout algorithm used for the network. Supported values are:
+\code{"layout_with_fr"} (default), \code{"layout_with_stress"}, \code{"layout_with_sparse_stress"},
+\code{"layout_with_drl"}, \code{"layout_with_kk"} and \code{"cytoscape"}.
+The stress-based layouts require the optional \code{graphlayouts} package and are typically
+more stable/readable than Fruchterman-Reingold for medium/large graphs.
+\code{"cytoscape"} uses an externally calculated Cytoscape layout.}
 
 \item{data_in_log}{Boolean. Whether or not the provided gene expression data is logged to the base of 2.}
 }

@@ -1,6 +1,7 @@
 Package: hcocena
-Title: Horizontal Integration And Analysis Of Multiple Transcriptomics Datasets
-Version: 1.1.2
+Title: Horizontal Integration and Analysis of Multiple Transcriptomics
+        Datasets
+Version: 1.27
 Authors@R: c(
     person(given = "Lisa",
            family = "Holsten",
@@ -19,55 +20,43 @@ Authors@R: c(
            family = "Ulas",
            role = c("aut"),
 		   comment = c(ORCID = "0000-0002-9785-4197")))
-Description: The package allows the joint analysis of multile transcriptomics datasets, using a network-based approach for data integration.
+Description: The package allows the joint analysis of multiple transcriptomics
+    datasets using a network-based integration approach. It now provides an
+    S4 object model based on MultiAssayExperiment while keeping backward
+    compatibility with the legacy global-state workflow.
 License: GPL (>= 3)
 Encoding: UTF-8
-LazyData: True
+Depends: R (>= 4.3.0)
+biocViews: Software, GeneExpression, Network, Transcriptomics
+URL: https://github.com/MarieOestreich/hCoCena
+BugReports: https://github.com/MarieOestreich/hCoCena/issues
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3
-biocViews:
-Imports:
-    base (>= 4.0.3),
-    BiocManager (>= 1.30.16),
-    Cairo (>= 1.5-12.2),
-    circlize,
-    clusterProfiler (>= 3.18.1),
-    ComplexHeatmap (>= 2.6.2),
-    cowplot (>= 1.1.1),
-    dendextend (>= 1.15.1),
-    dplyr (>= 1.0.6),
-    egg (>= 0.4.5),
-    factoextra (>= 1.0.7),
-    ggplot2 (>= 3.3.5),
-    ggsci (>= 2.9),
-    graphics (>= 4.0.3),
-    grDevices (>= 4.0.3),
-    grid (>= 4.0.3),
-    gridExtra (>= 2.3),
-    gtools (>= 3.9.2),
-    Hmisc (>= 4.5-0),
-    httr (>= 1.4.2),
-    igraph (>= 1.2.6),
-    jsonlite (>= 1.7.2),
-    knitr (>= 1.33),
-    leidenAlg (>= 0.1.1),
-    leidenbase (>= 0.1.25),
-    magrittr (>= 2.0.1),
-    MCDA (>= 0.0.21),
-    networkD3 (>= 0.4),
-    openxlsx (>= 4.2.4),
-	patchwork (>= 1.1.3),
-    pheatmap (>= 1.0.12),
-    plotly (>= 4.9.4.1),
-    purrr (>= 0.3.4),
-    RColorBrewer (>= 1.1-2),
-    RCy3 (>= 2.10.2),
-    readr (>= 2.0.1),
-    rlist (>= 0.4.6.1),
-    scales (>= 1.1.1),
-    stats (>= 4.0.3),
-    stringi (>= 1.6.2),
-	stringr (>= 1.5.1),
-    tibble (>= 3.1.2),
-    tidyselect (>= 1.1.1),
-    utils (>= 4.0.3)
+Imports: Cairo (>= 1.5-12.2), circlize, clusterProfiler (>= 3.18.1),
+        ComplexHeatmap (>= 2.6.2), cowplot (>= 1.1.1), dendextend (>=
+        1.15.1), dplyr (>= 1.0.6), egg (>= 0.4.5), factoextra (>=
+        1.0.7), ggplot2 (>= 3.3.5), ggsci (>= 2.9), graphics (>=
+        4.0.3), grDevices (>= 4.0.3), grid (>= 4.0.3), gridExtra (>=
+        2.3), gtools (>= 3.9.2), Hmisc (>= 4.5-0), httr (>= 1.4.2),
+        igraph (>= 1.2.6), jsonlite (>= 1.7.2), leidenAlg (>= 0.1.1),
+        leidenbase (>= 0.1.25), magrittr (>= 2.0.1), methods,
+        MultiAssayExperiment, openxlsx (>= 4.2.4), patchwork (>=
+        1.1.3), pheatmap (>= 1.0.12), plotly (>= 4.9.4.1), purrr (>=
+        0.3.4), RColorBrewer (>= 1.1-2), readr (>= 2.0.1), rlist (>=
+        0.4.6.1), S4Vectors, scales (>= 1.1.1), stringi (>= 1.6.2),
+        stringr (>= 1.5.1), SummarizedExperiment, tibble (>= 3.1.2),
+        tidyselect (>= 1.1.1)
+Suggests: BiocStyle, decoupleR, dorothea, ExperimentHub, graphlayouts,
+        knitr (>= 1.33), networkD3 (>= 0.4), progeny, propr, RCy3 (>=
+        2.10.2), rmarkdown, testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+RemoteType: local
+RemoteUrl: E:\sciebo_precise\Thomas\R\hCocena\hcocena\hCoCena-r-package
+NeedsCompilation: no
+Packaged: 2026-02-16 12:36:25 UTC; Thomas
+Author: Lisa Holsten [aut] (ORCID: <https://orcid.org/0000-0001-6238-1273>),
+  Kilian Dahm [aut, cre] (ORCID: <https://orcid.org/0000-0002-6819-2622>),
+  Marie Oestreich [aut] (ORCID: <https://orcid.org/0000-0002-4754-1301>),
+  Thomas Ulas [aut] (ORCID: <https://orcid.org/0000-0002-9785-4197>)
+Maintainer: Kilian Dahm <kilian.dahm@dzne.de>

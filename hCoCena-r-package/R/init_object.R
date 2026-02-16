@@ -4,6 +4,7 @@
 #' @export
 
 init_object <- function(envo = .GlobalEnv){
+	.hc_legacy_warning("init_object")
 	hcobject <- list("working_directory" = list(),
 						"data" = list(),
 						"supplementary_data" = list(),

@@ -4,6 +4,7 @@
 #' @export
 
 read_supplementary <- function (){
+  .hc_legacy_warning("read_supplementary")
   sapply(names(hcobject[["supplement"]]), function(x){  
     if(x == "Tf" & !is.null(hcobject[["supplement"]][["Tf"]])) 
       hcobject[["supplementary_data"]][["TF"]] <<- utils::read.delim(base::paste0(hcobject[["working_directory"]][["dir_reference_files"]], 

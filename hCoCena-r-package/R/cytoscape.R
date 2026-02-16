@@ -4,6 +4,7 @@
 #' @export
 
 export_to_local_folder <- function(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]])){
+  .hc_legacy_warning("export_to_local_folder")
   
   network_df <- igraph::as_data_frame(network_filt())
   network_df$weight <- NULL
@@ -23,6 +24,10 @@ export_to_local_folder <- function(file = base::paste0(hcobject[["working_direct
 #' @export
 
 export_to_cytoscape <- function(name = "my igraph", docker_container = FALSE){
+    .hc_legacy_warning("export_to_cytoscape")
+    if (!requireNamespace("RCy3", quietly = TRUE)) {
+      stop("Package `RCy3` is required for `export_to_cytoscape()`. Install it first.")
+    }
     
     RCy3::createNetworkFromIgraph(network_filt(), name)
 
@@ -35,6 +40,10 @@ export_to_cytoscape <- function(name = "my igraph", docker_container = FALSE){
 #' @export
 
 import_layout_from_cytoscape <- function(){
+    .hc_legacy_warning("import_layout_from_cytoscape")
+    if (!requireNamespace("RCy3", quietly = TRUE)) {
+      stop("Package `RCy3` is required for `import_layout_from_cytoscape()`. Install it first.")
+    }
   
     l <- RCy3::getNodePosition() %>% as.matrix()
     rn <- rownames(l)
@@ -53,6 +62,7 @@ import_layout_from_cytoscape <- function(){
 #' @export
 
 import_layout_from_local_folder <- function(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/network_layout.csv")){
+  .hc_legacy_warning("import_layout_from_local_folder")
   
   l <- utils::read.csv(file = file, 
                        row.names = 1)

@@ -1,0 +1,738 @@
+---
+title: "hCoCena - STAR protocol (main)"
+author: "Marie Oestreich, Lisa Holsten, Kilian Dahm"
+date: "05 01 2024"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+# 0 Introduction
+  This markdown, in combination with the markdown 'hcocena_satellite.Rmd', illustrates how to use the hCoCena tool on a small example using two data sets based on the hCoCena package version 1.2.0.
+Both data sets measure the transcriptional profiles of human macrophages after treatment with Interferon Gamma (IFNg), Interleukin-4 (IL4) or untreated (baseline). One data set was generated using bulk RNA-sequencing, while the other was generated using a Microarray.
+
+The main Markdown contains the base workflow of hCoCena. For a fully functional analysis, these steps are mandatory unless declared otherwise (flagged with OPTIONAL). Feel free to expand upon this base analysis with the provided satellite functions or your custom scripts. You will find detailed information on the satellite functions as well as intermediate outputs that you can use for your custom analyses in the repository's Wiki (https://github.com/MarieOestreich/hCoCena/wiki).
+
+
+# 1 Pre-Integration Phase
+  This part includes all the steps that lead up to the actual integration procedure of the data sets.
+
+## 1.1 Load hCoCena package
+
+  First, we are going to load the hCoCena R-package. If you are not working within the provided hCoCena Docker image, please refer to the scripts `hCoCena-r-package/install_versioned_dependencies.R` and `install.R` in the repository for local installation.
+  
+  Note: hCoCena no longer depends on `MCDA`. The package `propr` is only required when using `corr_method = "rho"`.
+
+```{r}
+
+library(hcocena)
+
+```
+
+
+## 1.2 Create the hCoCena Object
+
+  Now, we initialize the S4 analysis object `hc` (`HCoCenaExperiment`). It stores all intermediate results in a structured and validated container.
+
+```{r}
+hc <- hc_init()
+```
+
+
+## 1.3 Set-up of the working directory
+
+  In this step, we will indicate to hCoCena where it can find everything we need for the analysis: Our gene expression data (count data), our meta data (annotation), and our reference files. These will be used for example for highlighting transcription factors or doing enrichment analyses. For more information on the different files and how to pass them to the function, please refer to the following section of the wiki: https://github.com/MarieOestreich/hCoCena/wiki/General-Backgroud-Information#count-files-annotation-files--reference-files.
+  
+  In this example case, we will not read the expression data and the annotation from files, but instead use an R environment that we have prepared for the STAR protocol. You can find the environment in the repository's 'STAR_protocol' folder, it is named 'start_envo.RData'. After downloading, we can load the environment like this:
+  
+```{r}
+
+load("STAR_protocol/start_envo.RData")
+
+```
+  
+
+  Since we are not reading our data from files, we will set the directory for the count data ('dir_count_data'), as well as for the annotation ('dir_annotation') to FALSE. The reference files are stored within a separate folder in the Home directory of the docker container. Hence the parameter 'dir_reference_files' is set accordingly. If you are working locally, the files can be downloaded from the Github repository folder named 'reference_files'. After downloading, the path must be adapted according to where it was downloaded to.
+
+  Lastly, we define where outputs should be stored. Best practice is:
+  1. one stable root output directory (`output_root`)
+  2. one project-specific subfolder (`project_folder`)
+  
+  If you prefer writing directly to the root output directory, set `project_folder <- ""`.
+  Missing output directories are created automatically during `hc_read_data()`.
+
+```{r setup paths and output, warning = FALSE}
+
+output_root <- "E:/sciebo_precise/Thomas/R/hCocena/hcocena/output/"
+project_folder <- "STAR_protocol_output"  # set to "" to use output_root directly
+
+hc <- hc_set_paths(
+  hc,
+  dir_count_data = FALSE,
+  dir_annotation = FALSE,
+  dir_reference_files = "E:/sciebo_precise/Thomas/R/hCocena/hcocena/reference_files/",
+  dir_output = output_root
+)
+
+```
+
+
+## 1.4 Defining layers
+
+  Now, we provide the count and annotation data for the different data sets ('layers'): The function `hc_define_layers()` accepts as input a named list. The names of the list elements should be descriptive of the respective data set. Here, we name one list element 'Array' (it will hold the microarray data and annotation) and the other 'RNA_seq' (RNA-seq data and annotation). Each of these elements is set to be a vector of 2 strings: the first being the name of the count data file/dataframe, the second for the annotation file/dataframe. Since we are loading the data from dataframes in the environment (not from files), the given strings (e.g., "data_array", "annotation_array") are the names of objects. For detailed information regarding the structures of the count and annotation data as well as different options for providing data, refer to the function documentation by entering `?hcocena::hc_define_layers` into the console.
+  
+  Secondly, we provide the names of supplementary files containing Transcription Factors ('Tf'), Hallmark enrichment terms ('Hallmark'), Kegg enrichment terms ('Kegg') and GO BP enrichment terms ('Go'). These files should be stored in the `reference_files` folder configured via `hc_set_paths()`. The files can be downloaded from the GitHub repository folder named `reference_files`. You can check the MSigDB website for the most current versions of the pathway-to-gene files. Further, custom pathway-to-gene files saved in the `reference_files` folder in `.gmt` or `.csv` format can be imported. `.csv` files should be in the following format:
+  1. column (named 'term'): name of the pathway
+  2. column (named 'gene'): gene symbol of the respective pathway defined in the first column
+Note: Only one gene symbol per row is allowed, thus, in cases where multiple genes are associated with the same pathway generate one row per gene symbol!
+    
+```{r defining Omics Layers}
+
+hc <- hc_define_layers(
+  hc,
+  data_sets = list(
+    RNA_Seq = c("data_seq", "annotation_seq")
+  )
+)
+
+
+
+hc <- hc_set_supp_files(
+  hc,
+  Tf = "TFcat.txt",
+  Hallmark = "h.all.v2023.1.Hs.symbols.gmt",
+  Go = "c5.go.bp.v2023.1.Hs.symbols.gmt",
+  Kegg = "c2.cp.kegg.v2023.1.Hs.symbols.gmt",
+  CustomGoCC = "c5.go.cc.v2023.1.Hs.symbols.gmt"
+)
+
+```
+
+
+## 1.5 Data import
+
+  After telling hCoCena where to find all the data and supplementary data that we need for the analysis, they are now loaded and stored in the `hc` object, where the tool can access them throughout the analysis without cluttering the environment. The `hc_read_data()` function offers a series of parameters, such as the separator of the count file etc. However, since we are loading our data from data frames in our environment, none of these parameters are necessary.
+  If you are reading your data from files and are looking for more detailed information regarding the different parameters, enter `?hcocena::hc_read_data` into the console.
+
+```{r data import}
+
+hc <- hc_read_data(hc, project_folder = project_folder)
+
+hc <- hc_read_supplementary(hc)
+
+```
+
+
+## 1.6 Define global settings
+
+  In this chunk, we will define the so-called 'global settings'. Those are all the settings that are **dataset independent**. In our case, we will set the organism to be 'human' since we have human macrophage data for our showcase (so far, only human and mouse are supported). We will set the control keyword to 'none'. We do have controls in our dataset that we could use as a reference for the Group-Fold-Change analyses later on, but then we loose the control group since they serve as a reference. Here, we will keep them as a separate group to include them in our results, which will allow us to compare the baselines from the two datasets as well (this is a personal analysis choice). As the variable of interest (voi), we choose 'merged' since that is the name of the column in both our annotation dataframes that we want to use to group the samples. It contains information on the treatment of a sample as well as the dataset the sample originates from. We further define that we are only interested in networks and modules that contain at least 25 genes, we set the range of the GFC values to be from -2 to 2, the layout algorithm to be 'cytoscape' (you can change this, if you don't have Cytoscape installed, however the networks always look more readable and high-quality with Cytoscape) and data_in_log is TRUE, because our gene expression data has been logged to the base of 2 in the pre-processing. For more detailed information regarding the different settings and what other options are available, enter `?hcocena::hc_set_global_settings` into the console.
+
+```{r global settings}
+
+hc <- hc_set_global_settings(
+  hc,
+  organism = "human",
+  control_keyword = "none",
+  variable_of_interest = "merged",
+  min_nodes_number_for_network = 50,
+  min_nodes_number_for_cluster = 50,
+  range_GFC = 2.0,
+  layout_algorithm = "layout_with_stress",
+  data_in_log = TRUE
+)
+
+```
+
+
+## OPTIONAL: User-defined colors
+  This chunk in the satellite markdown ('hcocena_satellite.Rmd') allows to define user-specific color vectors for downstream visualizations.
+  
+  
+## OPTIONAL: Data-based definition of top most variant genes
+
+  This chunk in the satellite markdown calculates the inflection points in the ranked variances to filter for the top most variant genes in a data-driven way. Running this function yields top 7700 for the array data and 7664 for the RNA-Seq data as the highest data-driven top-most-variant genes cutoff. 
+
+
+## 1.7 Define layer-specific settings
+
+  After defining the global (dataset-independent) settings in section 1.6, we will now define those **specific for each dataset**. We start with selecting the top most-variable genes to keep based on the chunk we just ran in the satellite markdown. You can also set this to "all" if you don't want to pre-filter your genes. We further define that we are interested in all gene pairs with minimum correlation 0.9 and that we want to inspect 50 different cutoffs between 0.9 and 1. We don't want to see the node-degree distribution plot for all of those 50 cutoffs, so we set that parameter to FALSE.
+  For detailed information regarding the different settings, enter `?hcocena::hc_set_layer_settings` into the console.
+  
+
+```{r layer-specific settings}
+
+# 7700 and 7664 are selected based on suggestions by the suggest_topvar() function in the satellite markdown
+
+hc <- hc_set_layer_settings(
+  hc,
+  top_var = c(7664),
+  min_corr = c(0.9),
+  range_cutoff_length = c(50),
+  print_distribution_plots = c(FALSE)
+)
+
+```
+
+
+
+## OPTIONAL: Data distribution
+
+  There is an option to plot the distribution of counts for each sample to check for outliers or prominent differences between samples. To do so, refer to "Data distribution" in the satellite markdown.
+  
+  
+## OPTIONAL: PCA
+
+  You can visualize your data in a PCA. To do so, please refer to the satellite markdown, section "PCA".
+  
+
+## OPTIONAL: Meta data visualization
+
+  You can visualize your meta data using the "Meta data distribution" section in the satellite markdown.
+  
+
+## 1.8 Data processing part I
+
+  This function executes the first part of the data processing procedure. It leads up to choosing the correlation cut-off for each layer. All datasets will be filtered for their most variant genes as defined in the layer-specific settings. After this filtering step, the pair-wise correlation for all pairs of genes is calculated. You can set the correlation metric that you would like to use with the 'corr_method' parameter. Options are: 'pearson', 'spearman' and 'rho' (Skinnider et al., https://doi.org/10.1038/s41592-019-0372-4). We will pick 'spearman'.
+  A set of statistics will be calculated for the set range of cut-off values that aim to facilitate the cut-off choice. This includes determining the number of graph components resulting from creating a network when cutting the data with the respective cut-off, as well as the number of nodes and edges this network comprises. The last parameter that is evaluated is the R²-value of the data to a linear regression through the logged degree distribution for the given network. These parameters will be visualised in the next step.
+  For detailed information on what happens in this step and what parameters can be set, enter `?hcocena::hc_run_expression_analysis_1` into the console.
+
+```{r expression analysis up to cutoff}
+
+hc <- hc_run_expression_analysis_1(hc, corr_method = "pearson")
+
+```
+
+
+
+## 1.9 Data processing part II
+
+  **Choosing the cut-offs**
+  
+  Set a correlation cut-off for each of your data sets. To aid the choice of a correlation cut-off for each of the datasets, the following plot presents the different cut-off statistics calculated in the previous step per dataset.
+  Generally, we have the choice between a static and an interactive plot. The interactive plot (which we use here by setting interactive = TRUE) is a widget that allows you to slide through the different cutoffs and highlight the corresponding statistics. However, if R-Studio is having difficulties displaying widgets, use interactive = FALSE for a simple ggplot.
+  
+```{r fig.height = 8, fig.width = 10}
+
+hc <- hc_plot_cutoffs(hc, interactive = TRUE)
+
+```
+
+
+## OPTIONAL: Correlation cutoff tuning (`hc_tune_cutoff`)
+
+  For robust and transparent cutoff selection, use `hc_tune_cutoff()`.
+  This is the recommended cutoff tuner and uses a tiered decision strategy:
+  1. Tier 1: strict criteria
+  2. Tier 2: relaxed criteria
+  3. Fallback: best available SFT fit above a minimum threshold
+
+  Metrics used per tested cutoff:
+  - `SFT/R²` (scale-free fit)
+  - `slope` of log-log degree distribution (optional negative-slope requirement)
+  - `mean.k` (mean connectivity)
+  - optional topology guards (`no_of_networks`, retained node fraction)
+
+  Most important parameters you can tweak:
+  - `tier1_sft_min`, `tier1_mean_k_min`: make strict tier harder/easier.
+  - `tier2_sft_min`, `tier2_mean_k_min`: fallback quality for relaxed tier.
+  - `fallback_sft_min`: minimum acceptable fit in final fallback.
+  - `require_negative_slope = TRUE`: enforce scale-free-like slope direction.
+  - `max_no_networks`: upper bound for fragmentation (`no_of_networks`).
+  - `min_node_fraction`: keep only cutoffs with enough retained nodes relative to the best-node cutoff.
+  - `fallback_respect_base_filters`: if `TRUE`, fallback also respects slope/components/node filters.
+  - `apply`: `FALSE` (recommend only) or `TRUE` (write cutoffs into object).
+
+  Output locations:
+  - `hc@satellite$cutoff_tuning$comparison_with_simple`: tiered vs simple method
+  - `hc@satellite$cutoff_tuning$layer_details`: full per-cutoff diagnostics per layer
+
+```{r optional cutoff tuning tiered}
+
+# Recommendations only (does not change the object settings yet):
+hc <- hc_tune_cutoff(
+  hc,
+  apply = FALSE,
+  max_no_networks = 3,    # optional: restrict fragmentation
+  min_node_fraction = 0.6,
+  verbose = TRUE
+)
+
+hc@satellite$cutoff_tuning$comparison_with_simple
+
+# Optional examples:
+# stricter:
+# hc <- hc_tune_cutoff(hc, apply = FALSE, tier1_sft_min = 0.9, tier1_mean_k_min = 12, max_no_networks = 2, min_node_fraction = 0.7)
+# looser:
+# hc <- hc_tune_cutoff(hc, apply = FALSE, tier1_sft_min = 0.8, tier1_mean_k_min = 6, tier2_sft_min = 0.75, tier2_mean_k_min = 4)
+#
+# To directly apply the tiered recommendation:
+# hc <- hc_tune_cutoff(hc, apply = TRUE, max_no_networks = 2, min_node_fraction = 0.6)
+
+```
+  
+  
+  If you ran the optional `hc_tune_cutoff()` chunk above, `hc_set_cutoff(auto = TRUE)` will use the recommended vector automatically.  
+  If no recommendation exists, it falls back to `fallback_cutoff` (here `0.982`).
+
+```{r choose cutoff}
+
+hc <- hc_set_cutoff(hc, auto = T, fallback_cutoff = 0.982)
+
+```
+
+
+  **Checking the scale-free topology**
+
+  For each data set, the logged degree distribution and the linear regression are plotted to visualize the preservation of the scale-free topology criterion.
+  NOTE: Even though biological networks are generally believed to follow a scale-free topology, experience has shown that a lot of transcriptomics data do not follow this principle perfectly. A deviation from the regression line is often observed at higher x-axis values. 
+
+```{r plot degree distribution for chosen cutoff, message = F, warning = F}
+
+hc <- hc_plot_deg_dist(hc)
+
+```
+
+
+  **Heatmap of top most variant genes and GFC calculation**
+
+  This function plots a heatmap for the network genes in each data layer and computes the Group-Fold-Changes (GFCs) for each gene per layer. Defining a user-specific color vector is optional.
+
+```{r, fig.width = 10, fig.height = 7}
+
+hc <- hc_run_expression_analysis_2(hc)
+
+```
+
+
+
+# 2 Integration Phase
+  
+  Here, the previously constructed layer-specific networks will be integrated into one network that combines the information. The integration can be based on the union or intersection of layer-specific networks. Edges that are present in several networks at different lengths can be included based on different options. For detailed information on available parameters, run `?hcocena::hc_build_integrated_network` in the console. 
+  
+  Here, we are integrating our datasets using the union of their two networks (mode = "u"), meaning we will also include nodes and edges that are only present in one dataset but not the other. This way, we get an idea not only of shared aspects across the datasets but also of those that are unique. If an edge (i.e., a cut-off exceeding correlation between two genes) exists in both networks, and the correlation value is not the same in both cases, we are using the minimum edge weight (correlation) in the integrated network (multi_edges = "min"). This way, we are being cautious about the true importance of their co-expression and we are making the network less dense (lower correlations = longer edges), making it easier to find true communities (i.e. clusters of densely connected genes across datasets) in the network.
+  
+```{r merge networks}
+
+hc <- hc_build_integrated_network(hc, mode = "u", multi_edges = "min")
+
+```
+
+
+# 3 Post-Integration Phase
+
+## 3.1 Module detection
+  
+  In this step, modules of strong co-expression will be detected in the network and their expression pattern across conditions will be represented in a GFC heatmap. For more information on the available clustering algorithms, run `?hcocena::hc_cluster_calculation` and visit the repository's Wiki pages.
+  NOTE: You can export your clustering for future use. To do so, please refer to the satellite script, section "Export clustering".
+  NOTE 2: Instead of clustering your network here, you can alternatively import a clustering model via `import_clusters()` (compatibility helper; see satellite markdown for details).
+
+## OPTIONAL: Auto-tuning of clustering algorithm and resolution
+
+  If you want hCoCena to suggest the clustering algorithm and Leiden resolution automatically (based on modularity and module count), run:
+
+```{r optional auto tune clustering}
+
+# Recommendations only:
+hc <- hc_tune_resolution(
+  hc,
+  apply = FALSE,
+  cluster_algorithms = "cluster_leiden",
+  resolution_grid = seq(0.1, 1.0, by = 0.05),
+  module_count_bounds = c(5, 20),
+  prefer_resolution = 0.1,
+  no_of_iterations = 5,
+  partition_type = "RBConfigurationVertexPartition"
+)
+
+
+hc@satellite$auto_tune$clustering$best
+
+# To directly apply the best clustering recommendation, run instead:
+# hc <- hc_auto_tune(hc, tune_cutoff = FALSE, tune_clustering = TRUE, apply = TRUE)
+
+```
+  
+  Here, we will cluster our integrated network using the default clustering algorithm (Leiden). We will run the clustering 50 times (no_of_iterations = 50), we will leave the maximum cluster count per gene at its default value (1), meaning we only keep genes that can be associated with the same cluster in all runs. Plot_cluster_heatmap() then plots the result.
+  
+```{r compute clusters, fig.width = 13, fig.height = 10, out.width = "100%"}
+hc <- hc_cluster_calculation(
+  hc,
+  cluster_algo = "cluster_leiden",
+  no_of_iterations = 2,
+  resolution = 0.5,
+  partition_type = "RBConfigurationVertexPartition",
+  max_cluster_count_per_gene = 1)
+
+
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  module_label_mode = "prefix",
+  module_prefix = "M",
+  module_label_numbering = "after_clustering",
+  overall_plot_scale = 1.2)
+
+
+
+```
+
+## OPTIONAL: 3.1b Split large modules into submodules
+
+  If one or more modules are very large (e.g. > 1000 genes), you can split only these modules into finer submodules.
+  The split runs clustering inside the selected module(s) and updates labels like `M3.1`, `M3.2`, ...
+  You can also test multiple candidate resolutions first to see how many submodules would result.
+  You can undo this later with `hc_unsplit_modules()`.
+
+  Accepted `modules` input:
+  - module label (e.g. `"M3"`)
+  - module color
+  - module index (numeric)
+
+```{r optional split modules, fig.width = 13, fig.height = 10, out.width = "100%"}
+
+# Step 1 (optional): test multiple resolutions first (no split applied yet)
+hc <- hc_split_modules(
+  hc,
+  modules = c("M1"),
+  cluster_algo = "cluster_leiden",
+  resolution_grid = c(0.2, 0.4, 0.6, 0.8),
+  min_module_size = 50,
+  partition_type = "RBConfigurationVertexPartition",
+  resolution_test_only = TRUE
+)
+
+# Inspect test summary:
+hc@satellite$module_split_resolution_test_last$by_resolution
+
+#Step 2: apply split with chosen resolution
+hc <- hc_split_modules(
+  hc,
+  modules = c("M1"),
+  cluster_algo = "cluster_leiden",
+  no_of_iterations = 2,
+  resolution = 0.4,
+  partition_type = "RBConfigurationVertexPartition",
+  min_module_size = 50
+)
+
+# Replot with the same heatmap function/style as the main plot:
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  module_label_mode = "prefix",
+  module_prefix = "M",
+  module_label_numbering = "preserve_existing", # keeps labels like M1.1, M1.2 after splitting
+  overall_plot_scale = 1.2
+)
+
+# # Undo one split step:
+# # hc <- hc_unsplit_modules(hc, which = "last")
+# # hc <- hc_plot_cluster_heatmap(hc, module_label_mode = "prefix", module_prefix = "M", module_label_numbering = "after_clustering", overall_plot_scale = 1.2)
+
+```
+
+
+## OPTIONAL: Module scores
+
+  If you would like to evaluate how well each gene belongs to its asserted module, please refer to the satellite markdown, section "Module scores".
+  
+
+## OPTIONAL: Evaluating the different community detection algorithms
+
+  If you want to compare the default Leiden clustering to other algorithms, please refer to the section "Evaluating different community detection algorithms" in the satellite markdown.
+
+
+## 3.2 Plotting the network coloured by module
+
+  Since we picked Cytoscape as the layout option for our network, we will not plot the network with genes coloured according to modules here. Instead, we move to the 'Cytoscape' section in `hcocena_satellite.Rmd`. There, we export the network to Cytoscape, apply the layout within Cytoscape, and re-import the network into R. This is a bit of extra work, but the superiority of the layouts in Cytoscape is worth it. If you don't have Cytoscape installed or are happy with a visually less intuitive network, you can use this chunk instead of going to the satellite markdown. However, then you also have to set the `layout_algorithm` parameter in `hc_set_global_settings()` (quite at the top) to `layout_with_fr`. 
+  Please note that the layout has no effect on the modules themselves or on the subsequent analysis results! It is simply to generate a visual 2D representation of the network that shows the spatial arrangement of the modules. 
+
+```{r plot network coloured by module, fig.width=10, fig.height=7}
+
+hc <- hc_plot_integrated_network(hc)
+
+```
+
+
+
+## OPTIONAL: Plotting network coloured by GFC
+
+  You can re-plot the network for each condition (variable of interest) colouring the nodes according to their GFC in the different conditions. To do so, please refer to the section "Plotting network coloured by GFC" in the satellite markdown. 
+  In our showcase example, this will show us, how the GFCs of each gene change across the different treatments of the Macrophages and between Array and RNA-Seq.
+  
+
+## 3.3 Database enrichment
+
+  Enrichment analysis of the modules using the GO, KEGG, Hallmark and Reactome databases. For detailed information on parameter settings, please run `?hcocena::hc_functional_enrichment`.
+  
+  In our case, we are interested in getting the GO- and HALLMARK enrichment for selected modules of interest (we selected them because of their stimulus-specific activation patterns). In both cases, we want to retrieve the top 5 most enriched terms (may be less if less than 5 terms are enriched). We also filter the results for those with adjusted p-values not higher than 0.1. 
+  
+```{r GO profiling, fig.width = 9, fig.height = 9, message = F, warning = F}
+
+
+hc <- hc_functional_enrichment(
+  hc,
+  gene_sets = c("Hallmark","Kegg"),
+  top = 5,
+  qval = 0.05,
+  heatmap_side = "left",
+  enrichment_vertical_line_mode = "to_term",
+  enrichment_column_spacing_scale = 0.95)
+
+
+
+
+
+```
+
+
+## OPTIONAL: 3.3b Module cell-type annotation (automatic, Enrichr-based)
+
+  This optional step adds a **module-wise cell-type composition barplot** to the
+  right side of the hCoCena heatmap (same annotation system as
+  `user_specific_cluster_profiling()`).
+
+  The workflow is:
+  1. choose Enrichr cell/tissue databases,
+  2. run module enrichment against those terms,
+  3. aggregate selected terms either as:
+     - `mode = "coarse"`: broad classes (e.g. Monocyte/Macrophage, T cell, NK),
+     - `mode = "fine"`: specific term labels from the selected databases.
+
+  The function writes:
+  - `Module_Celltype_Annotation.xlsx` (selected + significant terms + matrix),
+  - and, with `plot_heatmap = TRUE`, an updated heatmap PDF with cell-type bars.
+
+```{r optional module celltype annotation, fig.width = 12, fig.height = 8, message = TRUE, warning = FALSE}
+
+# 1) Discover candidate Enrichr databases (optional quick check)
+db_candidates <- hc_list_celltype_databases(
+  pattern = "(atlas|cell|immune|blood|pbmc|macro|neo)"
+)
+print(utils::head(db_candidates, 10))
+
+# 2) Preview terms/genes from one DB to verify tissue/cell-type coverage
+preview_hga <- hc_preview_celltype_database(
+  database = "CellMarker_2024",
+  tissue_pattern = "(mono|macrophage|t cell|b cell|nk|myeloid)",
+  max_terms = 20,
+  include_genes = FALSE
+)
+print(preview_hga)
+
+# 3) Run module cell-type annotation and directly replot heatmap with bars
+hc <- hc_celltype_annotation(
+  hc,
+  databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas","CellMarker_2024","PanglaoDB_Augmented_2021","Azimuth_Cell_Types_2021","ImmunoGenetics_Network_Library"),
+  mode = "coarse",          # "coarse" (broad classes) or "fine" (specific terms)
+  top = 3,                  # top classes/terms per module
+  qval = 0.1,               # adjusted p-value cutoff
+  min_term_genes = 5,       # minimum genes required per Enrichr term
+  min_gs_size = 10,         # min gene-set size for clusterProfiler::enricher
+  max_gs_size = 5000,       # max gene-set size for clusterProfiler::enricher
+  annotation_slot = "auto", # auto -> enriched_per_cluster / enriched_per_cluster2
+  export_excel = TRUE,
+  plot_heatmap = TRUE,
+  heatmap_file_name = "Heatmap_modules_celltype_annotation_coarse.pdf"
+)
+
+# Optional: inspect selected top cell-type assignments
+print(utils::head(hc@satellite[["celltype_annotation"]][["selected_celltypes"]]))
+
+# For a fine-grained run, change to:
+# hc <- hc_celltype_annotation(hc, mode = "fine", top = 3, qval = 0.1)
+
+```
+
+
+## OPTIONAL: 3.4 Upstream regulator and pathway inference (DoRothEA + PROGENy)
+
+  This optional step performs activity inference for upstream regulators (TFs) and pathways based on module genes and their GFC profiles.
+  It complements over-representation analyses by estimating regulator/pathway activity direction and strength.
+
+  The function writes:
+  - `Upstream_Inference.xlsx` with selected (`top`) and all significant terms
+  - `Upstream_Inference.pdf` with a mixed dotplot and a combined hCoCena-heatmap-linked upstream panel (analogous to enrichment)
+
+  The results are additionally stored in `hc@satellite[["upstream_inference"]]`.
+
+  Required packages: `decoupleR`, `dorothea`, `progeny`.
+  Install once with:
+  `BiocManager::install(c("decoupleR", "dorothea", "progeny"))`.
+
+  Parameters used in the chunk:
+  - `resources = c("TF", "Pathway")`: runs both sources (TF activity via DoRothEA and pathway activity via PROGENy).
+  - `top = 5`: keeps the top 5 significant terms per module and source in the selected summary.
+  - `qval = 0.05`: adjusted p-value cutoff for significance.
+  - `tf_confidence = c("A", "B", "C")`: keeps DoRothEA confidence classes A-C (A = highest evidence, then B, C). This is a balanced default: stricter (`A`,`B`) gives fewer but more conservative TF links; adding lower classes (`D`,`E`) increases coverage but can add noise.
+  - `minsize = 5`: minimum number of target genes per regulator/pathway used for inference.
+  - `method = "ulm"`: decoupleR method (`run_ulm`) used to compute activity scores.
+  - `activity_input = "gfc"`: input matrix for activity inference.
+    - `"gfc"` uses integrated Group-Fold-Changes (default, condition-level contrasts).
+    - `"fc"` uses pairwise fold-changes from user-defined comparisons (`fc_comparisons`).
+    - `"expression"` uses real expression values (layer-wise mean expression per group; anti-log transformed when `data_in_log = TRUE`).
+  - `fc_comparisons = c("IFNg_seq_vs_baseline_seq", "IL4_seq_vs_baseline_seq")`:
+    only used with `activity_input = "fc"`; each entry is `numerator_vs_denominator`.
+  - `heatmap_side = "left"`: places the hCoCena module heatmap on the left of the combined plot.
+  - `plot = TRUE`: draws the plots in the active R graphics device.
+  - `save_pdf = TRUE`: additionally writes all upstream plots to `Upstream_Inference.pdf`.
+  - `plot_per_comparison = TRUE`: additionally draws one combined panel per GFC condition (or FC comparison), each with the matching one-column module heatmap.
+  - `consistent_terms` controls how per-comparison pages are rendered:
+    - `FALSE` (default): only local (current-condition) selected activities, no significance stars.
+    - `TRUE`: uses a global all-condition term axis for comparability, but still plots values from the currently shown condition only; stars (`*`) mark terms significant in that shown condition.
+  - `padj` (not set here) defaults to `"BH"` and defines multiple-testing correction.
+  - `overall_plot_scale` (not set here) defaults to `1` and scales plot text/marker sizes.
+
+```{r upstream inference, fig.width = 12, fig.height = 8, message = TRUE, warning = FALSE}
+hc <- hc_upstream_inference(
+  hc,
+  resources = c("TF", "Pathway"),
+  top = 5,
+  qval = 0.05,
+  tf_confidence = c("A", "B", "C"),
+  minsize = 5,
+  method = "ulm",
+  activity_input = "fc",
+  fc_comparisons = c("IFNg_seq_vs_baseline_seq", "IL4_seq_vs_baseline_seq"), # e.g. c("IFNg_seq_vs_baseline_seq", "IL4_seq_vs_baseline_seq") when activity_input = "fc" or NULL
+  heatmap_side = "left",
+  plot = TRUE,
+  save_pdf = TRUE,
+  plot_per_comparison = TRUE,
+  consistent_terms = FALSE
+)
+
+# Quick look at merged top results:
+print(utils::head(hc@satellite[["upstream_inference"]][["selected_upstream_all"]]))
+
+```
+
+## OPTIONAL: 3.4b Module knowledge network (enrichment + upstream)
+
+  This optional plot combines already computed results into a simple network:
+  - left: modules
+  - middle: enrichment terms (GO/KEGG/Hallmark/Reactome)
+  - right: upstream terms (TF/Pathway)
+  - plus the hCoCena module heatmap (same module/condition order as the main heatmap)
+  - upstream edge endings: arrows indicate activation, `⊣` indicates inhibition
+
+  It uses existing outputs from `hc_functional_enrichment()` and
+  `hc_upstream_inference()`, draws the overview in R, and writes a multi-page PDF
+  (overview + one focus page per module with other edges greyed out).
+  The left heatmap panel automatically follows the last upstream inference mode:
+  if upstream was run with `activity_input = "fc"`, the panel shows FC; otherwise GFC.
+  Additionally, one separate single-page PDF per module is written to:
+  `.../Module_Knowledge_Network_by_module/`.
+  Note: in this combined view, condition labels of the heatmap are hidden so module rows
+  align exactly with network rows.
+  The defaults below are intentionally stricter for readability:
+  significant terms only and max 2 enrichment/upstream links per module.
+  If you need more detail, increase these limits.
+
+```{r module knowledge network, fig.width = 15, fig.height = 9, message = FALSE, warning = FALSE}
+
+hc <- hc_plot_enrichment_upstream_network(
+  hc,
+  enrichment_mode = "significant",
+  upstream_mode = "significant",
+  max_enrichment_per_module = 2,
+  max_upstream_per_module = 2,
+  clusters = "all",
+  show_plot = TRUE,
+  save_pdf = TRUE,
+  pdf_name = "Module_Knowledge_Network_clean.pdf"
+)
+
+```
+
+
+## 3.5 Transcription factor enrichment analyses with ChEA3
+
+  Transcription factor (TF) enrichment analysis can be performed separately for each module (`hc_tf_overrep_module`) based on ChEA3 (Kennan AB, 2019). For more details, refer to the function documentation with `?hcocena::hc_tf_overrep_module`. The plots can be found in the save folder; descriptions on how to read them can be found within the documentation.
+  
+  NOTE: hCoCena is accessing a database in this step. The contents of the database may change over time as the biological insight progresses. Hence, results might change over time based on changes to the database. That is not a bug in the hCoCena tool. It may also occur, that the database is momentarily unavailable due to maintenance or updates. Before running the chunk, you can check, if the server is running properly or currently under maintenance using this link: https://maayanlab.cloud/chea3/api/enrich/.
+  
+  NOTE 2: The results of this function are directly printed to a PDF file in your output folder.
+  
+  
+```{r , fig.width = 10, fig.height = 7}
+
+hc <- hc_tf_overrep_module(hc, topTF = 5, topTarget = 5)
+
+```
+ 
+ 
+## OPTIONAL: Transcription factor enrichment analysis based on the entire network
+
+  The transcription factor enrichment analysis can also be performed network wide. Please refer to the satellite markdown, section "Transcription factor enrichment network".
+
+
+## OPTIONAL: Hub gene detection
+
+  Hub gene detection is available for selected modules or the entire network. Please refer to the satellite markdown, section "Hub gene detection".
+  
+
+## OPTIONAL: Expression of a specific gene set
+
+  You can plot the mean expression values per condition for a list of genes as a heatmap.
+  You find the corresponding function in the satellite markdown under "Visualize specific gene set".
+  
+  
+## OPTIONAL: Colour specific gene set within the network
+
+  You further have the option of re-plotting the network and highlighting a particular gene set. To do so, please refer to the satellite markdown, section "Colour specific gene set".
+  
+  
+## OPTIONAL: Colour single module within the network
+
+  You can plot the network with a module of interest highlighted (colour and node size), using the chunk in the satellite markdown in section "Colour single module".
+  
+
+## OPTIONAL: Correlate numeric or categorical meta data with modules
+
+  To see how numeric or categorical meta information correlates to the expression patterns of a module, refer to the satellite markdown, section "Correlate numeric meta data with modules" and "Correlate categorical meta data with modules", respectively.
+
+
+## OPTIONAL: Module analysis and meta-annotation
+
+  You have the option to analyse the genes present in the found modules with regard to shared functionality or enriched gene sets as well as to annotate the groups of samples with meta information from your annotation file. To do so, please refer to the satellite markdown, section "Module analysis and meta-annotation".
+
+
+## OPTIONAL: Replotting of heatmap with different variable of interest
+
+  In case you are uncertain if the "voi" you have initially chosen is the right choice for your analysis, you are given the opportunity to replot the final module heatmap based on a different annotation variable. To do so, please refer to the section "Replotting of heatmap with different variable of interest" in the satellite markdown.
+
+
+## OPTIONAL: Regrouping samples
+
+  If you noticed that the variable of interest ("voi") does not go well with the clustering of the heatmaps returned by `hc_run_expression_analysis_2()` or as seen in the PCA, when evaluating different clustering algorithms, you can assign new group labels to your samples based on the data structure rather than meta information. In this case, please refer to the section "Regrouping samples" in the satellite markdown.
+
+
+## OPTIONAL: Final module heatmap and network
+
+  If you regrouped your samples AND/OR conducted any steps in the "Module analysis and meta-annotation"-section, the heatmap will be re-plotted updated with respect to the grouping and annotation information along with the network coloured by modules. If You have neither regrouped your sample nor analysed your modules or samples groups, this chunk will provide the exact same output as the previous one and can be skipped. 
+  
+```{r create module heatmap, fig.width = 13, fig.height = 10, out.width = "100%"}
+
+layout_obj <- hc@integration@cluster[["layout"]]
+
+hc <- hc_plot_cluster_heatmap(hc)
+hc <- hc_plot_integrated_network(hc, layout = layout_obj, save = FALSE)
+
+```
+
+
+# 4. Save essential information
+
+  The parameters of the analysis session are written to a text file to enhance reproducibility without keeping and sharing a markdown for every analysis. It documents the name of the files and their location used as count and annotation files, the global settings set in the session, the layer settings set for each dataset as well as the cut-offs and the clustering algorithm used. 
+  The file can be found in the save-folder.
+  
+```{r write session info}
+
+hc <- hc_write_session_info(hc)
+
+```
+
+
+
+
+
+

@@ -32,6 +32,7 @@ run_expression_analysis_1 <- function(padj = "none",
 										prior = 2, 
 										alpha = 0.5,
 										corr_method = "pearson"){
+	.hc_legacy_warning("run_expression_analysis_1")
 	if(!corr_method %in% c("pearson","spearman", "rho")){
 		stop("Parameter 'corr_method' must be either 'pearson', 'spearman' or 'rho'.")
 	}

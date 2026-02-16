@@ -19,7 +19,7 @@ get_cluster_colours <- function(){
 #' @param g The network, an igraph object.
 #' @param num_it The number of iteration the algorithm is supposed to run.
 #' @param resolution The resolution of the leiden clustering, higher values result in more clusters and vice versa (Default: 0.1).
-#' @param partition_type Name of the partition type. Select from 'CPMVertexPartition', 'ModularityVertexPartition', 'RBConfigurationVertexPartition' and 'RBERVertexPartition' (Default: 'ModularityVertexPartition).
+#' @param partition_type Name of the partition type. Select from 'CPMVertexPartition', 'ModularityVertexPartition', 'RBConfigurationVertexPartition' and 'RBERVertexPartition' (Default: 'RBConfigurationVertexPartition').
 #' @noRd
 
 leiden_clustering <- function(g, num_it, resolution, partition_type){
@@ -116,15 +116,13 @@ cluster_calculation_internal <- function(graph_obj,
                                          algo, 
                                          case,
                                          resolution,
-                                         partition_type = "ModularityVertexPartition",
+                                         partition_type = "RBConfigurationVertexPartition",
                                          it = no_of_iterations) {
-  
-  library(igraph)
-  
   if(algo == "cluster_leiden"){
     cfg <- leiden_clustering(g = graph_obj, num_it = it, resolution = resolution, partition_type = partition_type)
+  } else {
+    cfg <- base::getExportedValue("igraph", algo)(graph_obj)
   }
-  cfg <- base::get(algo)(graph_obj)
   
   mod_score <- igraph::modularity(graph_obj, base::as.numeric(cfg$membership)) 
   
@@ -411,6 +409,9 @@ pwcorr <- function(dd2,
       base::rownames(correlation_matrix[["P"]]) <- base::colnames(correlation_matrix[["P"]])
     }else{
       if(corr_method == 'rho'){
+        if (!requireNamespace("propr", quietly = TRUE)) {
+          stop("Package `propr` is required for `corr_method = 'rho'`. Install it or choose another method.")
+        }
         correlation_matrix <- list()
         correlation_matrix[["r"]] <- propr::perb(counts = base::as.matrix(dd2), select = colnames(dd2))@matrix
         pmat <- lapply(as.vector(correlation_matrix[["r"]]), 
@@ -437,6 +438,9 @@ pwcorr <- function(dd2,
     base::rownames(correlation_matrix[["P"]]) <- base::colnames(correlation_matrix[["P"]])
   }else{
     if(corr_method == 'rho'){
+      if (!requireNamespace("propr", quietly = TRUE)) {
+        stop("Package `propr` is required for `corr_method = 'rho'`. Install it or choose another method.")
+      }
       correlation_matrix <- list()
       correlation_matrix[["r"]] <- propr::perb(counts = base::as.matrix(dd2), select = colnames(dd2))@matrix
       pmat <- lapply(as.vector(correlation_matrix[["r"]]), 
@@ -457,10 +461,10 @@ pwcorr <- function(dd2,
   # export correlations and p-values for future re-runs to avoid the bottleneck:
   if(export){
     utils::write.table(x = correlation_matrix[["r"]], 
-                file = base::paste0(hcobject[["working_director"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/correlation_matrix_", hcobject[["layers_names"]][layer], "_correlations.txt"), 
+                file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/correlation_matrix_", hcobject[["layers_names"]][layer], "_correlations.txt"), 
                 quote = F, row.names = F, col.names = T, dec = ".")
     utils::write.table(x = correlation_matrix[["P"]], 
-                file = base::paste0(hcobject[["working_director"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/correlation_matrix_", hcobject[["layers_names"]][layer], "_pvalues.txt"), 
+                file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/correlation_matrix_", hcobject[["layers_names"]][layer], "_pvalues.txt"), 
                 quote = F, row.names = F, col.names = T, dec = ".")
   }
 
@@ -723,6 +727,56 @@ rsquaredfun <- function(graph_df, cutoff, print.all.plots, min_nodes = hcobject[
 }
 
 ####### ADD FUNCTIONS FROM optimal_cutoff_MultiOmics.R #######
+#' Normalize criteria by column maxima
+#'
+#' Percentage-of-max normalization for criteria tables.
+#' @param perf_tbl A numeric matrix/data.frame with criteria in columns.
+#' @noRd
+.normalize_by_max <- function(perf_tbl) {
+  mat <- base::as.matrix(perf_tbl)
+  mode(mat) <- "numeric"
+
+  out <- base::apply(mat, 2, function(x) {
+    if (base::all(base::is.na(x))) {
+      return(base::rep(NA_real_, base::length(x)))
+    }
+    max_val <- base::max(x, na.rm = TRUE)
+    if (!base::is.finite(max_val) || max_val == 0) {
+      return(base::rep(0, base::length(x)))
+    }
+    x / max_val
+  })
+
+  if (base::is.null(base::dim(out))) {
+    out <- base::matrix(out, ncol = 1)
+    base::colnames(out) <- base::colnames(mat)
+  }
+  base::rownames(out) <- base::rownames(mat)
+  base::as.data.frame(out, check.names = FALSE)
+}
+
+#' Weighted sum over normalized criteria
+#'
+#' Weighted sum over normalized criteria.
+#' @param perf_tbl A numeric matrix/data.frame with criteria in columns.
+#' @param weights Named numeric vector with one weight per criterion.
+#' @noRd
+.weighted_sum <- function(perf_tbl, weights) {
+  if (base::is.null(base::names(weights))) {
+    stop("`weights` must be a named numeric vector.")
+  }
+  if (!base::all(base::names(weights) %in% base::colnames(perf_tbl))) {
+    stop("`weights` names must be present in `perf_tbl` columns.")
+  }
+
+  mat <- base::as.matrix(perf_tbl[, base::names(weights), drop = FALSE])
+  mode(mat) <- "numeric"
+  ws <- mat %*% base::as.numeric(weights)
+  ws <- base::as.vector(ws)
+  base::names(ws) <- base::rownames(perf_tbl)
+  ws
+}
+
 #' Reshape Cutoff Statistics
 #' 
 #' The function reshapes the cutoff statistics for downstream usage.
@@ -742,23 +796,14 @@ reshape_cutoff_stats <- function(cutoff_stats){
   base::rownames(cutoff_stats_concise) <- cutoff_stats_concise[["cutoff"]]
   cutoff_stats_concise <- cutoff_stats_concise[,-2]
   
-  
-  
-  crit_minmax = c("max","max", "max", "min" )
-  base::names(crit_minmax) = base::colnames(cutoff_stats_concise)
-  
-  
-  
-  normalizationTypes <- base::rep("percentageOfMax", base::ncol(cutoff_stats_concise))
-  base::names(normalizationTypes) = base::colnames(cutoff_stats_concise)
   if(base::nrow(cutoff_stats_concise) == 0){
     print("cutoff_stats_concise is empty")
     return(base::data.frame())
   }
-  nPT <- MCDA::normalizePerformanceTable(cutoff_stats_concise[, c("R.squared", "no_edges", "no_nodes", "no_of_networks")], normalizationTypes)
+  nPT <- .normalize_by_max(cutoff_stats_concise[, c("R.squared", "no_edges", "no_nodes", "no_of_networks")])
   w <- base::c(0.5, 0.1, 0.5, -1)
   base::names(w) <- base::colnames(nPT)
-  ws <- MCDA::weightedSum(nPT,w)
+  ws <- .weighted_sum(nPT, w)
   ranked_ws <- base::rank(-ws) %>% base::sort()
   
   
@@ -2144,15 +2189,23 @@ run_all_cluster_algos <- function(){
     base::set.seed(1)
     base::set.seed(.Random.seed[1])
 
-    # add exception for leiden:
-    if(a == "cluster_leiden"){
-      partition <- leidenAlg::leiden.community(graph = network)
-      partition_df <- base::data.frame(gene = partition$names, cluster = base::as.numeric(partition$membership))
-      partition_df$cluster <- partition_df$cluster + 1
-    }else{
-      cfg = base::get(a)(network)
-      partition_df <- base::data.frame(gene = igraph::get.vertex.attribute(network)$name, cluster = cfg$membership)
-      
+    partition_df <- tryCatch({
+      if(a == "cluster_leiden"){
+        partition <- leidenAlg::leiden.community(graph = network)
+        partition_df <- base::data.frame(gene = partition$names, cluster = base::as.numeric(partition$membership))
+        partition_df$cluster <- partition_df$cluster + 1
+      }else{
+        cfg <- base::getExportedValue("igraph", a)(network)
+        partition_df <- base::data.frame(gene = igraph::get.vertex.attribute(network)$name, cluster = cfg$membership)
+      }
+      partition_df
+    }, error = function(e) {
+      warning(base::paste0("Skipping `", a, "` in `run_all_cluster_algos()`: ", base::conditionMessage(e)), call. = FALSE)
+      NULL
+    })
+
+    if (base::is.null(partition_df) || base::nrow(partition_df) == 0) {
+      next
     }
 
     partition_df$cluster <- base::lapply(partition_df$cluster, function(x){
@@ -2170,6 +2223,9 @@ run_all_cluster_algos <- function(){
     partition_df$cluster <- base::as.factor(partition_df$cluster)
 
     output[[a]] <- partition_df
+    }
+    if (base::length(output) <= 1) {
+      warning("No alternative clustering algorithm completed in `run_all_cluster_algos()`.", call. = FALSE)
     }
     return(output)
 }
@@ -2891,11 +2947,15 @@ replot_cluster_heatmap <- function(col_order = NULL,
         dpi=300,
         type = "pdf",
         units = "in")
+  gfc_palette <- grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(51)
+  gfc_col_fun <- circlize::colorRamp2(
+    seq(-2, 2, length.out = base::length(gfc_palette)),
+    gfc_palette
+  )
 
   hm <- ComplexHeatmap::Heatmap(matrix = mat_heatmap,
                                 right_annotation = ha,
-                                # col = grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(base::length(base::seq(-2, 2, by = .1))),
-                                col = grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(51),
+                                col = gfc_col_fun,
                                 clustering_distance_rows = "euclidean",
                                 clustering_distance_columns = "euclidean",
                                 clustering_method_rows = "complete",
@@ -2907,7 +2967,12 @@ replot_cluster_heatmap <- function(col_order = NULL,
                                 row_names_gp = grid::gpar(fontsize = 8),
                                 column_names_gp = grid::gpar(fontsize = 8),
                                 rect_gp = grid::gpar(col = "black"),
-                                heatmap_legend_param = list(title = "", legend_height = grid::unit(3, "cm")), column_km = k)
+                                heatmap_legend_param = list(
+                                  title = "",
+                                  at = c(-2, -1, 0, 1, 2),
+                                  labels = c("-2", "-1", "0", "1", "2"),
+                                  legend_height = grid::unit(3, "cm")
+                                ), column_km = k)
 
   if(base::is.null(anno_list)){
     anno_list <- hm

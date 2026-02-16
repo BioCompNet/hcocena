@@ -14,6 +14,7 @@ build_integrated_network <- function(mode = "u",
                                       with = NULL,
                                       multi_edges = "min",        
                                       GFC_when_missing = -hcobject[["global_settings"]][["range_GFC"]]){
+  .hc_legacy_warning("build_integrated_network")
 
   if(mode == "u"){
     message("Intergrating network based on union.")
@@ -35,6 +36,16 @@ build_integrated_network <- function(mode = "u",
   hcobject[["integrated_output"]][["merged_net"]] <<- merged_net
   
   hcobject[["integrated_output"]][["GFC_all_layers"]] <<- merge_GFCs(GFC_when_missing = GFC_when_missing)
+  
+  # Rebuilding the integrated graph invalidates any prior cluster assignments
+  # and downstream outputs that depend on the old graph topology.
+  hcobject[["integrated_output"]][["cluster_calc"]] <<- list()
+  hcobject[["integrated_output"]][["enrichments"]] <<- NULL
+  hcobject[["integrated_output"]][["upstream_inference"]] <<- NULL
+  hcobject[["integrated_output"]][["knowledge_network"]] <<- NULL
+  hcobject[["satellite_outputs"]][["enrichments"]] <<- NULL
+  hcobject[["satellite_outputs"]][["upstream_inference"]] <<- NULL
+  hcobject[["satellite_outputs"]][["knowledge_network"]] <<- NULL
   
 
 }

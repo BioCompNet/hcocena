@@ -1,0 +1,39 @@
+---
+title: "Migration from hcobject"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Migration from hcobject}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r}
+library(hcocena)
+```
+
+The legacy `hcobject` list can be converted to the S4 data model and back.
+
+```{r eval=FALSE}
+# load a workspace that contains a legacy `hcobject`
+load("legacy_workspace_with_hcobject.RData")
+
+hc <- as_hcocena(hcobject)
+
+# use object-based API
+hc <- hc_set_paths(
+  hc,
+  dir_count_data = FALSE,
+  dir_annotation = FALSE,
+  dir_reference_files = tempdir(),
+  dir_output = tempdir()
+)
+
+# if needed: convert back for legacy custom scripts
+hcobject <- as_hcobject(hc)
+```
+
+Legacy functions remain available and now emit a migration warning by default.

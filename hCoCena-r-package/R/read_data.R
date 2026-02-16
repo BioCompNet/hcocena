@@ -17,6 +17,7 @@ read_data <- function(sep_counts = "\t",
 						sample_col = NULL, 
 						count_has_rn = TRUE, 
 						anno_has_rn = TRUE){
+	.hc_legacy_warning("read_data")
 
 	base::options(dplyr.summarise.inform = F)
   

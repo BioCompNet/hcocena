@@ -18,6 +18,7 @@ set_layer_settings <- function(top_var,
                                min_corr = 0.7, 
                                range_cutoff_length, 
                                print_distribution_plots = FALSE){
+	.hc_legacy_warning("set_layer_settings")
 
 	if(base::length(print_distribution_plots) == 1 & print_distribution_plots[1] == FALSE){
 		print_distribution_plots <- base::rep(FALSE, base::length(hcobject[["layers"]]))

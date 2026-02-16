@@ -12,6 +12,7 @@
 
 
 init_wd <- function(dir_count_data, dir_annotation, dir_reference_files, dir_output){
+	.hc_legacy_warning("init_wd")
 	
 	hcobject[["working_directory"]][["dir_count_data"]] <<-  dir_count_data
 	hcobject[["working_directory"]][["dir_annotation"]] <<-  dir_annotation

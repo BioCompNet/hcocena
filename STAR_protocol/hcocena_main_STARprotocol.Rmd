@@ -270,7 +270,7 @@ build_integrated_network(mode = "u", multi_edges = "min")
 cluster_calculation(cluster_algo = "cluster_leiden", 
                     no_of_iterations = 2, 
                     resolution = 0.1, 
-                    partition_type = "ModularityVertexPartition",  
+                    partition_type = "RBConfigurationVertexPartition",  
                     max_cluster_count_per_gene = 1)
 
 plot_cluster_heatmap()

@@ -1,0 +1,19 @@
+# R session/temp
+.Rhistory
+.RData
+.Ruserdata
+Rplots.pdf
+
+# Build/temp folders
+output/
+.tmp_kn2/
+
+# IDE/editor
+.Rproj.user/
+.vscode/
+
+# Archives and large binaries generated ad-hoc
+*.zip
+*.7z
+*.tmp
+

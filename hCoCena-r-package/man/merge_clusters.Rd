@@ -4,14 +4,36 @@
 \alias{merge_clusters}
 \title{Merge Clusters}
 \usage{
-merge_clusters(k = 1, save = F, method = "complete")
+merge_clusters(
+  k = 1,
+  save = FALSE,
+  method = "complete",
+  k_min = 2,
+  k_max = NULL,
+  auto_parsimony_penalty = 1e-04,
+  verbose = TRUE
+)
 }
 \arguments{
-\item{k}{An integer. The number of desired clusters created by cutting the clustering tree.}
+\item{k}{Either an integer (number of merged modules) or \code{"auto"} to choose
+a data-driven value based on the average silhouette score across candidate
+cuts of the module dendrogram.}
 
-\item{save}{Boolean. If FALSE (default) cutting is showcased but not saved. Set to TRUE once you have found the right clsutering and overwrite the old cluster (cannot be reversed).}
+\item{save}{Boolean. If FALSE (default) cutting is showcased but not saved.
+Set to TRUE once you have found the right clustering and overwrite the old
+cluster assignment (cannot be reversed).}
 
 \item{method}{Method used for clustering. Default is "complete".}
+
+\item{k_min}{Minimum candidate \code{k} for automatic selection (\code{k = "auto"}).}
+
+\item{k_max}{Maximum candidate \code{k} for automatic selection (\code{k = "auto"}).
+Defaults to \code{min(10, n_modules - 1)}.}
+
+\item{auto_parsimony_penalty}{Small penalty used in auto mode to prefer
+simpler solutions when silhouette scores are very similar.}
+
+\item{verbose}{Boolean. Print selected \code{k} and selection diagnostics.}
 }
 \description{
 Merge similar clusters in module heatmap.

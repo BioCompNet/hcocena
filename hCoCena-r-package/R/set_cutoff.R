@@ -5,5 +5,6 @@
 #' @export
 
 set_cutoff <- function(cutoff_vector = base::c()){
-	hcobject[["cutoff_vec"]] <<- cutoff_vector
+  .hc_legacy_warning("set_cutoff")
+  hcobject[["cutoff_vec"]] <<- cutoff_vector
 }

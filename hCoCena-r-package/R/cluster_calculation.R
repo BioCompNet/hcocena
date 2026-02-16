@@ -9,16 +9,17 @@
 #'  @param max_cluster_count_per_gene The maximum number of different clusters a gene is allowed to be associated with during the different iterations before it is marked as indecisive and removed.
 #'  Default is 1.
 #' @param resolution The cluster resolution if the cluster algorithm is set to "cluster_leiden". Default is 0.1. Higher values result in more clusters and vice versa.
-#' @param partition_type Name of the partition type. Select from 'CPMVertexPartition', 'ModularityVertexPartition', 'RBConfigurationVertexPartition' and 'RBERVertexPartition' Default is 'ModularityVertexPartition.
+#' @param partition_type Name of the partition type. Select from 'CPMVertexPartition', 'ModularityVertexPartition', 'RBConfigurationVertexPartition' and 'RBERVertexPartition'. Default is 'RBConfigurationVertexPartition'.
 
 #' @export 
 
 cluster_calculation <- function(cluster_algo = "cluster_leiden",
                                 no_of_iterations = 2,
                                 resolution = 0.1,
-                                partition_type = "ModularityVertexPartition",
+                                partition_type = "RBConfigurationVertexPartition",
                                 max_cluster_count_per_gene = 1,
                                 return_result = F) {
+  .hc_legacy_warning("cluster_calculation")
   
   hcobject[["global_settings"]][["chosen_clustering_algo"]] <<- cluster_algo
   

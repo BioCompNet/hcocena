@@ -10,6 +10,7 @@
 #' @export
 
 run_expression_analysis_2 <- function(grouping_v = NULL, plot_HM = T, method = "complete", additional_anno = NULL, cols = NULL){
+  .hc_legacy_warning("run_expression_analysis_2")
   
   for(x in 1:base::length(hcobject[["layers"]])){
     

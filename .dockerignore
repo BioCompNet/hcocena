@@ -1,0 +1,12 @@
+.git
+.github
+.tmp_kn2
+output
+legacy_rmd
+STAR_protocol
+wiki images
+*.zip
+*.pdf
+.Rhistory
+Rplots.pdf
+

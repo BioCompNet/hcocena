@@ -33,9 +33,32 @@
 #' @param enrichment_line_width_scale Numeric scaling factor for line widths in the
 #'  enrichment panel (module guide lines and vertical helper lines). Values < 1 make
 #'  lines thinner; values > 1 make lines thicker. Default is 1.
+#' @param heatmap_column_label_fontsize Optional numeric font size for hCoCena
+#'  heatmap column labels in enrichment plots. If NULL (default), uses automatic sizing.
+#' @param heatmap_module_label_fontsize Optional numeric font size for module labels
+#'  inside module color boxes (`M1`, `M2`, ...). If NULL (default), uses automatic sizing.
+#' @param legend_fontsize Optional numeric base font size for enrichment-related legends
+#'  (GFC legend and enrichment significance legend). If NULL (default), uses automatic sizing.
+#' @param enrichment_label_fontsize Optional numeric font size for enrichment term labels.
+#'  If NULL (default), uses automatic sizing.
+#' @param enrichment_label_wrap Logical. If TRUE, wraps enrichment term labels using
+#'  `enrichment_label_wrap_width`. Default is FALSE.
+#' @param enrichment_label_wrap_width Integer wrap width used when
+#'  `enrichment_label_wrap = TRUE`. Default is 30.
 #' @param gfc_colors Optional character vector of colors for the hCoCena heatmap
 #'  GFC scale. If NULL, uses the legacy default
 #'  `rev(RColorBrewer::brewer.pal(11, "RdBu"))`.
+#' @param gfc_scale_limits Optional numeric vector controlling the module-heatmap
+#'  color scale limits used in enrichment plots. Provide one positive number
+#'  (`x` -> `c(-x, x)`) or two numbers (`c(min, max)`). If NULL, uses stored
+#'  limits from the latest main module heatmap when available, otherwise
+#'  falls back to `c(-range_GFC, range_GFC)`.
+#' @param pdf_width Optional numeric width (inches) for enrichment PDFs.
+#'  If NULL (default), width is auto-estimated from content.
+#' @param pdf_height Optional numeric height (inches) for enrichment PDFs.
+#'  If NULL (default), height is auto-estimated from content.
+#' @param pdf_pointsize Numeric base pointsize used for PDF devices.
+#'  Default is 11.
 #' @param overall_plot_scale Numeric scaling factor for the entire combined output
 #'  (hCoCena heatmap + enrichment panel + title/labels/legend). Values > 1 enlarge
 #'  the full plot, values < 1 make it smaller. Default is 1.
@@ -58,7 +81,17 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                                   enrichment_row_height_scale = 0.9,
                                   enrichment_column_spacing_scale = 1,
                                   enrichment_line_width_scale = 1,
+                                  heatmap_column_label_fontsize = NULL,
+                                  heatmap_module_label_fontsize = NULL,
+                                  legend_fontsize = NULL,
+                                  enrichment_label_fontsize = NULL,
+                                  enrichment_label_wrap = FALSE,
+                                  enrichment_label_wrap_width = 30,
                                   gfc_colors = NULL,
+                                  gfc_scale_limits = NULL,
+                                  pdf_width = NULL,
+                                  pdf_height = NULL,
+                                  pdf_pointsize = 11,
                                   overall_plot_scale = 1) {
   .hc_legacy_warning("functional_enrichment")
   gfc_colors_was_missing <- missing(gfc_colors)
@@ -124,12 +157,209 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     }
     gfc_colors <- base::as.character(gfc_colors)
   }
+  if (!base::is.null(pdf_width) &&
+      (!base::is.numeric(pdf_width) || base::length(pdf_width) != 1 || base::is.na(pdf_width) || pdf_width <= 0)) {
+    stop("`pdf_width` must be NULL or a single positive number.")
+  }
+  if (!base::is.null(pdf_height) &&
+      (!base::is.numeric(pdf_height) || base::length(pdf_height) != 1 || base::is.na(pdf_height) || pdf_height <= 0)) {
+    stop("`pdf_height` must be NULL or a single positive number.")
+  }
+  if (!base::is.numeric(pdf_pointsize) ||
+      base::length(pdf_pointsize) != 1 ||
+      base::is.na(pdf_pointsize) ||
+      pdf_pointsize <= 0) {
+    stop("`pdf_pointsize` must be a single positive number.")
+  }
+  if (!base::is.null(heatmap_column_label_fontsize) &&
+      (!base::is.numeric(heatmap_column_label_fontsize) ||
+       base::length(heatmap_column_label_fontsize) != 1 ||
+       base::is.na(heatmap_column_label_fontsize) ||
+       heatmap_column_label_fontsize <= 0)) {
+    stop("`heatmap_column_label_fontsize` must be NULL or a single positive number.")
+  }
+  if (!base::is.null(heatmap_module_label_fontsize) &&
+      (!base::is.numeric(heatmap_module_label_fontsize) ||
+       base::length(heatmap_module_label_fontsize) != 1 ||
+       base::is.na(heatmap_module_label_fontsize) ||
+       heatmap_module_label_fontsize <= 0)) {
+    stop("`heatmap_module_label_fontsize` must be NULL or a single positive number.")
+  }
+  if (!base::is.null(legend_fontsize) &&
+      (!base::is.numeric(legend_fontsize) ||
+       base::length(legend_fontsize) != 1 ||
+       base::is.na(legend_fontsize) ||
+       legend_fontsize <= 0)) {
+    stop("`legend_fontsize` must be NULL or a single positive number.")
+  }
+  if (!base::is.null(enrichment_label_fontsize) &&
+      (!base::is.numeric(enrichment_label_fontsize) ||
+       base::length(enrichment_label_fontsize) != 1 ||
+       base::is.na(enrichment_label_fontsize) ||
+       enrichment_label_fontsize <= 0)) {
+    stop("`enrichment_label_fontsize` must be NULL or a single positive number.")
+  }
+  if (!base::is.logical(enrichment_label_wrap) ||
+      base::length(enrichment_label_wrap) != 1 ||
+      base::is.na(enrichment_label_wrap)) {
+    stop("`enrichment_label_wrap` must be TRUE or FALSE.")
+  }
+  if (!base::is.numeric(enrichment_label_wrap_width) ||
+      base::length(enrichment_label_wrap_width) != 1 ||
+      base::is.na(enrichment_label_wrap_width) ||
+      enrichment_label_wrap_width <= 0) {
+    stop("`enrichment_label_wrap_width` must be a single positive number.")
+  }
+  enrichment_label_wrap_width <- base::as.integer(base::round(enrichment_label_wrap_width))
+  if (enrichment_label_wrap_width < 5) {
+    stop("`enrichment_label_wrap_width` must be >= 5.")
+  }
+
+  normalize_scale_limits <- function(x) {
+    if (base::is.null(x)) {
+      return(NULL)
+    }
+    x <- suppressWarnings(base::as.numeric(x))
+    if (base::length(x) == 1) {
+      if (!base::is.finite(x) || x <= 0) {
+        stop("`gfc_scale_limits` as single value must be finite and > 0.")
+      }
+      return(c(-base::abs(x), base::abs(x)))
+    }
+    if (base::length(x) != 2 || any(!base::is.finite(x))) {
+      stop("`gfc_scale_limits` must be NULL, one positive number, or a numeric vector of length 2.")
+    }
+    x <- base::sort(x)
+    if (x[1] == x[2]) {
+      stop("`gfc_scale_limits` must have different min/max values.")
+    }
+    x
+  }
+
+  resolve_gfc_scale_limits <- function(input_limits) {
+    lims <- normalize_scale_limits(input_limits)
+    if (!base::is.null(lims)) {
+      return(lims)
+    }
+    stored <- tryCatch(
+      normalize_scale_limits(hcobject[["integrated_output"]][["cluster_calc"]][["gfc_scale_limits"]]),
+      error = function(e) NULL
+    )
+    if (!base::is.null(stored)) {
+      return(stored)
+    }
+    fallback_lim <- suppressWarnings(base::as.numeric(hcobject[["global_settings"]][["range_GFC"]]))
+    if (!base::is.finite(fallback_lim) || fallback_lim <= 0) {
+      fallback_lim <- 2
+    }
+    c(-base::abs(fallback_lim), base::abs(fallback_lim))
+  }
+
+  compute_scale_ticks <- function(lims) {
+    br <- pretty(lims, n = 5)
+    br <- br[
+      br >= lims[1] - .Machine$double.eps^0.5 &
+        br <= lims[2] + .Machine$double.eps^0.5
+    ]
+    if (!any(base::abs(br) < .Machine$double.eps^0.5)) {
+      br <- base::sort(base::unique(base::c(br, 0)))
+    }
+    if (base::length(br) < 3) {
+      br <- base::seq(lims[1], lims[2], length.out = 5)
+    }
+    list(
+      breaks = br,
+      labels = base::formatC(br, format = "fg", digits = 3)
+    )
+  }
+
+  gfc_scale_limits <- resolve_gfc_scale_limits(gfc_scale_limits)
+  gfc_scale_ticks <- compute_scale_ticks(gfc_scale_limits)
+  pdf_width_input <- pdf_width
+  pdf_height_input <- pdf_height
 
   # Publication-oriented typography presets
   font_title <- 16 * overall_plot_scale
   font_axis <- 10 * overall_plot_scale
   font_annotation <- 11 * overall_plot_scale
   font_module <- 8.2 * overall_plot_scale
+  # Keep enrichment panels closer to the visual footprint of the main heatmap.
+  enrichment_panel_compact_scale <- 0.82
+
+  estimate_rotated_label_height_cm <- function(labels,
+                                                font_size,
+                                                min_cm = 4.8,
+                                                max_cm = 11.2,
+                                                extra_cm = 0.12) {
+    if (base::is.null(labels) || base::length(labels) == 0) {
+      return(min_cm)
+    }
+    labels <- base::as.character(labels)
+    labels <- labels[!base::is.na(labels) & labels != ""]
+    if (base::length(labels) == 0) {
+      return(min_cm)
+    }
+    label_width_cm <- base::vapply(labels, function(lbl) {
+      grid::convertWidth(
+        grid::grobWidth(
+          grid::textGrob(lbl, gp = grid::gpar(fontsize = font_size))
+        ),
+        "cm",
+        valueOnly = TRUE
+      )
+    }, FUN.VALUE = base::numeric(1))
+    est_cm <- base::max(label_width_cm, na.rm = TRUE) + extra_cm
+    base::max(min_cm, base::min(max_cm, est_cm))
+  }
+
+  compute_term_label_fontsize <- function(max_chars, base_font = font_axis) {
+    if (!base::is.finite(max_chars) || max_chars <= 0) {
+      return(base_font)
+    }
+    adaptive <- 280 / max_chars
+    base::max(7.0, base::min(base_font, adaptive))
+  }
+
+  maybe_wrap_labels <- function(labels) {
+    labels <- base::as.character(labels)
+    if (!isTRUE(enrichment_label_wrap) || base::length(labels) == 0) {
+      return(labels)
+    }
+    base::vapply(labels, function(lbl) {
+      if (base::is.na(lbl) || lbl == "") {
+        return(lbl)
+      }
+      wrapped <- base::strwrap(lbl, width = enrichment_label_wrap_width, simplify = FALSE)
+      if (base::length(wrapped) == 0) {
+        return(lbl)
+      }
+      base::paste(wrapped[[1]], collapse = "\n")
+    }, FUN.VALUE = base::character(1))
+  }
+
+  visual_max_label_chars <- function(labels) {
+    if (base::length(labels) == 0) {
+      return(10)
+    }
+    labels <- base::as.character(labels)
+    labels <- labels[!base::is.na(labels) & labels != ""]
+    if (base::length(labels) == 0) {
+      return(10)
+    }
+    base::max(
+      base::vapply(
+        base::strsplit(labels, "\n", fixed = TRUE),
+        function(parts) {
+          if (base::length(parts) == 0) {
+            return(0)
+          }
+          base::max(base::nchar(parts), na.rm = TRUE)
+        },
+        FUN.VALUE = base::numeric(1)
+      ),
+      na.rm = TRUE
+    )
+  }
 
   q_to_sig_score <- function(q) {
     if (base::is.na(q) || q <= 0) {
@@ -554,6 +784,9 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   if (heatmap_module_label_mode == "same" && !base::is.null(stored_module_label_fontsize)) {
     label_fontsize <- stored_module_label_fontsize
   }
+  if (!base::is.null(heatmap_module_label_fontsize)) {
+    label_fontsize <- base::as.numeric(heatmap_module_label_fontsize)
+  }
 
   # Match module box size to the hCoCena heatmap cell geometry used in this
   # enrichment figure, while preserving proportions from the main heatmap.
@@ -609,6 +842,15 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     stored_module_label_pt_size
   } else {
     base::max(
+      0.16,
+      base::min(
+        0.72,
+        0.06 * label_fontsize
+      )
+    )
+  }
+  if (!base::is.null(heatmap_module_label_fontsize)) {
+    module_label_pt_size <- base::max(
       0.16,
       base::min(
         0.72,
@@ -680,11 +922,29 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   # Keep module-expression tiles square-like in the combined enrichment figure.
   hc_body_w_mm <- base::max(18, n_hc_cols * hc_cell_mm)
   hc_body_h_mm <- base::max(20, n_hc_rows * hc_cell_mm)
+  heatmap_column_fontsize <- if (base::is.null(heatmap_column_label_fontsize)) {
+    font_axis
+  } else {
+    base::as.numeric(heatmap_column_label_fontsize)
+  }
   gfc_palette <- grDevices::colorRampPalette(gfc_colors)(51)
   gfc_col_fun <- circlize::colorRamp2(
-    seq(-2, 2, length.out = base::length(gfc_palette)),
+    seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = base::length(gfc_palette)),
     gfc_palette
   )
+
+  gfc_legend_param <- list(
+    title = "GFC",
+    at = gfc_scale_ticks$breaks,
+    labels = gfc_scale_ticks$labels
+  )
+  if (!base::is.null(legend_fontsize)) {
+    gfc_legend_param$labels_gp <- grid::gpar(fontsize = base::as.numeric(legend_fontsize))
+    gfc_legend_param$title_gp <- grid::gpar(
+      fontsize = base::as.numeric(legend_fontsize) + 0.8,
+      fontface = "bold"
+    )
+  }
 
   hc_ht <- ComplexHeatmap::Heatmap(
     heatmap_mat,
@@ -703,16 +963,12 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     show_row_names = FALSE,
     row_names_side = "right",
     row_names_gp = grid::gpar(fontsize = font_axis),
-    column_names_gp = grid::gpar(fontsize = font_axis),
+    column_names_gp = grid::gpar(fontsize = heatmap_column_fontsize),
     width = grid::unit(hc_body_w_mm, "mm"),
     height = grid::unit(hc_body_h_mm, "mm"),
     rect_gp = grid::gpar(col = "black"),
     show_heatmap_legend = TRUE,
-    heatmap_legend_param = list(
-      title = "GFC",
-      at = c(-2, -1, 0, 1, 2),
-      labels = c("-2", "-1", "0", "1", "2")
-    )
+    heatmap_legend_param = gfc_legend_param
   )
 
   build_enrichment_export <- function(res_list, selected_summary_tbl, significant_summary_tbl = NULL) {
@@ -990,18 +1246,18 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         ordered_terms <- ordered_terms[ordered_terms %in% term_levels]
         term_levels <- base::c(ordered_terms, base::setdiff(term_levels, ordered_terms))
       }
-      max_term_chars <- if (base::length(term_levels) > 0) {
-        base::max(base::nchar(term_levels), na.rm = TRUE)
-      } else {
-        10
+      term_levels_display <- maybe_wrap_labels(term_levels)
+      max_term_chars <- visual_max_label_chars(term_levels_display)
+      term_label_fontsize <- compute_term_label_fontsize(max_term_chars)
+      if (!base::is.null(enrichment_label_fontsize)) {
+        term_label_fontsize <- base::as.numeric(enrichment_label_fontsize)
       }
-      # Keep enough room for rotated term labels without over-allocating vertical space.
-      enrichment_colname_max_cm <- base::max(
-        8,
-        base::min(
-          12,
-          2.8 + (0.22 * max_term_chars)
-        )
+      enrichment_colname_max_cm <- estimate_rotated_label_height_cm(
+        labels = term_levels_display,
+        font_size = term_label_fontsize,
+        min_cm = 4.8,
+        max_cm = 11.0,
+        extra_cm = 0.10
       )
       row_names_for_enrichment <- base::rownames(heatmap_mat)
       row_name_by_cluster <- stats::setNames(row_names_for_enrichment, cluster_order)
@@ -1105,6 +1361,10 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       # Match enrichment-significance legend text size to module labels (M1, M2, ...).
       sig_legend_label_fontsize <- base::max(5.2, label_fontsize * 0.88)
       sig_legend_title_fontsize <- base::max(sig_legend_label_fontsize, label_fontsize * 0.94 + 0.6)
+      if (!base::is.null(legend_fontsize)) {
+        sig_legend_label_fontsize <- base::as.numeric(legend_fontsize)
+        sig_legend_title_fontsize <- base::as.numeric(legend_fontsize) + 0.8
+      }
       sig_legend <- ComplexHeatmap::Legend(
         title = "Enrichment\nsignificance",
         labels = sig_labels,
@@ -1124,8 +1384,9 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         5.2
       }
       enrich_cell_w_mm <- enrich_cell_w_mm_base * enrichment_column_spacing_scale
-      enrich_cell_w_mm <- base::max(3.0, base::min(11.0, enrich_cell_w_mm))
+      enrich_cell_w_mm <- base::max(2.8, base::min(9.0, enrich_cell_w_mm))
       enrich_cell_w_mm <- enrich_cell_w_mm * overall_plot_scale
+      enrich_cell_w_mm <- enrich_cell_w_mm * enrichment_panel_compact_scale
       enrichment_body_w_mm <- base::max(24, n_enrich_cols * enrich_cell_w_mm)
       line_width_scale <- base::max(0.2, base::min(4, enrichment_line_width_scale))
       lwd_row <- 1.1 * line_width_scale
@@ -1143,7 +1404,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         show_row_names = FALSE,
         show_column_names = TRUE,
         column_names_rot = 90,
-        column_names_gp = grid::gpar(fontsize = font_axis),
+        column_labels = term_levels_display,
+        column_names_gp = grid::gpar(fontsize = term_label_fontsize),
         column_names_max_height = grid::unit(enrichment_colname_max_cm, "cm"),
         width = grid::unit(enrichment_body_w_mm, "mm"),
         height = grid::unit(hc_body_h_mm, "mm"),
@@ -1207,10 +1469,10 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         valueOnly = TRUE
       )
       draw_padding_mm <- c(
-        10,
-        base::max(26, sig_legend_width_mm + 28),
         8,
-        8
+        base::max(22, sig_legend_width_mm + 20),
+        6,
+        6
       ) * overall_plot_scale
       draw_padding <- grid::unit(draw_padding_mm, "mm")
       draw_with_body_borders <- function(ht_obj, ...) {
@@ -1243,12 +1505,36 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         invisible(drawn_ht)
       }
       pdf_height <- base::max(
-        8.8,
+        8.0,
         base::min(
-          12.0,
-          6.8 + (enrichment_colname_max_cm * 0.22) + (0.035 * base::length(cluster_order))
+          24.0,
+          (
+            hc_body_h_mm +
+              base::max(20, enrichment_colname_max_cm * 10) +
+              34
+          ) / 25.4
         )
-      ) * overall_plot_scale
+      )
+      hc_annotation_extra_mm <- (module_box_width_cm * 10) +
+        (if (heatmap_show_gene_counts) {
+          14 * overall_plot_scale
+        } else {
+          2
+        }) +
+        (2 * overall_plot_scale)
+      pdf_width <- base::max(
+        10.0,
+        base::min(
+          38.0,
+          (
+            hc_body_w_mm +
+              hc_annotation_extra_mm +
+              enrichment_body_w_mm +
+              sig_legend_width_mm +
+              42
+          ) / 25.4
+        )
+      )
 
       Cairo::CairoPDF(
         file = base::paste0(
@@ -1260,8 +1546,9 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           top,
           ".pdf"
         ),
-        width = 14 * overall_plot_scale,
-        height = pdf_height
+        width = if (base::is.null(pdf_width_input)) pdf_width else as.numeric(pdf_width_input),
+        height = if (base::is.null(pdf_height_input)) pdf_height else as.numeric(pdf_height_input),
+        pointsize = pdf_pointsize
       )
       draw_with_body_borders(
         cp,
@@ -1405,17 +1692,18 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         }
       }
 
-      max_term_chars_all <- if (base::length(term_levels_all) > 0) {
-        base::max(base::nchar(term_levels_all), na.rm = TRUE)
-      } else {
-        10
+      term_levels_all_display <- maybe_wrap_labels(term_levels_all)
+      max_term_chars_all <- visual_max_label_chars(term_levels_all_display)
+      term_label_fontsize_all <- compute_term_label_fontsize(max_term_chars_all)
+      if (!base::is.null(enrichment_label_fontsize)) {
+        term_label_fontsize_all <- base::as.numeric(enrichment_label_fontsize)
       }
-      enrichment_colname_max_cm_all <- base::max(
-        8,
-        base::min(
-          14,
-          2.8 + (0.18 * max_term_chars_all)
-        )
+      enrichment_colname_max_cm_all <- estimate_rotated_label_height_cm(
+        labels = term_levels_all_display,
+        font_size = term_label_fontsize_all,
+        min_cm = 4.8,
+        max_cm = 11.2,
+        extra_cm = 0.10
       )
 
       q_legend_breaks_all <- base::c(qval, qval / 5, qval / 25)
@@ -1456,6 +1744,10 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       })
       sig_legend_label_fontsize_all <- base::max(5.2, label_fontsize * 0.88)
       sig_legend_title_fontsize_all <- base::max(sig_legend_label_fontsize_all, label_fontsize * 0.94 + 0.6)
+      if (!base::is.null(legend_fontsize)) {
+        sig_legend_label_fontsize_all <- base::as.numeric(legend_fontsize)
+        sig_legend_title_fontsize_all <- base::as.numeric(legend_fontsize) + 0.8
+      }
       sig_legend_all <- ComplexHeatmap::Legend(
         title = "Enrichment\nsignificance",
         labels = sig_labels_all,
@@ -1476,8 +1768,9 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         5.2
       }
       enrich_cell_w_mm_all <- enrich_cell_w_mm_base_all * enrichment_column_spacing_scale
-      enrich_cell_w_mm_all <- base::max(3.0, base::min(11.0, enrich_cell_w_mm_all))
+      enrich_cell_w_mm_all <- base::max(2.8, base::min(9.0, enrich_cell_w_mm_all))
       enrich_cell_w_mm_all <- enrich_cell_w_mm_all * overall_plot_scale
+      enrich_cell_w_mm_all <- enrich_cell_w_mm_all * enrichment_panel_compact_scale
       enrichment_body_w_mm_all <- base::max(24, n_enrich_cols_all * enrich_cell_w_mm_all)
       line_width_scale_all <- base::max(0.2, base::min(4, enrichment_line_width_scale))
       lwd_row_all <- 1.1 * line_width_scale_all
@@ -1500,7 +1793,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         show_row_names = FALSE,
         show_column_names = TRUE,
         column_names_rot = 90,
-        column_names_gp = grid::gpar(fontsize = font_axis),
+        column_labels = term_levels_all_display,
+        column_names_gp = grid::gpar(fontsize = term_label_fontsize_all),
         column_names_max_height = grid::unit(enrichment_colname_max_cm_all, "cm"),
         width = grid::unit(enrichment_body_w_mm_all, "mm"),
         height = grid::unit(hc_body_h_mm, "mm"),
@@ -1566,10 +1860,10 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         valueOnly = TRUE
       )
       draw_padding_mm_all <- c(
-        10,
-        base::max(26, sig_legend_width_mm_all + 28),
         8,
-        8
+        base::max(22, sig_legend_width_mm_all + 20),
+        6,
+        6
       ) * overall_plot_scale
       draw_padding_all <- grid::unit(draw_padding_mm_all, "mm")
       draw_with_body_borders_all <- function(ht_obj, ...) {
@@ -1602,19 +1896,36 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       }
 
       pdf_height_all <- base::max(
-        8.8,
-        base::min(
-          12.8,
-          7.0 + (enrichment_colname_max_cm_all * 0.24) + (0.035 * base::length(cluster_order))
-        )
-      ) * overall_plot_scale
-      pdf_width_all <- base::max(
-        14.0,
+        8.2,
         base::min(
           24.0,
-          9.0 + (0.22 * n_enrich_cols_all)
+          (
+            hc_body_h_mm +
+              base::max(20, enrichment_colname_max_cm_all * 10) +
+              36
+          ) / 25.4
         )
-      ) * overall_plot_scale
+      )
+      hc_annotation_extra_mm <- (module_box_width_cm * 10) +
+        (if (heatmap_show_gene_counts) {
+          14 * overall_plot_scale
+        } else {
+          2
+        }) +
+        (2 * overall_plot_scale)
+      pdf_width_all <- base::max(
+        11.0,
+        base::min(
+          42.0,
+          (
+            hc_body_w_mm +
+              hc_annotation_extra_mm +
+              enrichment_body_w_mm_all +
+              sig_legend_width_mm_all +
+              46
+          ) / 25.4
+        )
+      )
 
       Cairo::CairoPDF(
         file = base::paste0(
@@ -1624,8 +1935,9 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           top,
           ".pdf"
         ),
-        width = pdf_width_all,
-        height = pdf_height_all
+        width = if (base::is.null(pdf_width_input)) pdf_width_all else as.numeric(pdf_width_input),
+        height = if (base::is.null(pdf_height_input)) pdf_height_all else as.numeric(pdf_height_input),
+        pointsize = pdf_pointsize
       )
       draw_with_body_borders_all(
         cp_all,
@@ -1665,17 +1977,18 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       col_has_hits_all_mixed <- base::colSums(!base::is.na(enrich_mat_all_mixed)) > 0
       term_line_color_all_mixed <- term_line_color_all[term_levels_mixed]
 
-      max_term_chars_all_mixed <- if (base::length(term_levels_mixed) > 0) {
-        base::max(base::nchar(term_levels_mixed), na.rm = TRUE)
-      } else {
-        10
+      term_levels_mixed_display <- maybe_wrap_labels(term_levels_mixed)
+      max_term_chars_all_mixed <- visual_max_label_chars(term_levels_mixed_display)
+      term_label_fontsize_all_mixed <- compute_term_label_fontsize(max_term_chars_all_mixed)
+      if (!base::is.null(enrichment_label_fontsize)) {
+        term_label_fontsize_all_mixed <- base::as.numeric(enrichment_label_fontsize)
       }
-      enrichment_colname_max_cm_all_mixed <- base::max(
-        8,
-        base::min(
-          14,
-          2.8 + (0.18 * max_term_chars_all_mixed)
-        )
+      enrichment_colname_max_cm_all_mixed <- estimate_rotated_label_height_cm(
+        labels = term_levels_mixed_display,
+        font_size = term_label_fontsize_all_mixed,
+        min_cm = 4.8,
+        max_cm = 11.2,
+        extra_cm = 0.10
       )
       n_enrich_cols_all_mixed <- base::ncol(enrich_mat_all_mixed)
       enrich_cell_w_mm_base_all_mixed <- if (n_enrich_cols_all_mixed <= 8) {
@@ -1688,8 +2001,9 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         5.2
       }
       enrich_cell_w_mm_all_mixed <- enrich_cell_w_mm_base_all_mixed * enrichment_column_spacing_scale
-      enrich_cell_w_mm_all_mixed <- base::max(3.0, base::min(11.0, enrich_cell_w_mm_all_mixed))
+      enrich_cell_w_mm_all_mixed <- base::max(2.8, base::min(9.0, enrich_cell_w_mm_all_mixed))
       enrich_cell_w_mm_all_mixed <- enrich_cell_w_mm_all_mixed * overall_plot_scale
+      enrich_cell_w_mm_all_mixed <- enrich_cell_w_mm_all_mixed * enrichment_panel_compact_scale
       enrichment_body_w_mm_all_mixed <- base::max(24, n_enrich_cols_all_mixed * enrich_cell_w_mm_all_mixed)
 
       enrichment_ht_all_mixed <- ComplexHeatmap::Heatmap(
@@ -1704,7 +2018,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         show_row_names = FALSE,
         show_column_names = TRUE,
         column_names_rot = 90,
-        column_names_gp = grid::gpar(fontsize = font_axis),
+        column_labels = term_levels_mixed_display,
+        column_names_gp = grid::gpar(fontsize = term_label_fontsize_all_mixed),
         column_names_max_height = grid::unit(enrichment_colname_max_cm_all_mixed, "cm"),
         width = grid::unit(enrichment_body_w_mm_all_mixed, "mm"),
         height = grid::unit(hc_body_h_mm, "mm"),
@@ -1762,19 +2077,36 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         enrichment_ht_all_mixed + hc_ht
       }
       pdf_height_all_mixed <- base::max(
-        8.8,
-        base::min(
-          12.8,
-          7.0 + (enrichment_colname_max_cm_all_mixed * 0.24) + (0.035 * base::length(cluster_order))
-        )
-      ) * overall_plot_scale
-      pdf_width_all_mixed <- base::max(
-        14.0,
+        8.2,
         base::min(
           24.0,
-          9.0 + (0.22 * n_enrich_cols_all_mixed)
+          (
+            hc_body_h_mm +
+              base::max(20, enrichment_colname_max_cm_all_mixed * 10) +
+              36
+          ) / 25.4
         )
-      ) * overall_plot_scale
+      )
+      hc_annotation_extra_mm <- (module_box_width_cm * 10) +
+        (if (heatmap_show_gene_counts) {
+          14 * overall_plot_scale
+        } else {
+          2
+        }) +
+        (2 * overall_plot_scale)
+      pdf_width_all_mixed <- base::max(
+        11.5,
+        base::min(
+          44.0,
+          (
+            hc_body_w_mm +
+              hc_annotation_extra_mm +
+              enrichment_body_w_mm_all_mixed +
+              sig_legend_width_mm_all +
+              48
+          ) / 25.4
+        )
+      )
 
       Cairo::CairoPDF(
         file = base::paste0(
@@ -1784,8 +2116,9 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           top,
           ".pdf"
         ),
-        width = pdf_width_all_mixed,
-        height = pdf_height_all_mixed
+        width = if (base::is.null(pdf_width_input)) pdf_width_all_mixed else as.numeric(pdf_width_input),
+        height = if (base::is.null(pdf_height_input)) pdf_height_all_mixed else as.numeric(pdf_height_input),
+        pointsize = pdf_pointsize
       )
       draw_with_body_borders_all(
         cp_all_mixed,

@@ -298,7 +298,7 @@ hc <- hc_plot_deg_dist(hc)
 
   This function plots a heatmap for the network genes in each data layer and computes the Group-Fold-Changes (GFCs) for each gene per layer. Defining a user-specific color vector is optional.
 
-```{r, fig.width = 10, fig.height = 7}
+```{r, fig.width = 13, fig.height = 10, out.width = "100%"}
 
 hc <- hc_run_expression_analysis_2(hc)
 
@@ -466,7 +466,7 @@ hc <- hc_plot_integrated_network(hc)
   
   In our case, we are interested in getting the GO- and HALLMARK enrichment for selected modules of interest (we selected them because of their stimulus-specific activation patterns). In both cases, we want to retrieve the top 5 most enriched terms (may be less if less than 5 terms are enriched). We also filter the results for those with adjusted p-values not higher than 0.1. 
   
-```{r GO profiling, fig.width = 9, fig.height = 9, message = F, warning = F}
+```{r GO profiling, fig.width = 13, fig.height = 10, out.width = "100%", message = F, warning = F}
 
 
 hc <- hc_functional_enrichment(
@@ -476,7 +476,15 @@ hc <- hc_functional_enrichment(
   qval = 0.05,
   heatmap_side = "left",
   enrichment_vertical_line_mode = "to_term",
-  enrichment_column_spacing_scale = 0.95)
+  enrichment_column_spacing_scale = 0.95
+  # Optional label styling controls (defaults keep current automatic behavior):
+  # , heatmap_column_label_fontsize = 10
+  # , heatmap_module_label_fontsize = 8.5
+  # , legend_fontsize = 9
+  # , enrichment_label_fontsize = 9
+  # , enrichment_label_wrap = FALSE
+  # , enrichment_label_wrap_width = 30
+)
 
 
 
@@ -502,7 +510,7 @@ hc <- hc_functional_enrichment(
   - `Module_Celltype_Annotation.xlsx` (selected + significant terms + matrix),
   - and, with `plot_heatmap = TRUE`, an updated heatmap PDF with cell-type bars.
 
-```{r optional module celltype annotation, fig.width = 12, fig.height = 8, message = TRUE, warning = FALSE}
+```{r optional module celltype annotation, fig.width = 13, fig.height = 10, out.width = "100%", message = TRUE, warning = FALSE}
 
 # 1) Discover candidate Enrichr databases (optional quick check)
 db_candidates <- hc_list_celltype_databases(
@@ -577,12 +585,12 @@ print(utils::head(hc@satellite[["celltype_annotation"]][["selected_celltypes"]])
   - `save_pdf = TRUE`: additionally writes all upstream plots to `Upstream_Inference.pdf`.
   - `plot_per_comparison = TRUE`: additionally draws one combined panel per GFC condition (or FC comparison), each with the matching one-column module heatmap.
   - `consistent_terms` controls how per-comparison pages are rendered:
-    - `FALSE` (default): only local (current-condition) selected activities, no significance stars.
-    - `TRUE`: uses a global all-condition term axis for comparability, but still plots values from the currently shown condition only; stars (`*`) mark terms significant in that shown condition.
+    - `TRUE` (recommended/default): uses a global all-condition term axis for comparability, but still plots values from the currently shown condition only; stars (`*`) mark terms significant in that shown condition.
+    - `FALSE`: only local (current-condition) selected activities, no significance stars (discovery mode).
   - `padj` (not set here) defaults to `"BH"` and defines multiple-testing correction.
   - `overall_plot_scale` (not set here) defaults to `1` and scales plot text/marker sizes.
 
-```{r upstream inference, fig.width = 12, fig.height = 8, message = TRUE, warning = FALSE}
+```{r upstream inference, fig.width = 13, fig.height = 10, out.width = "100%", message = TRUE, warning = FALSE}
 hc <- hc_upstream_inference(
   hc,
   resources = c("TF", "Pathway"),
@@ -597,11 +605,29 @@ hc <- hc_upstream_inference(
   plot = TRUE,
   save_pdf = TRUE,
   plot_per_comparison = TRUE,
-  consistent_terms = FALSE
+  consistent_terms = TRUE
 )
 
 # Quick look at merged top results:
 print(utils::head(hc@satellite[["upstream_inference"]][["selected_upstream_all"]]))
+
+# Optional discovery view (condition-specific terms, not for strict comparison):
+# hc <- hc_upstream_inference(
+#   hc,
+#   resources = c("TF", "Pathway"),
+#   top = 5,
+#   qval = 0.05,
+#   tf_confidence = c("A", "B", "C"),
+#   minsize = 5,
+#   method = "ulm",
+#   activity_input = "fc",
+#   fc_comparisons = c("IFNg_seq_vs_baseline_seq", "IL4_seq_vs_baseline_seq"),
+#   heatmap_side = "left",
+#   plot = TRUE,
+#   save_pdf = TRUE,
+#   plot_per_comparison = TRUE,
+#   consistent_terms = FALSE
+# )
 
 ```
 
@@ -627,7 +653,7 @@ print(utils::head(hc@satellite[["upstream_inference"]][["selected_upstream_all"]
   significant terms only and max 2 enrichment/upstream links per module.
   If you need more detail, increase these limits.
 
-```{r module knowledge network, fig.width = 15, fig.height = 9, message = FALSE, warning = FALSE}
+```{r module knowledge network, fig.width = 13, fig.height = 10, out.width = "100%", message = FALSE, warning = FALSE}
 
 hc <- hc_plot_enrichment_upstream_network(
   hc,

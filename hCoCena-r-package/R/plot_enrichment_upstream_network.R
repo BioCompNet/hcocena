@@ -23,6 +23,16 @@
 #' @param save_pdf Logical; if `TRUE` (default), writes a multi-page PDF to the
 #'   current hCoCena save folder (overview + per-module focus pages).
 #' @param pdf_name Output PDF filename.
+#' @param gfc_scale_limits Optional numeric vector controlling the left module
+#'   heatmap color scale limits. Provide one positive number (`x` -> `c(-x, x)`)
+#'   or two numbers (`c(min, max)`). If NULL, uses upstream inference settings
+#'   first (if available), then main heatmap settings, then `c(-range_GFC, range_GFC)`.
+#' @param pdf_width Optional numeric width (inches) for network PDFs.
+#'   If NULL (default), width is auto-estimated from content.
+#' @param pdf_height Optional numeric height (inches) for network PDFs.
+#'   If NULL (default), height is auto-estimated from content.
+#' @param pdf_pointsize Numeric base pointsize used for PDF export devices.
+#'   Default is 11.
 #' @param overall_plot_scale Numeric scaling factor for text and line sizes.
 #'
 #' @return A list with overview/focus plots, nodes, edges, and output file.
@@ -36,6 +46,10 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
                                              show_plot = TRUE,
                                              save_pdf = TRUE,
                                              pdf_name = "Module_Knowledge_Network.pdf",
+                                             gfc_scale_limits = NULL,
+                                             pdf_width = NULL,
+                                             pdf_height = NULL,
+                                             pdf_pointsize = 11,
                                              overall_plot_scale = 1) {
   .hc_legacy_warning("plot_enrichment_upstream_network")
 
@@ -60,6 +74,20 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
   if (!base::is.character(pdf_name) || base::length(pdf_name) != 1 || base::is.na(pdf_name) || pdf_name == "") {
     stop("`pdf_name` must be a non-empty filename.")
   }
+  if (!base::is.null(pdf_width) &&
+      (!base::is.numeric(pdf_width) || base::length(pdf_width) != 1 || base::is.na(pdf_width) || pdf_width <= 0)) {
+    stop("`pdf_width` must be NULL or a single positive number.")
+  }
+  if (!base::is.null(pdf_height) &&
+      (!base::is.numeric(pdf_height) || base::length(pdf_height) != 1 || base::is.na(pdf_height) || pdf_height <= 0)) {
+    stop("`pdf_height` must be NULL or a single positive number.")
+  }
+  if (!base::is.numeric(pdf_pointsize) ||
+      base::length(pdf_pointsize) != 1 ||
+      base::is.na(pdf_pointsize) ||
+      pdf_pointsize <= 0) {
+    stop("`pdf_pointsize` must be a single positive number.")
+  }
   if (!base::is.numeric(overall_plot_scale) ||
       base::length(overall_plot_scale) != 1 ||
       base::is.na(overall_plot_scale) ||
@@ -67,6 +95,44 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     stop("`overall_plot_scale` must be a positive numeric scalar.")
   }
   overall_plot_scale <- base::max(0.5, base::min(3, overall_plot_scale))
+
+  normalize_scale_limits <- function(x) {
+    if (base::is.null(x)) {
+      return(NULL)
+    }
+    x <- suppressWarnings(base::as.numeric(x))
+    if (base::length(x) == 1) {
+      if (!base::is.finite(x) || x <= 0) {
+        stop("`gfc_scale_limits` as single value must be finite and > 0.")
+      }
+      return(c(-base::abs(x), base::abs(x)))
+    }
+    if (base::length(x) != 2 || any(!base::is.finite(x))) {
+      stop("`gfc_scale_limits` must be NULL, one positive number, or a numeric vector of length 2.")
+    }
+    x <- base::sort(x)
+    if (x[1] == x[2]) {
+      stop("`gfc_scale_limits` must have different min/max values.")
+    }
+    x
+  }
+  compute_scale_ticks <- function(lims) {
+    br <- pretty(lims, n = 5)
+    br <- br[
+      br >= lims[1] - .Machine$double.eps^0.5 &
+        br <= lims[2] + .Machine$double.eps^0.5
+    ]
+    if (!any(base::abs(br) < .Machine$double.eps^0.5)) {
+      br <- base::sort(base::unique(base::c(br, 0)))
+    }
+    if (base::length(br) < 3) {
+      br <- base::seq(lims[1], lims[2], length.out = 5)
+    }
+    list(
+      breaks = br,
+      labels = base::formatC(br, format = "fg", digits = 3)
+    )
+  }
 
   check_optional_limit <- function(x, arg) {
     if (base::is.null(x)) {
@@ -372,6 +438,29 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     upstream_module_heatmap_name <- if (identical(upstream_activity_input, "fc")) "FC" else "GFC"
   }
   upstream_module_heatmap_name <- base::as.character(upstream_module_heatmap_name[[1]])
+  resolved_gfc_scale_limits <- normalize_scale_limits(gfc_scale_limits)
+  if (base::is.null(resolved_gfc_scale_limits) &&
+      base::is.list(upstream_settings) &&
+      "gfc_scale_limits" %in% base::names(upstream_settings)) {
+    resolved_gfc_scale_limits <- tryCatch(
+      normalize_scale_limits(upstream_settings[["gfc_scale_limits"]]),
+      error = function(e) NULL
+    )
+  }
+  if (base::is.null(resolved_gfc_scale_limits)) {
+    resolved_gfc_scale_limits <- tryCatch(
+      normalize_scale_limits(cluster_calc[["gfc_scale_limits"]]),
+      error = function(e) NULL
+    )
+  }
+  if (base::is.null(resolved_gfc_scale_limits)) {
+    fallback_lim <- suppressWarnings(base::as.numeric(hcobject[["global_settings"]][["range_GFC"]]))
+    if (!base::is.finite(fallback_lim) || fallback_lim <= 0) {
+      fallback_lim <- 2
+    }
+    resolved_gfc_scale_limits <- c(-base::abs(fallback_lim), base::abs(fallback_lim))
+  }
+  resolved_gfc_scale_ticks <- compute_scale_ticks(resolved_gfc_scale_limits)
 
   build_fc_module_heatmap_from_settings <- function(fc_comparisons, cluster_order, cluster_info) {
     if (base::is.null(fc_comparisons) || base::length(fc_comparisons) == 0) {
@@ -949,7 +1038,15 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
                                     stored_hm,
                                     override_mat = NULL,
                                     override_col_order = base::character(0),
-                                    value_name = "GFC") {
+                                    value_name = "GFC",
+                                    gfc_scale_limits = c(-2, 2),
+                                    gfc_scale_ticks = NULL) {
+    if (base::is.null(gfc_scale_ticks) ||
+        !base::is.list(gfc_scale_ticks) ||
+        !all(c("breaks", "labels") %in% base::names(gfc_scale_ticks))) {
+      gfc_scale_ticks <- compute_scale_ticks(gfc_scale_limits)
+    }
+
     extract_heatmap <- function(stored_hm, cluster_info, cluster_order, module_label_map, override_mat) {
       if (!base::is.null(override_mat) && base::nrow(override_mat) > 0 && base::ncol(override_mat) > 0) {
         hm_mat <- override_mat %>% base::as.matrix()
@@ -1093,9 +1190,9 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
       gene_counts = as.numeric(gene_counts),
       value_name = value_name,
       gfc_colors = stored_gfc_colors,
-      scale_limits = c(-2, 2),
-      scale_breaks = c(-2, -1, 0, 1, 2),
-      scale_labels = c("-2", "-1", "0", "1", "2")
+      scale_limits = gfc_scale_limits,
+      scale_breaks = gfc_scale_ticks$breaks,
+      scale_labels = gfc_scale_ticks$labels
     )
   }
 
@@ -1219,7 +1316,9 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     stored_hm = stored_hm,
     override_mat = upstream_module_heatmap_mat,
     override_col_order = upstream_module_heatmap_col_order,
-    value_name = upstream_module_heatmap_name
+    value_name = upstream_module_heatmap_name,
+    gfc_scale_limits = resolved_gfc_scale_limits,
+    gfc_scale_ticks = resolved_gfc_scale_ticks
   )
   if (base::is.null(hc_heatmap_data)) {
     stop("Unable to build hCoCena heatmap panel for the network plot.")
@@ -1707,17 +1806,19 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
   )
 
   max_term_count <- base::max(base::nrow(enrich_nodes), base::nrow(upstream_nodes), base::length(cluster_order))
-  pdf_width <- base::max(14, base::min(27, 12 + 0.08 * max_term_count)) * overall_plot_scale
-  pdf_height <- base::max(9, base::min(18, 8 + 0.11 * max_term_count)) * overall_plot_scale
+  pdf_width_auto <- base::max(14, base::min(27, 12 + 0.08 * max_term_count)) * overall_plot_scale
+  pdf_height_auto <- base::max(9, base::min(18, 8 + 0.11 * max_term_count)) * overall_plot_scale
+  pdf_width_use <- if (base::is.null(pdf_width)) pdf_width_auto else as.numeric(pdf_width)
+  pdf_height_use <- if (base::is.null(pdf_height)) pdf_height_auto else as.numeric(pdf_height)
 
   out_file <- NULL
   focus_files <- stats::setNames(base::character(0), base::character(0))
   if (isTRUE(save_pdf)) {
     out_file <- base::paste0(file_prefix, "/", pdf_name)
     if (requireNamespace("Cairo", quietly = TRUE)) {
-      Cairo::CairoPDF(file = out_file, width = pdf_width, height = pdf_height)
+      Cairo::CairoPDF(file = out_file, width = pdf_width_use, height = pdf_height_use, pointsize = pdf_pointsize)
     } else {
-      grDevices::pdf(file = out_file, width = pdf_width, height = pdf_height)
+      grDevices::pdf(file = out_file, width = pdf_width_use, height = pdf_height_use, pointsize = pdf_pointsize)
     }
     draw_combined_page(overview_plot, page_title_for_focus())
     for (i in base::seq_along(focus_plots)) {
@@ -1750,9 +1851,9 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
         ".pdf"
       )
       if (requireNamespace("Cairo", quietly = TRUE)) {
-        Cairo::CairoPDF(file = mod_file, width = pdf_width, height = pdf_height)
+        Cairo::CairoPDF(file = mod_file, width = pdf_width_use, height = pdf_height_use, pointsize = pdf_pointsize)
       } else {
-        grDevices::pdf(file = mod_file, width = pdf_width, height = pdf_height)
+        grDevices::pdf(file = mod_file, width = pdf_width_use, height = pdf_height_use, pointsize = pdf_pointsize)
       }
       draw_combined_page(focus_plots[[i]], focus_titles[[i]])
       grDevices::dev.off()
@@ -1793,6 +1894,7 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
       upstream_mode = upstream_mode,
       upstream_activity_input = upstream_activity_input,
       heatmap_value_name = hc_heatmap_data$value_name,
+      heatmap_scale_limits = hc_heatmap_data$scale_limits,
       label_mode = label_mode,
       clusters = cluster_order,
       max_enrichment_per_module = max_enrichment_per_module,

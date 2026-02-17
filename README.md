@@ -10,11 +10,11 @@ It supports both:
 The repository is maintained at: https://github.com/BioCompNet/hcocena
 
 ## Current Version
-This repository currently tracks **hcocena v1.27**.
+This repository currently tracks **hcocena v1.28**.
 
-![hCoCena overview v1.27](assets/hCocena_updated_1.27.png)
+![hCoCena overview v1.28](assets/hCocena_updated_1.27.png)
 
-## What hCoCena Can Do (v1.27)
+## What hCoCena Can Do (v1.28)
 - S4-first workflow (`HCoCenaExperiment`) with `hc_*` API wrappers.
 - Backward compatibility with legacy workflows.
 - Correlation cutoff tuning with tiered selection (`hc_tune_cutoff` / `hc_auto_tune_cutoff_tiered`).

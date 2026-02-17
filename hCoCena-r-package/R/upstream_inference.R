@@ -32,10 +32,21 @@
 #'   `c("IFNg_seq_vs_baseline_seq", "IL4_seq_vs_baseline_seq")`.
 #' @param heatmap_side Position of the hCoCena heatmap in the combined output.
 #'   Choose one of `"left"` (default) or `"right"`.
+#' @param gfc_scale_limits Optional numeric vector controlling the module-heatmap
+#'   color scale limits used in upstream combined heatmaps (left/right hCoCena
+#'   panel). Provide one positive number (`x` -> `c(-x, x)`) or two numbers
+#'   (`c(min, max)`). If NULL, uses stored limits from the main heatmap when
+#'   available, otherwise falls back to `c(-range_GFC, range_GFC)`.
 #' @param plot Logical; if `TRUE` (default), draw plot outputs in the active
 #'   graphics device.
 #' @param save_pdf Logical; if `TRUE` (default), export plots to
 #'   `Upstream_Inference.pdf`.
+#' @param pdf_width Optional numeric width (inches) for `Upstream_Inference.pdf`.
+#'   If NULL (default), width is auto-estimated from content.
+#' @param pdf_height Optional numeric height (inches) for `Upstream_Inference.pdf`.
+#'   If NULL (default), height is auto-estimated from content.
+#' @param pdf_pointsize Numeric base pointsize used for the upstream PDF device.
+#'   Default is 11.
 #' @param plot_per_comparison Logical; if `TRUE`, additionally create one
 #'   combined upstream heatmap page per activity column (GFC condition or FC
 #'   comparison), each with the matching one-column module heatmap.
@@ -44,7 +55,7 @@
 #'   If `TRUE`, per-comparison pages still show only values from the currently
 #'   shown condition, but use a global (all-condition) term axis for
 #'   comparability; `*` marks significance for the currently shown condition.
-#'   If `FALSE` (default), each page uses only local selected activities from
+#'   If `FALSE`, each page uses only local selected activities from
 #'   the shown condition and no significance marker is drawn.
 #' @param overall_plot_scale Numeric scaling factor for plot typography and
 #'   marker sizes. Default is 1.
@@ -63,10 +74,14 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
                                activity_input = "gfc",
                                fc_comparisons = NULL,
                                heatmap_side = "left",
+                               gfc_scale_limits = NULL,
                                plot = TRUE,
                                save_pdf = TRUE,
+                               pdf_width = NULL,
+                               pdf_height = NULL,
+                               pdf_pointsize = 11,
                                plot_per_comparison = TRUE,
-                               consistent_terms = FALSE,
+                               consistent_terms = TRUE,
                                overall_plot_scale = 1) {
   .hc_legacy_warning("upstream_inference")
 
@@ -114,11 +129,40 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
   if (!base::is.logical(save_pdf) || base::length(save_pdf) != 1) {
     stop("`save_pdf` must be TRUE or FALSE.")
   }
+  if (!base::is.null(pdf_width) &&
+      (!base::is.numeric(pdf_width) || base::length(pdf_width) != 1 || base::is.na(pdf_width) || pdf_width <= 0)) {
+    stop("`pdf_width` must be NULL or a single positive number.")
+  }
+  if (!base::is.null(pdf_height) &&
+      (!base::is.numeric(pdf_height) || base::length(pdf_height) != 1 || base::is.na(pdf_height) || pdf_height <= 0)) {
+    stop("`pdf_height` must be NULL or a single positive number.")
+  }
+  if (!base::is.numeric(pdf_pointsize) ||
+      base::length(pdf_pointsize) != 1 ||
+      base::is.na(pdf_pointsize) ||
+      pdf_pointsize <= 0) {
+    stop("`pdf_pointsize` must be a single positive number.")
+  }
   if (!base::is.logical(plot_per_comparison) || base::length(plot_per_comparison) != 1 || base::is.na(plot_per_comparison)) {
     stop("`plot_per_comparison` must be TRUE or FALSE.")
   }
   if (!base::is.logical(consistent_terms) || base::length(consistent_terms) != 1 || base::is.na(consistent_terms)) {
     stop("`consistent_terms` must be TRUE or FALSE.")
+  }
+  if (isTRUE(plot_per_comparison)) {
+    if (isTRUE(consistent_terms)) {
+      message(
+        "upstream_inference(): per-condition comparison mode enabled ",
+        "(`consistent_terms = TRUE`). ",
+        "Term axis is fixed across conditions; `*` marks significance in the shown condition."
+      )
+    } else {
+      message(
+        "upstream_inference(): per-condition discovery mode enabled ",
+        "(`consistent_terms = FALSE`). ",
+        "Each condition uses its own term set (not intended for strict cross-condition comparison)."
+      )
+    }
   }
   if (!base::is.numeric(overall_plot_scale) ||
       base::length(overall_plot_scale) != 1 ||
@@ -136,6 +180,67 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     choices = c("gfc", "fc", "expression")
   )
   heatmap_side <- base::match.arg(base::tolower(base::as.character(heatmap_side)), choices = c("left", "right"))
+
+  normalize_scale_limits <- function(x) {
+    if (base::is.null(x)) {
+      return(NULL)
+    }
+    x <- suppressWarnings(base::as.numeric(x))
+    if (base::length(x) == 1) {
+      if (!base::is.finite(x) || x <= 0) {
+        stop("`gfc_scale_limits` as single value must be finite and > 0.")
+      }
+      return(c(-base::abs(x), base::abs(x)))
+    }
+    if (base::length(x) != 2 || any(!base::is.finite(x))) {
+      stop("`gfc_scale_limits` must be NULL, one positive number, or a numeric vector of length 2.")
+    }
+    x <- base::sort(x)
+    if (x[1] == x[2]) {
+      stop("`gfc_scale_limits` must have different min/max values.")
+    }
+    x
+  }
+
+  resolve_gfc_scale_limits <- function(input_limits) {
+    lims <- normalize_scale_limits(input_limits)
+    if (!base::is.null(lims)) {
+      return(lims)
+    }
+    stored <- tryCatch(
+      normalize_scale_limits(hcobject[["integrated_output"]][["cluster_calc"]][["gfc_scale_limits"]]),
+      error = function(e) NULL
+    )
+    if (!base::is.null(stored)) {
+      return(stored)
+    }
+    fallback_lim <- suppressWarnings(base::as.numeric(hcobject[["global_settings"]][["range_GFC"]]))
+    if (!base::is.finite(fallback_lim) || fallback_lim <= 0) {
+      fallback_lim <- 2
+    }
+    c(-base::abs(fallback_lim), base::abs(fallback_lim))
+  }
+
+  compute_scale_ticks <- function(lims) {
+    br <- pretty(lims, n = 5)
+    br <- br[
+      br >= lims[1] - .Machine$double.eps^0.5 &
+        br <= lims[2] + .Machine$double.eps^0.5
+    ]
+    if (!any(base::abs(br) < .Machine$double.eps^0.5)) {
+      br <- base::sort(base::unique(base::c(br, 0)))
+    }
+    if (base::length(br) < 3) {
+      br <- base::seq(lims[1], lims[2], length.out = 5)
+    }
+    list(
+      breaks = br,
+      labels = base::formatC(br, format = "fg", digits = 3)
+    )
+  }
+
+  gfc_scale_limits <- resolve_gfc_scale_limits(gfc_scale_limits)
+  gfc_scale_ticks <- compute_scale_ticks(gfc_scale_limits)
 
   if (base::is.null(hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]])) {
     stop("No cluster information found. Run `cluster_calculation()` first.")
@@ -1071,6 +1176,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     module_heatmap_mat = module_heatmap_mat,
     module_heatmap_col_order = module_heatmap_col_order,
     module_heatmap_name = module_heatmap_name,
+    gfc_scale_limits = gfc_scale_limits,
+    gfc_scale_ticks = gfc_scale_ticks,
     heatmap_side = heatmap_side,
     term_levels = term_order_all,
     activity_score_limit = activity_score_limit,
@@ -1092,6 +1199,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     module_heatmap_mat = module_heatmap_mat,
     module_heatmap_col_order = module_heatmap_col_order,
     module_heatmap_name = module_heatmap_name,
+    gfc_scale_limits = gfc_scale_limits,
+    gfc_scale_ticks = gfc_scale_ticks,
     heatmap_side = heatmap_side,
     term_levels = term_order_tf,
     activity_score_limit = activity_score_limit,
@@ -1109,6 +1218,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     module_heatmap_mat = module_heatmap_mat,
     module_heatmap_col_order = module_heatmap_col_order,
     module_heatmap_name = module_heatmap_name,
+    gfc_scale_limits = gfc_scale_limits,
+    gfc_scale_ticks = gfc_scale_ticks,
     heatmap_side = heatmap_side,
     term_levels = term_order_pathway,
     activity_score_limit = activity_score_limit,
@@ -1167,6 +1278,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
         module_heatmap_mat = condition_module_mat,
         module_heatmap_col_order = condition_module_col_order,
         module_heatmap_name = module_heatmap_name,
+        gfc_scale_limits = gfc_scale_limits,
+        gfc_scale_ticks = gfc_scale_ticks,
         heatmap_side = heatmap_side,
         term_levels = term_levels_cond,
         activity_score_limit = activity_score_limit,
@@ -1188,9 +1301,17 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     } else {
       6
     }
-    pdf_width <- base::max(11, base::min(26, 9 + 0.15 * n_cols_for_width))
-    pdf_height <- base::max(8, base::min(20, 6 + 0.22 * base::length(cluster_order)))
-    Cairo::CairoPDF(file = pdf_path, width = pdf_width, height = pdf_height, onefile = TRUE)
+    pdf_width_auto <- base::max(11, base::min(26, 9 + 0.15 * n_cols_for_width))
+    pdf_height_auto <- base::max(8, base::min(20, 6 + 0.22 * base::length(cluster_order)))
+    pdf_width_use <- if (base::is.null(pdf_width)) pdf_width_auto else as.numeric(pdf_width)
+    pdf_height_use <- if (base::is.null(pdf_height)) pdf_height_auto else as.numeric(pdf_height)
+    Cairo::CairoPDF(
+      file = pdf_path,
+      width = pdf_width_use,
+      height = pdf_height_use,
+      pointsize = pdf_pointsize,
+      onefile = TRUE
+    )
     drew_any <- FALSE
     if (isTRUE(plot_per_comparison) && base::length(combined_plots_by_condition) > 0) {
       drew_any <- TRUE
@@ -1280,6 +1401,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
       method = method,
       minsize = minsize,
       activity_score_limit = activity_score_limit,
+      gfc_scale_limits = gfc_scale_limits,
       qval = qval,
       padj = padj
     ),
@@ -1712,6 +1834,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
                                                    module_heatmap_mat = NULL,
                                                    module_heatmap_col_order = NULL,
                                                    module_heatmap_name = "GFC",
+                                                   gfc_scale_limits = c(-2, 2),
+                                                   gfc_scale_ticks = NULL,
                                                    heatmap_side = "left",
                                                    term_levels = NULL,
                                                    activity_score_limit = 2,
@@ -1733,6 +1857,37 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     activity_score_limit <- 2
   }
   activity_score_limit <- base::max(1, base::min(4, activity_score_limit))
+
+  if (!base::is.numeric(gfc_scale_limits) || base::length(gfc_scale_limits) != 2 || any(!base::is.finite(gfc_scale_limits))) {
+    gfc_scale_limits <- c(-2, 2)
+  }
+  gfc_scale_limits <- base::sort(base::as.numeric(gfc_scale_limits))
+  if (gfc_scale_limits[1] == gfc_scale_limits[2]) {
+    lim_abs <- base::abs(gfc_scale_limits[1])
+    if (!base::is.finite(lim_abs) || lim_abs <= 0) {
+      lim_abs <- 2
+    }
+    gfc_scale_limits <- c(-lim_abs, lim_abs)
+  }
+  if (base::is.null(gfc_scale_ticks) ||
+      !base::is.list(gfc_scale_ticks) ||
+      !all(c("breaks", "labels") %in% base::names(gfc_scale_ticks))) {
+    br <- pretty(gfc_scale_limits, n = 5)
+    br <- br[
+      br >= gfc_scale_limits[1] - .Machine$double.eps^0.5 &
+        br <= gfc_scale_limits[2] + .Machine$double.eps^0.5
+    ]
+    if (!any(base::abs(br) < .Machine$double.eps^0.5)) {
+      br <- base::sort(base::unique(base::c(br, 0)))
+    }
+    if (base::length(br) < 3) {
+      br <- base::seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = 5)
+    }
+    gfc_scale_ticks <- list(
+      breaks = br,
+      labels = base::formatC(br, format = "fg", digits = 3)
+    )
+  }
 
   extract_module_heatmap <- function(stored_hm, gfc_all, cluster_info, cluster_order, module_label_map, module_heatmap_mat) {
     if (!base::is.null(module_heatmap_mat) && base::nrow(module_heatmap_mat) > 0 && base::ncol(module_heatmap_mat) > 0) {
@@ -2003,7 +2158,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
   hc_body_h_mm <- base::max(20, n_hc_rows * hc_cell_mm)
   gfc_palette <- grDevices::colorRampPalette(gfc_colors)(51)
   gfc_col_fun <- circlize::colorRamp2(
-    seq(-2, 2, length.out = base::length(gfc_palette)),
+    seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = base::length(gfc_palette)),
     gfc_palette
   )
   hc_ht <- ComplexHeatmap::Heatmap(
@@ -2023,8 +2178,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     rect_gp = grid::gpar(col = "black"),
     heatmap_legend_param = list(
       title = module_heatmap_name,
-      at = c(-2, -1, 0, 1, 2),
-      labels = c("-2", "-1", "0", "1", "2")
+      at = gfc_scale_ticks$breaks,
+      labels = gfc_scale_ticks$labels
     )
   )
 

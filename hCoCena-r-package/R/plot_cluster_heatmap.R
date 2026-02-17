@@ -46,6 +46,18 @@
 #'  Uses `snpc` units. If NULL, it follows the module-label glyph size.
 #' @param gfc_colors Optional character vector of colors for the GFC color scale.
 #'  If NULL, uses the legacy default `rev(RColorBrewer::brewer.pal(11, "RdBu"))`.
+#' @param gfc_scale_limits Optional numeric vector controlling the module-heatmap
+#'  color scale limits. Provide either one positive number (`x` -> `c(-x, x)`) or
+#'  two numbers (`c(min, max)`). If NULL, uses stored limits from the previous
+#'  main heatmap run, otherwise falls back to `c(-range_GFC, range_GFC)`.
+#' @param pdf_width Numeric PDF width in inches for saved heatmap output.
+#'  Default is 50.
+#' @param pdf_height Numeric PDF height in inches for saved heatmap output.
+#'  Default is 30.
+#' @param pdf_pointsize Numeric base pointsize for saved heatmap PDF.
+#'  Default is 11.
+#' @param pdf_dpi Numeric raster DPI passed to the Cairo PDF backend.
+#'  Default is 300.
 #' @param overall_plot_scale Numeric scaling factor for the overall heatmap output.
 #'  Values > 1 enlarge the plot, values < 1 shrink it. Default is 1.
 #' @param include_dynamic_enrichment_slots Logical. If `TRUE`, also include
@@ -78,6 +90,11 @@ plot_cluster_heatmap <- function(col_order = NULL,
                                  gene_count_renderer = "pch",
                                  gene_count_pt_size = NULL,
                                  gfc_colors = NULL,
+                                 gfc_scale_limits = NULL,
+                                 pdf_width = 50,
+                                 pdf_height = 30,
+                                 pdf_pointsize = 11,
+                                 pdf_dpi = 300,
                                  overall_plot_scale = 1,
                                  include_dynamic_enrichment_slots = FALSE){
 
@@ -105,6 +122,11 @@ plot_cluster_heatmap <- function(col_order = NULL,
     gene_count_renderer = gene_count_renderer,
     gene_count_pt_size = gene_count_pt_size,
     gfc_colors = gfc_colors,
+    gfc_scale_limits = gfc_scale_limits,
+    pdf_width = pdf_width,
+    pdf_height = pdf_height,
+    pdf_pointsize = pdf_pointsize,
+    pdf_dpi = pdf_dpi,
     overall_plot_scale = overall_plot_scale,
     include_dynamic_enrichment_slots = include_dynamic_enrichment_slots
   )
@@ -134,6 +156,11 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                                  gene_count_renderer = "pch",
                                  gene_count_pt_size = NULL,
                                  gfc_colors = NULL,
+                                 gfc_scale_limits = NULL,
+                                 pdf_width = 50,
+                                 pdf_height = 30,
+                                 pdf_pointsize = 11,
+                                 pdf_dpi = 300,
                                  overall_plot_scale = 1,
                                  include_dynamic_enrichment_slots = FALSE){
 
@@ -207,6 +234,80 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     stop("`gfc_colors` must not contain NA or empty strings.")
   }
   gfc_colors <- base::as.character(gfc_colors)
+  if (!base::is.numeric(pdf_width) ||
+      base::length(pdf_width) != 1 ||
+      base::is.na(pdf_width) ||
+      pdf_width <= 0) {
+    stop("`pdf_width` must be a single positive number.")
+  }
+  if (!base::is.numeric(pdf_height) ||
+      base::length(pdf_height) != 1 ||
+      base::is.na(pdf_height) ||
+      pdf_height <= 0) {
+    stop("`pdf_height` must be a single positive number.")
+  }
+  if (!base::is.numeric(pdf_pointsize) ||
+      base::length(pdf_pointsize) != 1 ||
+      base::is.na(pdf_pointsize) ||
+      pdf_pointsize <= 0) {
+    stop("`pdf_pointsize` must be a single positive number.")
+  }
+  if (!base::is.numeric(pdf_dpi) ||
+      base::length(pdf_dpi) != 1 ||
+      base::is.na(pdf_dpi) ||
+      pdf_dpi <= 0) {
+    stop("`pdf_dpi` must be a single positive number.")
+  }
+
+  normalize_scale_limits <- function(x) {
+    if (base::is.null(x)) {
+      return(NULL)
+    }
+    x <- suppressWarnings(base::as.numeric(x))
+    if (base::length(x) == 1) {
+      if (!base::is.finite(x) || x <= 0) {
+        stop("`gfc_scale_limits` as single value must be finite and > 0.")
+      }
+      return(c(-base::abs(x), base::abs(x)))
+    }
+    if (base::length(x) != 2 || any(!base::is.finite(x))) {
+      stop("`gfc_scale_limits` must be NULL, one positive number, or a numeric vector of length 2.")
+    }
+    x <- base::sort(x)
+    if (x[1] == x[2]) {
+      stop("`gfc_scale_limits` must have different min/max values.")
+    }
+    x
+  }
+
+  gfc_scale_limits <- normalize_scale_limits(gfc_scale_limits)
+  if (base::is.null(gfc_scale_limits)) {
+    stored_limits <- tryCatch(
+      normalize_scale_limits(hcobject[["integrated_output"]][["cluster_calc"]][["gfc_scale_limits"]]),
+      error = function(e) NULL
+    )
+    if (!base::is.null(stored_limits)) {
+      gfc_scale_limits <- stored_limits
+    } else {
+      fallback_lim <- suppressWarnings(base::as.numeric(hcobject[["global_settings"]][["range_GFC"]]))
+      if (!base::is.finite(fallback_lim) || fallback_lim <= 0) {
+        fallback_lim <- 2
+      }
+      gfc_scale_limits <- c(-base::abs(fallback_lim), base::abs(fallback_lim))
+    }
+  }
+  gfc_scale_breaks <- pretty(gfc_scale_limits, n = 5)
+  gfc_scale_breaks <- gfc_scale_breaks[
+    gfc_scale_breaks >= gfc_scale_limits[1] - .Machine$double.eps^0.5 &
+      gfc_scale_breaks <= gfc_scale_limits[2] + .Machine$double.eps^0.5
+  ]
+  if (!any(base::abs(gfc_scale_breaks) < .Machine$double.eps^0.5)) {
+    gfc_scale_breaks <- base::sort(base::unique(base::c(gfc_scale_breaks, 0)))
+  }
+  if (base::length(gfc_scale_breaks) < 3) {
+    gfc_scale_breaks <- base::seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = 5)
+  }
+  gfc_scale_labels <- base::formatC(gfc_scale_breaks, format = "fg", digits = 3)
   
   # --- 1. Load Satellite Outputs (Enrichments & Metadata) ---
   
@@ -866,10 +967,10 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   # --- 7. Plotting and Output ---
   
   Cairo::Cairo(file = paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", file_name),
-               width = 50,
-               height = 30,
-               pointsize=11,
-               dpi=300,
+               width = pdf_width,
+               height = pdf_height,
+               pointsize = pdf_pointsize,
+               dpi = pdf_dpi,
                type = "pdf",
                units = "in")
 
@@ -907,7 +1008,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   column_dend_height_mm <- column_dend_height_mm * overall_plot_scale
   gfc_palette <- grDevices::colorRampPalette(gfc_colors)(51)
   gfc_col_fun <- circlize::colorRamp2(
-    seq(-2, 2, length.out = base::length(gfc_palette)),
+    seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = base::length(gfc_palette)),
     gfc_palette
   )
   
@@ -941,8 +1042,8 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       show_heatmap_legend = TRUE,
       heatmap_legend_param = list(
         title = "GFC",
-        at = c(-2, -1, 0, 1, 2),
-        labels = c("-2", "-1", "0", "1", "2")
+        at = gfc_scale_breaks,
+        labels = gfc_scale_labels
       ),
       column_km = k
     )
@@ -1111,6 +1212,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   hcobject[["integrated_output"]][["cluster_calc"]][["gene_count_renderer"]] <<- gene_count_renderer
   hcobject[["integrated_output"]][["cluster_calc"]][["gene_count_pt_size"]] <<- gene_count_pt_size
   hcobject[["integrated_output"]][["cluster_calc"]][["gfc_colors"]] <<- gfc_colors
+  hcobject[["integrated_output"]][["cluster_calc"]][["gfc_scale_limits"]] <<- gfc_scale_limits
   hcobject[["integrated_output"]][["cluster_calc"]][["overall_plot_scale"]] <<- overall_plot_scale
   if (module_label_mode == "prefix") {
     hcobject[["integrated_output"]][["cluster_calc"]][["module_prefix"]] <<- module_prefix

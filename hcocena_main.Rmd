@@ -232,7 +232,7 @@ hc <- hc_plot_deg_dist(hc)
   This function plots a heatmap for the network genes in each data layer and computes the Group-Fold-Changes for each genes per layer.
 
 
-```{r, fig.width = 10, fig.height = 7}
+```{r, fig.width = 13, fig.height = 10, out.width = "100%"}
 
 hc <- hc_run_expression_analysis_2(hc)
 
@@ -264,7 +264,7 @@ hc <- hc_build_integrated_network(hc, mode = "u", multi_edges = "min")
   NOTE: You can export your clustering for future use. To do so, please refer to the satellite script, section "Export clustering".
   NOTE 2: Instead of clustering your network here, you can alternatively import a clustering model. To do so, please use the import_clusters() function (see satellite markdown for infos).
   
-```{r compute clusters and plot module heatmap}
+```{r compute clusters and plot module heatmap, fig.width = 13, fig.height = 10, out.width = "100%"}
 hc <- hc_cluster_calculation(
   hc,
   cluster_algo = "cluster_leiden",
@@ -308,8 +308,12 @@ hc <- hc_plot_integrated_network(hc)
 
   Enrichment analysis of the found modules using the GO, KEGG, Hallmark and Reactome databases or based on a user-defined enrichment file. For detailed information on parameter settings, please run `?hcocena::hc_functional_enrichment`.
   Results are written to the output folder and stored in the `hc` object.
+  If you later run `hc_upstream_inference()` (see `hcocena_main_seq_only.Rmd`),
+  per-condition comparison now defaults to `consistent_terms = TRUE` to keep
+  one fixed term axis across conditions; set `consistent_terms = FALSE` for
+  condition-specific discovery pages.
   
-```{r GO profiling, fig.width = 10, fig.height = 7, message = F, warning = F}
+```{r GO profiling, fig.width = 13, fig.height = 10, out.width = "100%", message = F, warning = F}
 
 hc <- hc_functional_enrichment(
   hc,
@@ -318,6 +322,13 @@ hc <- hc_functional_enrichment(
   top = 5,
   padj = "BH",
   qval = 0.1
+  # Optional label styling controls (defaults keep current automatic behavior):
+  # , heatmap_column_label_fontsize = 10
+  # , heatmap_module_label_fontsize = 8.5
+  # , legend_fontsize = 9
+  # , enrichment_label_fontsize = 9
+  # , enrichment_label_wrap = FALSE
+  # , enrichment_label_wrap_width = 30
 )
 
 ```
@@ -385,7 +396,7 @@ hc <- hc_tf_overrep_module(hc, clusters = "all", topTF = 5, topTarget = 5)
 
   If you regrouped your samples AND/OR conducted any steps in the "Module analysis and meta-annotation"-section, the heatmap will be re-plotted updated with respect to the grouping and annotation information along with the network coloured by modules. If You have neither regrouped your sample nor analysed your modules or samples groups, this chunk will provide the exact same output as the previous one and can be skipped. 
   
-```{r create module heatmap, fig.width = 10, fig.height = 7}
+```{r create module heatmap, fig.width = 13, fig.height = 10, out.width = "100%"}
 
 layout_obj <- hc@integration@cluster[["layout"]]
 

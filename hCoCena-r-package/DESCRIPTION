@@ -1,7 +1,7 @@
 Package: hcocena
 Title: Horizontal Integration and Analysis of Multiple Transcriptomics
         Datasets
-Version: 1.27
+Version: 1.28
 Authors@R: c(
     person(given = "Lisa",
            family = "Holsten",

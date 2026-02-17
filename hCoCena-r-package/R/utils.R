@@ -2947,9 +2947,41 @@ replot_cluster_heatmap <- function(col_order = NULL,
         dpi=300,
         type = "pdf",
         units = "in")
+  gfc_scale_limits <- suppressWarnings(base::as.numeric(hcobject[["integrated_output"]][["cluster_calc"]][["gfc_scale_limits"]]))
+  if (base::length(gfc_scale_limits) == 1 && base::is.finite(gfc_scale_limits) && gfc_scale_limits > 0) {
+    gfc_scale_limits <- c(-base::abs(gfc_scale_limits), base::abs(gfc_scale_limits))
+  }
+  if (base::length(gfc_scale_limits) != 2 || any(!base::is.finite(gfc_scale_limits))) {
+    fallback_lim <- suppressWarnings(base::as.numeric(hcobject[["global_settings"]][["range_GFC"]]))
+    if (!base::is.finite(fallback_lim) || fallback_lim <= 0) {
+      fallback_lim <- 2
+    }
+    gfc_scale_limits <- c(-base::abs(fallback_lim), base::abs(fallback_lim))
+  } else {
+    gfc_scale_limits <- base::sort(gfc_scale_limits)
+    if (gfc_scale_limits[1] == gfc_scale_limits[2]) {
+      lim_abs <- base::abs(gfc_scale_limits[1])
+      if (!base::is.finite(lim_abs) || lim_abs <= 0) {
+        lim_abs <- 2
+      }
+      gfc_scale_limits <- c(-lim_abs, lim_abs)
+    }
+  }
+  gfc_scale_breaks <- pretty(gfc_scale_limits, n = 5)
+  gfc_scale_breaks <- gfc_scale_breaks[
+    gfc_scale_breaks >= gfc_scale_limits[1] - .Machine$double.eps^0.5 &
+      gfc_scale_breaks <= gfc_scale_limits[2] + .Machine$double.eps^0.5
+  ]
+  if (!any(base::abs(gfc_scale_breaks) < .Machine$double.eps^0.5)) {
+    gfc_scale_breaks <- base::sort(base::unique(base::c(gfc_scale_breaks, 0)))
+  }
+  if (base::length(gfc_scale_breaks) < 3) {
+    gfc_scale_breaks <- base::seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = 5)
+  }
+  gfc_scale_labels <- base::formatC(gfc_scale_breaks, format = "fg", digits = 3)
   gfc_palette <- grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(51)
   gfc_col_fun <- circlize::colorRamp2(
-    seq(-2, 2, length.out = base::length(gfc_palette)),
+    seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = base::length(gfc_palette)),
     gfc_palette
   )
 
@@ -2969,8 +3001,8 @@ replot_cluster_heatmap <- function(col_order = NULL,
                                 rect_gp = grid::gpar(col = "black"),
                                 heatmap_legend_param = list(
                                   title = "",
-                                  at = c(-2, -1, 0, 1, 2),
-                                  labels = c("-2", "-1", "0", "1", "2"),
+                                  at = gfc_scale_breaks,
+                                  labels = gfc_scale_labels,
                                   legend_height = grid::unit(3, "cm")
                                 ), column_km = k)
 

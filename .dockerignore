@@ -9,4 +9,6 @@ wiki images
 *.pdf
 .Rhistory
 Rplots.pdf
-
+*.rds
+*.RData
+*.html

@@ -207,25 +207,13 @@ hc <- hc_run_expression_analysis_1(hc, corr_method = "pearson")
 
 ## 1.9 Data processing part II
 
-  **Choosing the cut-offs**
-  
-  Set a correlation cut-off for each of your data sets. To aid the choice of a correlation cut-off for each of the datasets, the following plot presents the different cut-off statistics calculated in the previous step per dataset.
-  Generally, we have the choice between a static and an interactive plot. The interactive plot (which we use here by setting interactive = TRUE) is a widget that allows you to slide through the different cutoffs and highlight the corresponding statistics. However, if R-Studio is having difficulties displaying widgets, use interactive = FALSE for a simple ggplot.
-  
-```{r fig.height = 8, fig.width = 10}
-
-hc <- hc_plot_cutoffs(hc, interactive = TRUE)
-
-```
-
-
 ## OPTIONAL: Correlation cutoff tuning (`hc_tune_cutoff`)
 
   For robust and transparent cutoff selection, use `hc_tune_cutoff()`.
-  This is the recommended cutoff tuner and uses a tiered decision strategy:
-  1. Tier 1: strict criteria
-  2. Tier 2: relaxed criteria
-  3. Fallback: best available SFT fit above a minimum threshold
+  This is the recommended cutoff tuner and uses a staged decision strategy:
+  1. `strict`: strict criteria
+  2. `relaxed`: relaxed criteria
+  3. `best_available`: best available SFT fit above a minimum threshold
 
   Metrics used per tested cutoff:
   - `SFT/R²` (scale-free fit)
@@ -234,17 +222,17 @@ hc <- hc_plot_cutoffs(hc, interactive = TRUE)
   - optional topology guards (`no_of_networks`, retained node fraction)
 
   Most important parameters you can tweak:
-  - `tier1_sft_min`, `tier1_mean_k_min`: make strict tier harder/easier.
-  - `tier2_sft_min`, `tier2_mean_k_min`: fallback quality for relaxed tier.
-  - `fallback_sft_min`: minimum acceptable fit in final fallback.
+  - `tier1_sft_min`, `tier1_mean_k_min`: make the `strict` rule harder/easier.
+  - `tier2_sft_min`, `tier2_mean_k_min`: quality thresholds for the `relaxed` rule.
+  - `fallback_sft_min`: minimum acceptable fit in `best_available`.
   - `require_negative_slope = TRUE`: enforce scale-free-like slope direction.
   - `max_no_networks`: upper bound for fragmentation (`no_of_networks`).
   - `min_node_fraction`: keep only cutoffs with enough retained nodes relative to the best-node cutoff.
-  - `fallback_respect_base_filters`: if `TRUE`, fallback also respects slope/components/node filters.
+  - `fallback_respect_base_filters`: if `TRUE`, `best_available` also respects slope/components/node filters.
   - `apply`: `FALSE` (recommend only) or `TRUE` (write cutoffs into object).
 
   Output locations:
-  - `hc@satellite$cutoff_tuning$comparison_with_simple`: tiered vs simple method
+  - `hc@satellite$cutoff_tuning$comparison_with_simple`: selected (`strict`/`relaxed`/`best_available`) vs `simple`
   - `hc@satellite$cutoff_tuning$layer_details`: full per-cutoff diagnostics per layer
 
 ```{r optional cutoff tuning tiered}
@@ -268,6 +256,18 @@ hc@satellite$cutoff_tuning$comparison_with_simple
 #
 # To directly apply the tiered recommendation:
 # hc <- hc_tune_cutoff(hc, apply = TRUE, max_no_networks = 2, min_node_fraction = 0.6)
+
+```
+
+  **Choosing the cut-offs**
+  
+  Set a correlation cut-off for each of your data sets. To aid the choice of a correlation cut-off for each of the datasets, the following plot presents the different cut-off statistics calculated in the previous step per dataset.
+  Generally, we have the choice between a static and an interactive plot. The interactive plot (which we use here by setting interactive = TRUE) is a widget that allows you to slide through the different cutoffs and highlight the corresponding statistics. However, if R-Studio is having difficulties displaying widgets, use interactive = FALSE for a simple ggplot.
+  If `hc_tune_cutoff()` was run before, `selected`, `strict`, `relaxed`, `best_available`, and `simple` cutoffs are shown as vertical marker lines.
+  
+```{r fig.height = 8, fig.width = 10}
+
+hc <- hc_plot_cutoffs(hc, interactive = TRUE)
 
 ```
   
@@ -376,6 +376,9 @@ hc <- hc_plot_cluster_heatmap(
 
 ```
 
+  Running `hc_plot_cluster_heatmap()` writes `Module_Gene_List.xlsx`
+  to the output folder (`genes` in column 1, `module` in column 2).
+
 ## OPTIONAL: 3.1b Split large modules into submodules
 
   If one or more modules are very large (e.g. > 1000 genes), you can split only these modules into finer submodules.
@@ -429,6 +432,9 @@ hc <- hc_plot_cluster_heatmap(
 # # hc <- hc_plot_cluster_heatmap(hc, module_label_mode = "prefix", module_prefix = "M", module_label_numbering = "after_clustering", overall_plot_scale = 1.2)
 
 ```
+
+  After splitting and re-plotting, `Module_Gene_List.xlsx` is regenerated and
+  includes split module labels (e.g. `M1.1`, `M1.2`).
 
 
 ## OPTIONAL: Module scores
@@ -531,6 +537,7 @@ print(preview_hga)
 hc <- hc_celltype_annotation(
   hc,
   databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas","CellMarker_2024","PanglaoDB_Augmented_2021","Azimuth_Cell_Types_2021","ImmunoGenetics_Network_Library"),
+  # custom_gmt_files = c(MyCellMarkers = "my_cell_markers.gmt"),
   mode = "coarse",          # "coarse" (broad classes) or "fine" (specific terms)
   top = 3,                  # top classes/terms per module
   qval = 0.1,               # adjusted p-value cutoff
@@ -601,6 +608,7 @@ hc <- hc_upstream_inference(
   method = "ulm",
   activity_input = "fc",
   fc_comparisons = c("IFNg_seq_vs_baseline_seq", "IL4_seq_vs_baseline_seq"), # e.g. c("IFNg_seq_vs_baseline_seq", "IL4_seq_vs_baseline_seq") when activity_input = "fc" or NULL
+  # custom_pathway_gmt = c(MyPathways = "my_custom_pathways.gmt"),
   heatmap_side = "left",
   plot = TRUE,
   save_pdf = TRUE,
@@ -754,6 +762,13 @@ hc <- hc_plot_integrated_network(hc, layout = layout_obj, save = FALSE)
 ```{r write session info}
 
 hc <- hc_write_session_info(hc)
+
+```
+
+```{r save hc object for showcase, message = FALSE, warning = FALSE}
+
+saveRDS(hc, file = "hc_after_main.rds")
+cat("Saved hCoCena object to: hc_after_main.rds\n")
 
 ```
 

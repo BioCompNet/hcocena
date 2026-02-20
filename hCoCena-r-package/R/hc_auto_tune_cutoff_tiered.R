@@ -6,7 +6,7 @@
 #' For each layer, the function:
 #' 1. Summarizes cutoff statistics.
 #' 2. Computes additional diagnostics (`slope`, `mean_k`).
-#' 3. Applies a tiered rule set (Tier 1, Tier 2, fallback).
+#' 3. Applies a staged rule set (`strict`, `relaxed`, `best_available`).
 #'
 #' Results are stored in `hc@satellite$cutoff_tuning`
 #' (and mirrored to `hc@satellite$auto_tune_cutoff_tiered` for compatibility).
@@ -15,12 +15,16 @@
 #' @param apply Logical; if `TRUE`, apply the resulting cutoff vector with
 #'   `hc_set_cutoff()`. Missing tiered recommendations fall back to existing
 #'   cutoffs from `hc@config@layer$cutoff` where possible.
-#' @param tier1_sft_min Numeric minimum SFT fit (`R.squared`) for Tier 1.
-#' @param tier1_mean_k_min Numeric minimum mean connectivity (`mean_k`) for Tier 1.
-#' @param tier2_sft_min Numeric minimum SFT fit (`R.squared`) for Tier 2.
-#' @param tier2_mean_k_min Numeric minimum mean connectivity (`mean_k`) for Tier 2.
-#' @param fallback_sft_min Numeric lower bound for fallback selection using the
-#'   maximum available SFT fit.
+#' @param tier1_sft_min Numeric minimum SFT fit (`R.squared`) for the `strict`
+#'   rule.
+#' @param tier1_mean_k_min Numeric minimum mean connectivity (`mean_k`) for the
+#'   `strict` rule.
+#' @param tier2_sft_min Numeric minimum SFT fit (`R.squared`) for the
+#'   `relaxed` rule.
+#' @param tier2_mean_k_min Numeric minimum mean connectivity (`mean_k`) for the
+#'   `relaxed` rule.
+#' @param fallback_sft_min Numeric lower bound for `best_available` selection
+#'   using the maximum available SFT fit.
 #' @param require_negative_slope Logical; require a negative slope (`slope < 0`)
 #'   in Tier 1/Tier 2 (and optionally fallback, see
 #'   `fallback_respect_base_filters`).
@@ -30,8 +34,8 @@
 #'   backward compatibility).
 #' @param min_node_fraction Optional numeric in `(0, 1]`. If set, require
 #'   `no_nodes >= min_node_fraction * max(no_nodes)` in Tier 1/Tier 2.
-#' @param fallback_respect_base_filters Logical; if `TRUE`, fallback selection
-#'   is restricted by base filters (`slope`, `max_no_networks`,
+#' @param fallback_respect_base_filters Logical; if `TRUE`, `best_available`
+#'   selection is restricted by base filters (`slope`, `max_no_networks`,
 #'   `min_node_fraction`).
 #' @param verbose Logical; print per-layer recommendation messages.
 #'
@@ -229,7 +233,15 @@ hc_auto_tune_cutoff_tiered <- function(hc,
 
   select_tiered <- function(summary_df) {
     if (is.null(summary_df) || !is.data.frame(summary_df) || nrow(summary_df) == 0) {
-      return(list(cutoff = NA_real_, tier = "none", reason = "no_cutoff_stats", table = summary_df))
+      return(list(
+        cutoff = NA_real_,
+        tier = "none",
+        reason = "no_cutoff_stats",
+        strict_cutoff = NA_real_,
+        relaxed_cutoff = NA_real_,
+        best_available_cutoff = NA_real_,
+        table = summary_df
+      ))
     }
 
     df <- summary_df
@@ -250,46 +262,95 @@ hc_auto_tune_cutoff_tiered <- function(hc,
     }
     base_ok <- neg_ok & comp_ok & nodes_ok
 
-    tier1_ok <- base_ok &
+    strict_ok <- base_ok &
       is.finite(df$sft_rsq) & df$sft_rsq >= tier1_sft_min &
       is.finite(df$mean_k) & df$mean_k > tier1_mean_k_min
-    tier2_ok <- base_ok &
+    relaxed_ok <- base_ok &
       is.finite(df$sft_rsq) & df$sft_rsq >= tier2_sft_min &
       is.finite(df$mean_k) & df$mean_k > tier2_mean_k_min
 
     df$base_ok <- base_ok
-    df$tier1_ok <- tier1_ok
-    df$tier2_ok <- tier2_ok
+    df$strict_ok <- strict_ok
+    df$relaxed_ok <- relaxed_ok
+    # keep legacy flags for compatibility with older code paths
+    df$tier1_ok <- strict_ok
+    df$tier2_ok <- relaxed_ok
     df$min_nodes_required <- min_nodes_abs
 
-    idx <- which(tier1_ok)
-    if (length(idx) > 0) {
-      i <- idx[[1]]
-      return(list(cutoff = df$cutoff[[i]], tier = "tier1", reason = "first_tier1_in_ascending_cutoff_order", table = df))
-    }
+    strict_idx <- which(strict_ok)
+    strict_cutoff <- if (length(strict_idx) > 0) df$cutoff[[strict_idx[[1]]]] else NA_real_
 
-    idx <- which(tier2_ok)
-    if (length(idx) > 0) {
-      i <- idx[[1]]
-      return(list(cutoff = df$cutoff[[i]], tier = "tier2", reason = "first_tier2_in_ascending_cutoff_order", table = df))
-    }
+    relaxed_idx <- which(relaxed_ok)
+    relaxed_cutoff <- if (length(relaxed_idx) > 0) df$cutoff[[relaxed_idx[[1]]]] else NA_real_
 
+    best_available_cutoff <- NA_real_
     if (isTRUE(fallback_respect_base_filters)) {
       pool <- which(base_ok & is.finite(df$sft_rsq))
     } else {
       pool <- which(is.finite(df$sft_rsq))
     }
+    if (length(pool) > 0) {
+      best_pool_idx <- pool[[which.max(df$sft_rsq[pool])]]
+      best_sft <- df$sft_rsq[[best_pool_idx]]
+      if (is.finite(best_sft) && best_sft > fallback_sft_min) {
+        best_available_cutoff <- df$cutoff[[best_pool_idx]]
+      }
+    }
+
+    if (is.finite(strict_cutoff)) {
+      return(list(
+        cutoff = strict_cutoff,
+        tier = "strict",
+        reason = "first_strict_in_ascending_cutoff_order",
+        strict_cutoff = strict_cutoff,
+        relaxed_cutoff = relaxed_cutoff,
+        best_available_cutoff = best_available_cutoff,
+        table = df
+      ))
+    }
+    if (is.finite(relaxed_cutoff)) {
+      return(list(
+        cutoff = relaxed_cutoff,
+        tier = "relaxed",
+        reason = "first_relaxed_in_ascending_cutoff_order",
+        strict_cutoff = strict_cutoff,
+        relaxed_cutoff = relaxed_cutoff,
+        best_available_cutoff = best_available_cutoff,
+        table = df
+      ))
+    }
+    if (is.finite(best_available_cutoff)) {
+      return(list(
+        cutoff = best_available_cutoff,
+        tier = "best_available",
+        reason = "max_sft_above_fallback_threshold",
+        strict_cutoff = strict_cutoff,
+        relaxed_cutoff = relaxed_cutoff,
+        best_available_cutoff = best_available_cutoff,
+        table = df
+      ))
+    }
     if (length(pool) == 0) {
-      return(list(cutoff = NA_real_, tier = "none", reason = "no_fallback_candidates", table = df))
+      return(list(
+        cutoff = NA_real_,
+        tier = "none",
+        reason = "no_best_available_candidates",
+        strict_cutoff = strict_cutoff,
+        relaxed_cutoff = relaxed_cutoff,
+        best_available_cutoff = best_available_cutoff,
+        table = df
+      ))
     }
 
-    best_pool_idx <- pool[[which.max(df$sft_rsq[pool])]]
-    best_sft <- df$sft_rsq[[best_pool_idx]]
-    if (is.finite(best_sft) && best_sft > fallback_sft_min) {
-      return(list(cutoff = df$cutoff[[best_pool_idx]], tier = "fallback", reason = "max_sft_above_fallback_threshold", table = df))
-    }
-
-    list(cutoff = NA_real_, tier = "none", reason = "fallback_sft_below_threshold", table = df)
+    list(
+      cutoff = NA_real_,
+      tier = "none",
+      reason = "best_available_sft_below_threshold",
+      strict_cutoff = strict_cutoff,
+      relaxed_cutoff = relaxed_cutoff,
+      best_available_cutoff = best_available_cutoff,
+      table = df
+    )
   }
 
   layer_ids <- character(0)
@@ -304,6 +365,12 @@ hc_auto_tune_cutoff_tiered <- function(hc,
 
   recommended <- rep(NA_real_, length(layer_ids))
   names(recommended) <- layer_ids
+  strict_cutoffs <- rep(NA_real_, length(layer_ids))
+  relaxed_cutoffs <- rep(NA_real_, length(layer_ids))
+  best_available_cutoffs <- rep(NA_real_, length(layer_ids))
+  names(strict_cutoffs) <- layer_ids
+  names(relaxed_cutoffs) <- layer_ids
+  names(best_available_cutoffs) <- layer_ids
   tiers <- rep(NA_character_, length(layer_ids))
   reasons <- rep(NA_character_, length(layer_ids))
   names(tiers) <- layer_ids
@@ -320,12 +387,19 @@ hc_auto_tune_cutoff_tiered <- function(hc,
     sel <- select_tiered(summary_df)
 
     recommended[[i]] <- sel$cutoff
+    strict_cutoffs[[i]] <- sel$strict_cutoff
+    relaxed_cutoffs[[i]] <- sel$relaxed_cutoff
+    best_available_cutoffs[[i]] <- sel$best_available_cutoff
     tiers[[i]] <- sel$tier
     reasons[[i]] <- sel$reason
     details[[i]] <- list(
       selected_cutoff = sel$cutoff,
+      selected_policy = sel$tier,
       selected_tier = sel$tier,
       selected_reason = sel$reason,
+      strict_cutoff = sel$strict_cutoff,
+      relaxed_cutoff = sel$relaxed_cutoff,
+      best_available_cutoff = sel$best_available_cutoff,
       cutoff_summary = sel$table
     )
 
@@ -349,8 +423,12 @@ hc_auto_tune_cutoff_tiered <- function(hc,
   comparison <- data.frame(
     layer_id = layer_ids,
     cutoff_tiered = as.numeric(recommended),
+    selected_policy = as.character(tiers),
     tier = as.character(tiers),
     reason = as.character(reasons),
+    cutoff_strict = as.numeric(strict_cutoffs),
+    cutoff_relaxed = as.numeric(relaxed_cutoffs),
+    cutoff_best_available = as.numeric(best_available_cutoffs),
     cutoff_simple = as.numeric(simple_aligned),
     delta_tiered_minus_simple = as.numeric(recommended) - as.numeric(simple_aligned),
     stringsAsFactors = FALSE
@@ -435,12 +513,12 @@ hc_auto_tune_cutoff_tiered <- function(hc,
 #' Key tuning knobs:
 #' - `tier1_sft_min`, `tier1_mean_k_min`: strict-tier thresholds.
 #' - `tier2_sft_min`, `tier2_mean_k_min`: relaxed-tier thresholds.
-#' - `fallback_sft_min`: minimum fit for fallback selection.
+#' - `fallback_sft_min`: minimum fit for `best_available` selection.
 #' - `require_negative_slope`: enforce negative slope in tier filters.
 #' - `max_no_networks`: optional upper bound for connected-component count.
 #' - `min_node_fraction`: optional retained-node requirement relative to best
 #'   available node count across tested cutoffs.
-#' - `fallback_respect_base_filters`: whether fallback must respect the same
+#' - `fallback_respect_base_filters`: whether `best_available` must respect the same
 #'   base filters (`slope/components/nodes`).
 #'
 #' @inheritParams hc_auto_tune_cutoff_tiered

@@ -191,10 +191,31 @@ hc <- hc_run_expression_analysis_1(hc, corr_method = "pearson")
 
 ## 1.9 Data processing part II
 
+  **OPTIONAL: Correlation cutoff tuning (`hc_tune_cutoff`)**
+
+  You can run the cutoff tuner before plotting the cutoff statistics.  
+  If tuning results are present, `hc_plot_cutoffs()` will add vertical markers for `strict`, `relaxed`, `best_available` and the `simple` baseline cutoff.
+
+```{r optional cutoff tuning tiered}
+
+hc <- hc_tune_cutoff(
+  hc,
+  apply = FALSE,
+  max_no_networks = 3,
+  min_node_fraction = 0.6,
+  verbose = TRUE
+)
+
+hc@satellite$cutoff_tuning$comparison_with_simple
+
+```
+
 
   **Choosing the cut-offs:**
 
-  Set a correlation cut-off for each of your data sets. To aid this choice, the following plot presents the different cut-off statistics per data set. For more details on cut-offs and the information in this plot as well as the parameters, enter `?hcocena::hc_plot_cutoffs` into the console.
+  Set a correlation cut-off for each of your data sets. To aid this choice, the following plot presents the different cut-off statistics per data set.  
+  If `hc_tune_cutoff()` was run before, the plot includes the tuning markers automatically (`selected`, `strict`, `relaxed`, `best_available`, and `simple`).  
+  For more details on cut-offs and the information in this plot as well as the parameters, enter `?hcocena::hc_plot_cutoffs` into the console.
   
   
 ```{r fig.height = 8, fig.width = 15}
@@ -269,12 +290,16 @@ hc <- hc_cluster_calculation(
   hc,
   cluster_algo = "cluster_leiden",
   no_of_iterations = 2,
-  resolution = 0.1,
+  resolution = 0.5,
   partition_type = "RBConfigurationVertexPartition",
   max_cluster_count_per_gene = 1
 )
 hc <- hc_plot_cluster_heatmap(hc)
 ```
+
+  Running `hc_plot_cluster_heatmap()` also writes `Module_Gene_List.xlsx`
+  to the output folder (`genes` in column 1, `module` in column 2), based on
+  the currently displayed module labels.
 
 
 ## OPTIONAL: Module scores
@@ -308,6 +333,8 @@ hc <- hc_plot_integrated_network(hc)
 
   Enrichment analysis of the found modules using the GO, KEGG, Hallmark and Reactome databases or based on a user-defined enrichment file. For detailed information on parameter settings, please run `?hcocena::hc_functional_enrichment`.
   Results are written to the output folder and stored in the `hc` object.
+  The combined Excel export now includes `all_enrichments_all_dbs` (all terms, no significance filter) and
+  keeps `Module_Gene_List.xlsx` synchronized with the module labels shown in the heatmap.
   If you later run `hc_upstream_inference()` (see `hcocena_main_seq_only.Rmd`),
   per-condition comparison now defaults to `consistent_terms = TRUE` to keep
   one fixed term axis across conditions; set `consistent_terms = FALSE` for
@@ -318,6 +345,7 @@ hc <- hc_plot_integrated_network(hc)
 hc <- hc_functional_enrichment(
   hc,
   gene_sets = c("Hallmark", "Go", "Kegg"),
+  # custom_gmt_files = c(MyCustomPathways = "my_custom_pathways.gmt"),
   clusters = "all",
   top = 5,
   padj = "BH",
@@ -327,6 +355,7 @@ hc <- hc_functional_enrichment(
   # , heatmap_module_label_fontsize = 8.5
   # , legend_fontsize = 9
   # , enrichment_label_fontsize = 9
+  # , enrichment_db_header_fontsize = 11   # controls "Go/Kegg/Hallmark" headers in combined all-DB plots
   # , enrichment_label_wrap = FALSE
   # , enrichment_label_wrap_width = 30
 )
@@ -381,6 +410,70 @@ hc <- hc_tf_overrep_module(hc, clusters = "all", topTF = 5, topTarget = 5)
 
   You have the option to analyse the genes present in the found modules with regard to shared functionality or enriched gene sets as well as to annotate the groups of samples with meta information from your annotation file. To do so, please refer to the satellite markdown, section "Module analysis and meta-annotation".
 
+### OPTIONAL: Additional cell-type annotation (decoupleR + Enrichr markers)
+
+  This optional step adds a second, independent module annotation based on
+  Enrichr marker genes scored with decoupleR.
+  Existing annotation slots are kept (`clear_previous_slots = FALSE`), so you can
+  compare both annotation styles in the same project.
+
+  Which input to use:
+  - `activity_input = "gfc"`: recommended default for integrated condition effects.
+  - `activity_input = "fc"`: targeted pairwise contrasts (`fc_comparisons` required).
+  - `activity_input = "expression"`: group-mean expression based scoring.
+
+```{r optional decoupler celltype annotation, fig.width = 13, fig.height = 10, out.width = "100%", message = TRUE, warning = FALSE}
+
+hc <- hc_celltype_activity_decoupler(
+  hc,
+  databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas", "CellMarker_2024"),
+  # custom_gmt_files = c(MyCellMarkers = "my_cell_markers.gmt"),
+  clusters = "all",
+  mode = "coarse",
+  top = 3,
+  qval = 0.1,
+  activity_input = "gfc",
+  method = "ulm",
+  minsize = 5,
+  min_term_genes = 5,
+  slot_suffix = "decoupler",
+  clear_previous_slots = FALSE,
+  export_excel = TRUE,
+  excel_file = "Module_Celltype_Activity_decoupler.xlsx",
+  plot_heatmap = TRUE,
+  heatmap_file_name = "Heatmap_modules_celltype_activity_decoupler.pdf"
+)
+
+# Optional alternative: pairwise fold-change based activity.
+# hc <- hc_celltype_activity_decoupler(
+#   hc,
+#   databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
+#   mode = "coarse",
+#   top = 3,
+#   qval = 0.1,
+#   activity_input = "fc",
+#   fc_comparisons = c("IFNg_seq_vs_baseline_seq", "IL4_seq_vs_baseline_seq"),
+#   slot_suffix = "decoupler_fc",
+#   clear_previous_slots = FALSE,
+#   export_excel = TRUE,
+#   plot_heatmap = FALSE
+# )
+
+# Optional alternative: expression-based activity.
+# hc <- hc_celltype_activity_decoupler(
+#   hc,
+#   databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
+#   mode = "coarse",
+#   top = 3,
+#   qval = 0.1,
+#   activity_input = "expression",
+#   slot_suffix = "decoupler_expr",
+#   clear_previous_slots = FALSE,
+#   export_excel = TRUE,
+#   plot_heatmap = FALSE
+# )
+
+```
 
 ## OPTIONAL: Replotting of heatmap with different variable of interest
 
@@ -414,6 +507,25 @@ hc <- hc_plot_integrated_network(hc, layout = layout_obj, save = FALSE)
 ```{r write session info}
 
 hc <- hc_write_session_info(hc)
+
+```
+
+```{r save hc object for showcase, message = FALSE, warning = FALSE}
+
+showcase_rds <- "hc_after_main.rds"
+
+if (!inherits(hc, "HCoCenaExperiment")) {
+  stop("`hc` must be an HCoCenaExperiment before saving for showcase.")
+}
+
+saveRDS(hc, file = showcase_rds)
+cat("Saved hCoCena object for showcase to:", showcase_rds, "\n")
+cat(
+  "Render showcase with: rmarkdown::render('hcocena_plot_showcase.Rmd', params = list(hc_rds = '",
+  showcase_rds,
+  "'))\n",
+  sep = ""
+)
 
 ```
 

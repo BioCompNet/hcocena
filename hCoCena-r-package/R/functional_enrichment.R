@@ -4,6 +4,10 @@
 #' @param gene_sets A vector. The names of databases enrichment should be performed for. Choose one or multiple of "Go", "Kegg", "Hallmark", and/or "Reactome".
 #'  Available databases depend on supplement files previously set
 #'  Default is "Hallmark".
+#' @param custom_gmt_files Optional custom GMT file(s) to include directly in
+#'  enrichment. Accepts a character vector or named list of file paths.
+#'  Unnamed entries are auto-labeled (`CustomEnrichment1`, ...). Paths can be
+#'  absolute/relative or file names inside `dir_reference_files`.
 #' @param top Integer. The number of most strongly enriched terms to return per cluster. Default is 5.
 #' @param clusters Either "all" (default) or a vector of clusters as strings. Defines for which clusters to perform the enrichment.
 #' @param padj Method to use for multiple testing correction. Can be one of "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none".  Default is "BH" (Benjamini-Hochberg).
@@ -41,6 +45,9 @@
 #'  (GFC legend and enrichment significance legend). If NULL (default), uses automatic sizing.
 #' @param enrichment_label_fontsize Optional numeric font size for enrichment term labels.
 #'  If NULL (default), uses automatic sizing.
+#' @param enrichment_db_header_fontsize Optional numeric font size for database
+#'  headers in combined all-DB enrichment plots (e.g. "Go", "Kegg", "Hallmark").
+#'  If NULL (default), uses automatic sizing.
 #' @param enrichment_label_wrap Logical. If TRUE, wraps enrichment term labels using
 #'  `enrichment_label_wrap_width`. Default is FALSE.
 #' @param enrichment_label_wrap_width Integer wrap width used when
@@ -65,6 +72,7 @@
 #' @export
 
 functional_enrichment <- function(gene_sets = "Hallmark",
+                                  custom_gmt_files = NULL,
                                   top = 5,
                                   clusters = c("all"),
                                   padj = "BH",
@@ -85,6 +93,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                                   heatmap_module_label_fontsize = NULL,
                                   legend_fontsize = NULL,
                                   enrichment_label_fontsize = NULL,
+                                  enrichment_db_header_fontsize = NULL,
                                   enrichment_label_wrap = FALSE,
                                   enrichment_label_wrap_width = 30,
                                   gfc_colors = NULL,
@@ -95,6 +104,70 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                                   overall_plot_scale = 1) {
   .hc_legacy_warning("functional_enrichment")
   gfc_colors_was_missing <- missing(gfc_colors)
+
+  supplementary_data <- hcobject[["supplementary_data"]]
+  if (base::is.null(supplementary_data) || !base::is.list(supplementary_data)) {
+    supplementary_data <- list()
+  }
+
+  custom_gmt_sets <- .hc_load_custom_gmt_term2gene(
+    custom_gmt_files = custom_gmt_files,
+    default_prefix = "CustomEnrichment",
+    uppercase_genes = FALSE,
+    add_database_prefix = FALSE,
+    title_case_names = TRUE
+  )
+  if (base::length(custom_gmt_sets) > 0) {
+    for (nm in base::names(custom_gmt_sets)) {
+      supplementary_data[[nm]] <- custom_gmt_sets[[nm]][, c("term", "gene"), drop = FALSE]
+    }
+  }
+
+  gene_sets <- base::as.character(gene_sets)
+  gene_sets <- base::trimws(gene_sets)
+  gene_sets <- gene_sets[!base::is.na(gene_sets) & gene_sets != ""]
+  gene_sets <- stringr::str_to_title(gene_sets)
+  if (base::length(custom_gmt_sets) > 0) {
+    gene_sets <- base::unique(base::c(gene_sets, base::names(custom_gmt_sets)))
+  } else {
+    gene_sets <- base::unique(gene_sets)
+  }
+  if (base::length(gene_sets) == 0) {
+    stop("No gene sets selected. Provide `gene_sets` and/or `custom_gmt_files`.")
+  }
+  available_gene_sets <- base::names(supplementary_data)
+  missing_gene_sets <- base::setdiff(gene_sets, available_gene_sets)
+  if (base::length(missing_gene_sets) > 0) {
+    warning(
+      "Skipping unknown gene set(s): ",
+      base::paste(missing_gene_sets, collapse = ", ")
+    )
+  }
+  gene_sets <- gene_sets[gene_sets %in% available_gene_sets]
+  valid_gene_sets <- gene_sets[
+    base::vapply(
+      gene_sets,
+      function(gs) {
+        x <- supplementary_data[[gs]]
+        base::is.data.frame(x) && all(c("term", "gene") %in% base::colnames(x))
+      },
+      FUN.VALUE = base::logical(1)
+    )
+  ]
+  invalid_format_sets <- base::setdiff(gene_sets, valid_gene_sets)
+  if (base::length(invalid_format_sets) > 0) {
+    warning(
+      "Skipping gene set(s) without `term`/`gene` columns: ",
+      base::paste(invalid_format_sets, collapse = ", ")
+    )
+  }
+  gene_sets <- valid_gene_sets
+  if (base::length(gene_sets) == 0) {
+    stop(
+      "None of the selected gene sets are available. ",
+      "Use `hc_set_supp_files()`/`hc_read_supplementary()` or `custom_gmt_files`."
+    )
+  }
 
   heatmap_side <- base::match.arg(heatmap_side, choices = c("left", "right"))
   heatmap_module_label_mode <- base::match.arg(
@@ -119,6 +192,16 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   }
   if (!base::is.logical(heatmap_show_gene_counts) || base::length(heatmap_show_gene_counts) != 1) {
     stop("`heatmap_show_gene_counts` must be TRUE or FALSE.")
+  }
+  if (!base::is.numeric(top) ||
+      base::length(top) != 1 ||
+      base::is.na(top) ||
+      top < 1) {
+    stop("`top` must be a single numeric value >= 1.")
+  }
+  top <- base::as.integer(base::round(top))
+  if (top < 1L) {
+    top <- 1L
   }
   if (!base::is.numeric(enrichment_row_height_scale) ||
       base::length(enrichment_row_height_scale) != 1 ||
@@ -199,6 +282,13 @@ functional_enrichment <- function(gene_sets = "Hallmark",
        enrichment_label_fontsize <= 0)) {
     stop("`enrichment_label_fontsize` must be NULL or a single positive number.")
   }
+  if (!base::is.null(enrichment_db_header_fontsize) &&
+      (!base::is.numeric(enrichment_db_header_fontsize) ||
+       base::length(enrichment_db_header_fontsize) != 1 ||
+       base::is.na(enrichment_db_header_fontsize) ||
+       enrichment_db_header_fontsize <= 0)) {
+    stop("`enrichment_db_header_fontsize` must be NULL or a single positive number.")
+  }
   if (!base::is.logical(enrichment_label_wrap) ||
       base::length(enrichment_label_wrap) != 1 ||
       base::is.na(enrichment_label_wrap)) {
@@ -267,9 +357,13 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     if (base::length(br) < 3) {
       br <- base::seq(lims[1], lims[2], length.out = 5)
     }
+    tick_labels <- base::formatC(br, format = "fg", digits = 3)
+    tick_labels <- base::trimws(tick_labels)
+    max_label_chars <- base::max(base::nchar(tick_labels), na.rm = TRUE)
+    tick_labels <- base::format(tick_labels, width = max_label_chars, justify = "right")
     list(
       breaks = br,
-      labels = base::formatC(br, format = "fg", digits = 3)
+      labels = tick_labels
     )
   }
 
@@ -277,10 +371,21 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   gfc_scale_ticks <- compute_scale_ticks(gfc_scale_limits)
   pdf_width_input <- pdf_width
   pdf_height_input <- pdf_height
+  resolve_pdf_device_dim <- function(user_dim, auto_dim) {
+    if (base::is.null(user_dim)) {
+      return(auto_dim)
+    }
+    base::max(base::as.numeric(user_dim), auto_dim)
+  }
 
   # Publication-oriented typography presets
   font_title <- 16 * overall_plot_scale
   font_axis <- 10 * overall_plot_scale
+  db_header_fontsize <- if (base::is.null(enrichment_db_header_fontsize)) {
+    font_axis
+  } else {
+    base::as.numeric(enrichment_db_header_fontsize)
+  }
   font_annotation <- 11 * overall_plot_scale
   font_module <- 8.2 * overall_plot_scale
   # Keep enrichment panels closer to the visual footprint of the main heatmap.
@@ -359,6 +464,21 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       ),
       na.rm = TRUE
     )
+  }
+  
+  wrap_width_factor <- function(labels) {
+    if (base::is.null(labels) || base::length(labels) == 0) {
+      return(1)
+    }
+    labels <- base::as.character(labels)
+    if (base::length(labels) == 0) {
+      return(1)
+    }
+    has_wrapped_label <- base::any(base::grepl("\n", labels, fixed = TRUE))
+    if (isTRUE(has_wrapped_label)) {
+      return(2)
+    }
+    1
   }
 
   q_to_sig_score <- function(q) {
@@ -749,6 +869,39 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     module_labels[missing_label_mask] <- base::paste0(module_prefix, base::which(missing_label_mask))
   }
   module_label_map_current <- stats::setNames(module_labels, cluster_order)
+  module_gene_rows <- base::lapply(cluster_order, function(cl) {
+    idx <- base::which(cluster_info$color == cl)
+    if (base::length(idx) == 0) {
+      return(NULL)
+    }
+    gene_n_value <- cluster_info$gene_n[[idx[[1]]]]
+    if (base::is.null(gene_n_value) || base::length(gene_n_value) == 0 || base::is.na(gene_n_value)) {
+      return(NULL)
+    }
+    genes <- base::trimws(base::unlist(base::strsplit(base::as.character(gene_n_value), ",", fixed = TRUE), use.names = FALSE))
+    genes <- genes[genes != ""]
+    if (base::length(genes) == 0) {
+      return(NULL)
+    }
+    base::data.frame(
+      genes = genes,
+      module = base::as.character(module_label_map_current[[cl]]),
+      stringsAsFactors = FALSE
+    )
+  })
+  module_gene_rows <- module_gene_rows[!base::vapply(module_gene_rows, base::is.null, FUN.VALUE = base::logical(1))]
+  module_gene_list_tbl <- if (base::length(module_gene_rows) > 0) {
+    out <- base::do.call(base::rbind, module_gene_rows)
+    out <- out[, base::c("genes", "module"), drop = FALSE]
+    base::rownames(out) <- NULL
+    out
+  } else {
+    base::data.frame(
+      genes = base::character(0),
+      module = base::character(0),
+      stringsAsFactors = FALSE
+    )
+  }
 
   heatmap_row_names <- if (heatmap_module_label_mode == "same") {
     module_labels
@@ -936,10 +1089,14 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   gfc_legend_param <- list(
     title = "GFC",
     at = gfc_scale_ticks$breaks,
-    labels = gfc_scale_ticks$labels
+    labels = gfc_scale_ticks$labels,
+    labels_gp = grid::gpar(fontfamily = "mono")
   )
   if (!base::is.null(legend_fontsize)) {
-    gfc_legend_param$labels_gp <- grid::gpar(fontsize = base::as.numeric(legend_fontsize))
+    gfc_legend_param$labels_gp <- grid::gpar(
+      fontsize = base::as.numeric(legend_fontsize),
+      fontfamily = "mono"
+    )
     gfc_legend_param$title_gp <- grid::gpar(
       fontsize = base::as.numeric(legend_fontsize) + 0.8,
       fontface = "bold"
@@ -971,12 +1128,31 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     heatmap_legend_param = gfc_legend_param
   )
 
-  build_enrichment_export <- function(res_list, selected_summary_tbl, significant_summary_tbl = NULL) {
-    export_tables <- list(selected_enrichments_summary = selected_summary_tbl)
+  build_enrichment_export <- function(res_list,
+                                      all_summary_tbl,
+                                      selected_summary_tbl,
+                                      significant_summary_tbl = NULL,
+                                      top_n = 5L,
+                                      module_gene_list_tbl = NULL) {
+    top_n <- suppressWarnings(base::as.integer(top_n))
+    if (!base::is.finite(top_n) || top_n < 1) {
+      top_n <- 1L
+    }
+    selected_sheet_name <- base::paste0("top_", top_n, "_enrichments_summary")
+    export_tables <- list(
+      all_enrichments_summary = all_summary_tbl
+    )
+    export_tables[[selected_sheet_name]] <- selected_summary_tbl
     if (!base::is.null(significant_summary_tbl)) {
       export_tables <- base::c(
         export_tables,
         list(significant_enrichments_summary = significant_summary_tbl)
+      )
+    }
+    if (!base::is.null(module_gene_list_tbl)) {
+      export_tables <- base::c(
+        export_tables,
+        list(module_gene_list = module_gene_list_tbl)
       )
     }
     if (base::length(res_list) > 0) {
@@ -1080,15 +1256,17 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     }
     combined
   }
+  all_summary_all_dbs <- list()
   selected_summary_all_dbs <- list()
   significant_summary_all_dbs <- list()
 
   # Perform the analysis for each of the selected gene sets
   for (i in gene_sets) {
-    i_title <- stringr::str_to_title(i)
-    if (i_title %in% base::names(hcobject[["supplementary_data"]])) {
+    i_title <- base::as.character(i)
+    if (i_title %in% base::names(supplementary_data)) {
       top_enr <- list()
       res <- list()
+      all_rows <- list()
       selected_rows <- list()
       significant_rows <- list()
 
@@ -1101,30 +1279,31 @@ functional_enrichment <- function(gene_sets = "Hallmark",
 
         enrich <- clusterProfiler::enricher(
           gene = genes,
-          TERM2GENE = hcobject[["supplementary_data"]][[i_title]],
-          qvalueCutoff = qval,
+          TERM2GENE = supplementary_data[[i_title]],
+          pvalueCutoff = 1,
+          qvalueCutoff = 1,
           pAdjustMethod = padj,
           universe = universe
         )
 
-        if (!base::is.null(enrich)) {
-          tmp <- enrich@result
-          tmp <- dplyr::filter(tmp, qvalue <= qval)
-          if (base::nrow(tmp) == 0) {
-            next
-          } else {
-            tmp <- tmp[base::order(tmp$qvalue, decreasing = FALSE), , drop = FALSE]
-            tmp_significant <- tmp
-            tmp_significant$cluster <- c
-            tmp_significant$module_label <- module_label_map_current[[c]]
+        if (!base::is.null(enrich) && !base::is.null(enrich@result) && base::nrow(enrich@result) > 0) {
+          tmp_all <- enrich@result
+          tmp_all <- tmp_all[base::order(tmp_all$qvalue, tmp_all$p.adjust, tmp_all$pvalue, tmp_all$Description), , drop = FALSE]
+          tmp_all$cluster <- c
+          tmp_all$module_label <- module_label_map_current[[c]]
+          tmp_all$rank <- base::seq_len(base::nrow(tmp_all))
+          all_rows[[c]] <- tmp_all
+          res[[c]] <- tmp_all
+
+          tmp_significant <- tmp_all
+          tmp_significant <- tmp_significant[!base::is.na(tmp_significant$qvalue) & tmp_significant$qvalue <= qval, , drop = FALSE]
+          if (base::nrow(tmp_significant) > 0) {
+            tmp_significant <- tmp_significant[base::order(tmp_significant$qvalue, tmp_significant$p.adjust, tmp_significant$pvalue, tmp_significant$Description), , drop = FALSE]
             tmp_significant$rank <- base::seq_len(base::nrow(tmp_significant))
             significant_rows[[c]] <- tmp_significant
-            pick_n <- base::min(top, base::nrow(tmp))
-            tmp_selected <- tmp[base::seq_len(pick_n), , drop = FALSE]
+            pick_n <- base::min(top, base::nrow(tmp_significant))
+            tmp_selected <- tmp_significant[base::seq_len(pick_n), , drop = FALSE]
             top_enr[[c]] <- tmp_selected$Description
-            res[[c]] <- enrich@result
-            tmp_selected$cluster <- c
-            tmp_selected$module_label <- module_label_map_current[[c]]
             tmp_selected$rank <- base::seq_len(base::nrow(tmp_selected))
             selected_rows[[c]] <- tmp_selected
           }
@@ -1132,6 +1311,11 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       }
 
       plot_cluster_order <- cluster_order
+      all_summary <- normalize_enrichment_summary(
+        rows_list = all_rows,
+        database_name = i_title,
+        cluster_levels = plot_cluster_order
+      )
       selected_summary <- normalize_enrichment_summary(
         rows_list = selected_rows,
         database_name = i_title,
@@ -1142,6 +1326,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         database_name = i_title,
         cluster_levels = plot_cluster_order
       )
+      all_summary_all_dbs[[i_title]] <- all_summary
       selected_summary_all_dbs[[i_title]] <- selected_summary
       significant_summary_all_dbs[[i_title]] <- significant_summary
 
@@ -1150,12 +1335,20 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           p = NULL,
           result = base::data.frame(),
           enrichment = res,
+          all_enrichments = all_summary,
           selected_enrichments = selected_summary,
           significant_enrichments = significant_summary
         )
         hcobject[["integrated_output"]][["enrichments"]][[base::paste0("top_", i)]] <<- output
         openxlsx::write.xlsx(
-          x = build_enrichment_export(res, selected_summary, significant_summary),
+          x = build_enrichment_export(
+            res_list = res,
+            all_summary_tbl = all_summary,
+            selected_summary_tbl = selected_summary,
+            significant_summary_tbl = significant_summary,
+            top_n = top,
+            module_gene_list_tbl = module_gene_list_tbl
+          ),
           file = base::paste0(
             hcobject[["working_directory"]][["dir_output"]],
             hcobject[["global_settings"]][["save_folder"]],
@@ -1165,7 +1358,11 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           ),
           overwrite = TRUE
         )
-        warning("No enriched terms found for database: ", i_title)
+        warning(
+          "No significant enriched terms found for database: ",
+          i_title,
+          ". Exported all enrichment terms to Excel."
+        )
         next
       }
 
@@ -1207,12 +1404,20 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           p = NULL,
           result = top_enr_out,
           enrichment = res,
+          all_enrichments = all_summary,
           selected_enrichments = selected_summary,
           significant_enrichments = significant_summary
         )
         hcobject[["integrated_output"]][["enrichments"]][[base::paste0("top_", i)]] <<- output
         openxlsx::write.xlsx(
-          x = build_enrichment_export(res, selected_summary, significant_summary),
+          x = build_enrichment_export(
+            res_list = res,
+            all_summary_tbl = all_summary,
+            selected_summary_tbl = selected_summary,
+            significant_summary_tbl = significant_summary,
+            top_n = top,
+            module_gene_list_tbl = module_gene_list_tbl
+          ),
           file = base::paste0(
             hcobject[["working_directory"]][["dir_output"]],
             hcobject[["global_settings"]][["save_folder"]],
@@ -1385,6 +1590,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       }
       enrich_cell_w_mm <- enrich_cell_w_mm_base * enrichment_column_spacing_scale
       enrich_cell_w_mm <- base::max(2.8, base::min(9.0, enrich_cell_w_mm))
+      enrich_cell_w_mm <- enrich_cell_w_mm * wrap_width_factor(term_levels_display)
+      enrich_cell_w_mm <- base::max(2.8, base::min(18.0, enrich_cell_w_mm))
       enrich_cell_w_mm <- enrich_cell_w_mm * overall_plot_scale
       enrich_cell_w_mm <- enrich_cell_w_mm * enrichment_panel_compact_scale
       enrichment_body_w_mm <- base::max(24, n_enrich_cols * enrich_cell_w_mm)
@@ -1475,7 +1682,11 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         6
       ) * overall_plot_scale
       draw_padding <- grid::unit(draw_padding_mm, "mm")
-      draw_with_body_borders <- function(ht_obj, ...) {
+      draw_with_body_borders <- function(ht_obj,
+                                         panel_title = NULL,
+                                         panel_title_target = "enrichment",
+                                         panel_title_slice = 1L,
+                                         ...) {
         drawn_ht <- ComplexHeatmap::draw(
           ht_obj,
           newpage = TRUE,
@@ -1487,7 +1698,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           show_heatmap_legend = TRUE,
           ...
         )
-        for (nm in c("GFC", "enrichment")) {
+        border_targets <- base::unique(base::c("GFC", "enrichment", panel_title_target))
+        for (nm in border_targets) {
           try(
             ComplexHeatmap::decorate_heatmap_body(nm, {
               # Draw border slightly inset so PDF viewport clipping does not trim the top edge.
@@ -1497,6 +1709,28 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                 width = grid::unit(0.996, "npc"),
                 height = grid::unit(0.996, "npc"),
                 gp = panel_border_gp
+              )
+            }),
+            silent = TRUE
+          )
+        }
+        if (!base::is.null(panel_title) &&
+            base::is.character(panel_title) &&
+            base::length(panel_title) == 1 &&
+            !base::is.na(panel_title) &&
+            base::nzchar(panel_title)) {
+          panel_title_slice <- suppressWarnings(base::as.integer(panel_title_slice))
+          if (!base::is.finite(panel_title_slice) || panel_title_slice < 1) {
+            panel_title_slice <- 1L
+          }
+          try(
+            ComplexHeatmap::decorate_heatmap_body(panel_title_target, slice = panel_title_slice, {
+              grid::grid.text(
+                label = panel_title,
+                x = grid::unit(0.5, "npc"),
+                y = grid::unit(1, "npc") + grid::unit(2.8 * overall_plot_scale, "mm"),
+                just = c("center", "bottom"),
+                gp = grid::gpar(fontsize = font_title, fontface = "bold")
               )
             }),
             silent = TRUE
@@ -1546,26 +1780,35 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           top,
           ".pdf"
         ),
-        width = if (base::is.null(pdf_width_input)) pdf_width else as.numeric(pdf_width_input),
-        height = if (base::is.null(pdf_height_input)) pdf_height else as.numeric(pdf_height_input),
+        width = resolve_pdf_device_dim(pdf_width_input, pdf_width),
+        height = resolve_pdf_device_dim(pdf_height_input, pdf_height),
         pointsize = pdf_pointsize
       )
       draw_with_body_borders(
         cp,
-        column_title = base::paste0(i_title, " enrichment"),
-        column_title_gp = grid::gpar(fontsize = font_title, fontface = "bold"),
+        panel_title = base::paste0(i_title, " enrichment"),
+        panel_title_target = "enrichment",
+        panel_title_slice = 1L,
         padding = draw_padding
       )
       grDevices::dev.off()
       cp_w_lgd <- draw_with_body_borders(
         cp,
-        column_title = base::paste0(i_title, " enrichment"),
-        column_title_gp = grid::gpar(fontsize = font_title, fontface = "bold"),
+        panel_title = base::paste0(i_title, " enrichment"),
+        panel_title_target = "enrichment",
+        panel_title_slice = 1L,
         padding = draw_padding
       )
 
       openxlsx::write.xlsx(
-        x = build_enrichment_export(res, selected_summary, significant_summary),
+        x = build_enrichment_export(
+          res_list = res,
+          all_summary_tbl = all_summary,
+          selected_summary_tbl = selected_summary,
+          significant_summary_tbl = significant_summary,
+          top_n = top,
+          module_gene_list_tbl = module_gene_list_tbl
+        ),
         file = base::paste0(
           hcobject[["working_directory"]][["dir_output"]],
           hcobject[["global_settings"]][["save_folder"]],
@@ -1583,6 +1826,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       output[["module_label_map"]] <- module_label_map_current
       output[["result"]] <- top_enr_out
       output[["enrichment"]] <- res
+      output[["all_enrichments"]] <- all_summary
       output[["selected_enrichments"]] <- selected_summary
       output[["significant_enrichments"]] <- significant_summary
       hcobject[["integrated_output"]][["enrichments"]][[base::paste0("top_", i)]] <<- output
@@ -1591,6 +1835,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     }
   }
 
+  combined_all_summary <- combine_summary_tables(all_summary_all_dbs)
   combined_selected_summary <- combine_summary_tables(selected_summary_all_dbs)
   combined_significant_summary <- combine_summary_tables(significant_summary_all_dbs)
   hcobject[["integrated_output"]][["enrichments"]][["top_all_dbs"]] <<- NULL
@@ -1769,6 +2014,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       }
       enrich_cell_w_mm_all <- enrich_cell_w_mm_base_all * enrichment_column_spacing_scale
       enrich_cell_w_mm_all <- base::max(2.8, base::min(9.0, enrich_cell_w_mm_all))
+      enrich_cell_w_mm_all <- enrich_cell_w_mm_all * wrap_width_factor(term_levels_all_display)
+      enrich_cell_w_mm_all <- base::max(2.8, base::min(18.0, enrich_cell_w_mm_all))
       enrich_cell_w_mm_all <- enrich_cell_w_mm_all * overall_plot_scale
       enrich_cell_w_mm_all <- enrich_cell_w_mm_all * enrichment_panel_compact_scale
       enrichment_body_w_mm_all <- base::max(24, n_enrich_cols_all * enrich_cell_w_mm_all)
@@ -1780,6 +2027,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       term_db_levels <- base::as.character(term_db_map[base::colnames(enrich_mat_all)])
       db_order <- base::unique(base::as.character(combined_plot_df$database))
       term_db_levels <- base::factor(term_db_levels, levels = db_order)
+      all_db_title_slice <- base::max(1L, base::as.integer(base::ceiling(base::length(base::levels(term_db_levels)) / 2)))
 
       enrichment_ht_all <- ComplexHeatmap::Heatmap(
         enrich_mat_all,
@@ -1799,7 +2047,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         width = grid::unit(enrichment_body_w_mm_all, "mm"),
         height = grid::unit(hc_body_h_mm, "mm"),
         column_split = term_db_levels,
-        column_title_gp = grid::gpar(fontsize = font_axis, fontface = "bold"),
+        column_title_gp = grid::gpar(fontsize = db_header_fontsize, fontface = "bold"),
         rect_gp = grid::gpar(col = NA),
         cell_fun = function(j, i, x, y, w, h, fill) {
           if (enrichment_vertical_line_mode == "full" && i == 1 && isTRUE(col_has_hits_all[j])) {
@@ -1866,7 +2114,11 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         6
       ) * overall_plot_scale
       draw_padding_all <- grid::unit(draw_padding_mm_all, "mm")
-      draw_with_body_borders_all <- function(ht_obj, ...) {
+      draw_with_body_borders_all <- function(ht_obj,
+                                             panel_title = NULL,
+                                             panel_title_target = "enrichment_all",
+                                             panel_title_slice = 1L,
+                                             ...) {
         drawn_ht <- ComplexHeatmap::draw(
           ht_obj,
           newpage = TRUE,
@@ -1878,7 +2130,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           show_heatmap_legend = TRUE,
           ...
         )
-        for (nm in c("GFC", "enrichment_all")) {
+        border_targets <- base::unique(base::c("GFC", "enrichment_all", panel_title_target))
+        for (nm in border_targets) {
           try(
             ComplexHeatmap::decorate_heatmap_body(nm, {
               grid::grid.rect(
@@ -1887,6 +2140,28 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                 width = grid::unit(0.996, "npc"),
                 height = grid::unit(0.996, "npc"),
                 gp = panel_border_gp_all
+              )
+            }),
+            silent = TRUE
+          )
+        }
+        if (!base::is.null(panel_title) &&
+            base::is.character(panel_title) &&
+            base::length(panel_title) == 1 &&
+            !base::is.na(panel_title) &&
+            base::nzchar(panel_title)) {
+          panel_title_slice <- suppressWarnings(base::as.integer(panel_title_slice))
+          if (!base::is.finite(panel_title_slice) || panel_title_slice < 1) {
+            panel_title_slice <- 1L
+          }
+          try(
+            ComplexHeatmap::decorate_heatmap_body(panel_title_target, slice = panel_title_slice, {
+              grid::grid.text(
+                label = panel_title,
+                x = grid::unit(0.5, "npc"),
+                y = grid::unit(1, "npc") + grid::unit(2.8 * overall_plot_scale, "mm"),
+                just = c("center", "bottom"),
+                gp = grid::gpar(fontsize = font_title, fontface = "bold")
               )
             }),
             silent = TRUE
@@ -1935,21 +2210,23 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           top,
           ".pdf"
         ),
-        width = if (base::is.null(pdf_width_input)) pdf_width_all else as.numeric(pdf_width_input),
-        height = if (base::is.null(pdf_height_input)) pdf_height_all else as.numeric(pdf_height_input),
+        width = resolve_pdf_device_dim(pdf_width_input, pdf_width_all),
+        height = resolve_pdf_device_dim(pdf_height_input, pdf_height_all),
         pointsize = pdf_pointsize
       )
       draw_with_body_borders_all(
         cp_all,
-        column_title = "Combined enrichment (all DBs)",
-        column_title_gp = grid::gpar(fontsize = font_title, fontface = "bold"),
+        panel_title = "Combined enrichment (all DBs)",
+        panel_title_target = "enrichment_all",
+        panel_title_slice = all_db_title_slice,
         padding = draw_padding_all
       )
       grDevices::dev.off()
       cp_all_w_lgd <- draw_with_body_borders_all(
         cp_all,
-        column_title = "Combined enrichment (all DBs)",
-        column_title_gp = grid::gpar(fontsize = font_title, fontface = "bold"),
+        panel_title = "Combined enrichment (all DBs)",
+        panel_title_target = "enrichment_all",
+        panel_title_slice = all_db_title_slice,
         padding = draw_padding_all
       )
 
@@ -2002,6 +2279,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       }
       enrich_cell_w_mm_all_mixed <- enrich_cell_w_mm_base_all_mixed * enrichment_column_spacing_scale
       enrich_cell_w_mm_all_mixed <- base::max(2.8, base::min(9.0, enrich_cell_w_mm_all_mixed))
+      enrich_cell_w_mm_all_mixed <- enrich_cell_w_mm_all_mixed * wrap_width_factor(term_levels_mixed_display)
+      enrich_cell_w_mm_all_mixed <- base::max(2.8, base::min(18.0, enrich_cell_w_mm_all_mixed))
       enrich_cell_w_mm_all_mixed <- enrich_cell_w_mm_all_mixed * overall_plot_scale
       enrich_cell_w_mm_all_mixed <- enrich_cell_w_mm_all_mixed * enrichment_panel_compact_scale
       enrichment_body_w_mm_all_mixed <- base::max(24, n_enrich_cols_all_mixed * enrich_cell_w_mm_all_mixed)
@@ -2116,21 +2395,23 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           top,
           ".pdf"
         ),
-        width = if (base::is.null(pdf_width_input)) pdf_width_all_mixed else as.numeric(pdf_width_input),
-        height = if (base::is.null(pdf_height_input)) pdf_height_all_mixed else as.numeric(pdf_height_input),
+        width = resolve_pdf_device_dim(pdf_width_input, pdf_width_all_mixed),
+        height = resolve_pdf_device_dim(pdf_height_input, pdf_height_all_mixed),
         pointsize = pdf_pointsize
       )
       draw_with_body_borders_all(
         cp_all_mixed,
-        column_title = "Combined enrichment (all DBs, mixed)",
-        column_title_gp = grid::gpar(fontsize = font_title, fontface = "bold"),
+        panel_title = "Combined enrichment (all DBs, mixed)",
+        panel_title_target = "enrichment_all_mixed",
+        panel_title_slice = 1L,
         padding = draw_padding_all
       )
       grDevices::dev.off()
       cp_all_mixed_w_lgd <- draw_with_body_borders_all(
         cp_all_mixed,
-        column_title = "Combined enrichment (all DBs, mixed)",
-        column_title_gp = grid::gpar(fontsize = font_title, fontface = "bold"),
+        panel_title = "Combined enrichment (all DBs, mixed)",
+        panel_title_target = "enrichment_all_mixed",
+        panel_title_slice = 1L,
         padding = draw_padding_all
       )
 
@@ -2144,11 +2425,15 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     }
   }
 
+  top_all_sheet_name <- base::paste0("top_", top, "_enrichments_all_dbs")
+  xlsx_tables_all_dbs <- list(
+    all_enrichments_all_dbs = combined_all_summary,
+    significant_enrichments_all_dbs = combined_significant_summary,
+    module_gene_list = module_gene_list_tbl
+  )
+  xlsx_tables_all_dbs[[top_all_sheet_name]] <- combined_selected_summary
   openxlsx::write.xlsx(
-    x = list(
-      selected_enrichments_all_dbs = combined_selected_summary,
-      significant_enrichments_all_dbs = combined_significant_summary
-    ),
+    x = xlsx_tables_all_dbs,
     file = base::paste0(
       hcobject[["working_directory"]][["dir_output"]],
       hcobject[["global_settings"]][["save_folder"]],
@@ -2156,11 +2441,24 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     ),
     overwrite = TRUE
   )
+  openxlsx::write.xlsx(
+    x = list(module_gene_list = module_gene_list_tbl),
+    file = base::paste0(
+      hcobject[["working_directory"]][["dir_output"]],
+      hcobject[["global_settings"]][["save_folder"]],
+      "/Module_Gene_List.xlsx"
+    ),
+    overwrite = TRUE
+  )
+  hcobject[["integrated_output"]][["enrichments"]][["all_enrichments_all_dbs"]] <<- combined_all_summary
   hcobject[["integrated_output"]][["enrichments"]][["selected_enrichments_all_dbs"]] <<- combined_selected_summary
   hcobject[["integrated_output"]][["enrichments"]][["significant_enrichments_all_dbs"]] <<- combined_significant_summary
+  hcobject[["integrated_output"]][["enrichments"]][["module_gene_list"]] <<- module_gene_list_tbl
   # Mirror enrichment outputs into satellite storage so S4 <-> legacy conversion
   # keeps them available for downstream plotting helpers.
   hcobject[["satellite_outputs"]][["enrichments"]] <<- hcobject[["integrated_output"]][["enrichments"]]
+  hcobject[["satellite_outputs"]][["all_enrichments_all_dbs"]] <<- combined_all_summary
   hcobject[["satellite_outputs"]][["selected_enrichments_all_dbs"]] <<- combined_selected_summary
   hcobject[["satellite_outputs"]][["significant_enrichments_all_dbs"]] <<- combined_significant_summary
+  hcobject[["satellite_outputs"]][["module_gene_list"]] <<- module_gene_list_tbl
 }

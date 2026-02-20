@@ -151,6 +151,32 @@ split_modules <- function(modules,
     available_colors = as.character(incl_info$color),
     module_label_map = module_label_map
   )
+  unresolved_tbl <- resolved$resolution_table[
+    as.character(resolved$resolution_table$status) != "ok",
+    ,
+    drop = FALSE
+  ]
+  if (nrow(unresolved_tbl) > 0) {
+    unresolved_inputs <- unique(as.character(unresolved_tbl$input))
+    available_labels <- unique(as.character(module_label_map))
+    if (length(available_labels) > 0) {
+      available_preview <- paste(utils::head(available_labels, 12L), collapse = ", ")
+      if (length(available_labels) > 12L) {
+        available_preview <- paste0(available_preview, ", ...")
+      }
+      stop(
+        "Could not resolve the following module identifier(s): ",
+        paste(unresolved_inputs, collapse = ", "),
+        "\nUse exact current module labels (prefix-sensitive), module colors, or numeric indices.",
+        "\nAvailable module labels: ", available_preview
+      )
+    }
+    stop(
+      "Could not resolve the following module identifier(s): ",
+      paste(unresolved_inputs, collapse = ", "),
+      "\nUse exact current module labels (prefix-sensitive), module colors, or numeric indices."
+    )
+  }
   target_colors <- resolved$target_colors
   if (length(target_colors) == 0) {
     stop(
@@ -746,13 +772,6 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
         resolved <- x_chr
       } else if (x_chr %in% names(label_to_color)) {
         resolved <- as.character(label_to_color[[x_chr]])
-      } else if (grepl("^M[0-9]+$", x_chr, ignore.case = TRUE)) {
-        idx <- suppressWarnings(as.integer(sub("^M", "", toupper(x_chr))))
-        if (is.finite(idx) && idx >= 1 && idx <= length(available_colors)) {
-          resolved <- available_colors[[idx]]
-        } else {
-          status <- "not_found"
-        }
       } else {
         status <- "not_found"
       }

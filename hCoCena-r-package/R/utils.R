@@ -1259,17 +1259,277 @@ fix_dir <- function(directory){
 #' @param cutoff_stats A dataframe of cutoff statistics generated in previous steps.
 #' @param hline A list with four slots ("R.squared", "no_edges", "no_nodes", "no_networks") each of which can be set either to NULL (default) or a number to introduce a horizontal line for orientation at that value in the respective plot.
 #' @param x An integer giving the number of the currently processed layer.
+#' @param tuning_marker Optional list with selected/strict/relaxed/simple cutoff marker metadata.
 #' @noRd
 
 plot_cutoffs_internal_static <- function(cutoff_stats,
                                   hline = list("R.squared" = NULL, "no_edges" = NULL, "no_nodes" = NULL, "no_networks" = NULL),
-                                  x){
+                                  x,
+                                  tuning_marker = NULL){
+  as_num1 <- function(z) {
+    out <- suppressWarnings(base::as.numeric(z))
+    if (base::length(out) < 1) {
+      return(NA_real_)
+    }
+    out[[1]]
+  }
+  as_chr1 <- function(z) {
+    out <- base::as.character(z)
+    if (base::length(out) < 1) {
+      return(NA_character_)
+    }
+    out[[1]]
+  }
+  normalize_policy <- function(z) {
+    pol <- base::tolower(as_chr1(z))
+    if (!base::is.character(pol) || base::is.na(pol) || !base::nzchar(pol)) {
+      return(NA_character_)
+    }
+    base::switch(
+      pol,
+      tier1 = "strict",
+      tier2 = "relaxed",
+      fallback = "best_available",
+      pol
+    )
+  }
+  same_cutoff <- function(a, b, tol = 1e-8) {
+    base::is.finite(a) && base::is.finite(b) && base::abs(a - b) <= tol
+  }
+  format_marker_label <- function(value, metric) {
+    if (!base::is.finite(value)) {
+      return(NA_character_)
+    }
+    if (metric == "R.squared") {
+      return(base::formatC(value, format = "f", digits = 3))
+    }
+    if (metric == "no_of_networks") {
+      return(base::formatC(base::round(value), format = "f", digits = 0))
+    }
+    scales::comma(base::round(value))
+  }
+  extract_marker_stats <- function(cutoff_value) {
+    if (!base::is.finite(cutoff_value)) {
+      return(NULL)
+    }
+    tmp <- cutoff_stats[, c("corr", "R.squared", "no_edges", "no_nodes", "no_of_networks"), drop = FALSE]
+    tmp[["corr"]] <- suppressWarnings(base::as.numeric(tmp[["corr"]]))
+    tmp <- tmp[base::order(tmp[["corr"]]), , drop = FALSE]
+    metric_at_cutoff <- function(metric) {
+      y <- suppressWarnings(base::as.numeric(tmp[[metric]]))
+      ok <- base::is.finite(tmp[["corr"]]) & base::is.finite(y)
+      if (base::sum(ok) < 1) {
+        return(NA_real_)
+      }
+      x_ok <- tmp[["corr"]][ok]
+      y_ok <- y[ok]
+      if (base::length(base::unique(x_ok)) >= 2) {
+        return(as.numeric(stats::approx(x = x_ok, y = y_ok, xout = cutoff_value, ties = base::mean, rule = 2)$y))
+      }
+      y_ok[[1]]
+    }
+    base::data.frame(
+      corr = cutoff_value,
+      R.squared = metric_at_cutoff("R.squared"),
+      no_edges = metric_at_cutoff("no_edges"),
+      no_nodes = metric_at_cutoff("no_nodes"),
+      no_of_networks = metric_at_cutoff("no_of_networks")
+    )
+  }
+
   cutoff_stats[["corr"]] <- base::rownames(cutoff_stats) %>% base::as.numeric()
+  layer_title <- base::as.character(hcobject[["layers_names"]][x])
+
+  selected_cutoff <- as_num1(tuning_marker[["selected_cutoff"]])
+  if (!base::is.finite(selected_cutoff)) {
+    selected_cutoff <- as_num1(tuning_marker[["tiered_cutoff"]])
+  }
+  selected_policy <- normalize_policy(tuning_marker[["selected_policy"]])
+  if (!base::is.character(selected_policy) || base::is.na(selected_policy) || !base::nzchar(selected_policy)) {
+    selected_policy <- normalize_policy(tuning_marker[["tier"]])
+  }
+  strict_cutoff <- as_num1(tuning_marker[["strict_cutoff"]])
+  relaxed_cutoff <- as_num1(tuning_marker[["relaxed_cutoff"]])
+  best_available_cutoff <- as_num1(tuning_marker[["best_available_cutoff"]])
+  simple_cutoff <- as_num1(tuning_marker[["simple_cutoff"]])
+
+  if (!base::is.finite(strict_cutoff) && base::identical(selected_policy, "strict") && base::is.finite(selected_cutoff)) {
+    strict_cutoff <- selected_cutoff
+  }
+  if (!base::is.finite(relaxed_cutoff) && base::identical(selected_policy, "relaxed") && base::is.finite(selected_cutoff)) {
+    relaxed_cutoff <- selected_cutoff
+  }
+  if (!base::is.finite(best_available_cutoff) && base::identical(selected_policy, "best_available") && base::is.finite(selected_cutoff)) {
+    best_available_cutoff <- selected_cutoff
+  }
+
+  selected_dash <- base::switch(
+    selected_policy,
+    strict = "solid",
+    relaxed = "dashed",
+    best_available = "dotdash",
+    "dotted"
+  )
+  selected_color <- base::switch(
+    selected_policy,
+    strict = "#1B9E77",
+    relaxed = "#E69F00",
+    best_available = "#D73027",
+    "#7B2CBF"
+  )
+  x_vals <- cutoff_stats[["corr"]]
+  nudge_base <- 0
+  if (base::length(x_vals) > 1) {
+    x_range <- base::max(x_vals, na.rm = TRUE) - base::min(x_vals, na.rm = TRUE)
+    if (base::is.finite(x_range) && x_range > 0) {
+      nudge_base <- 0.02 * x_range
+    }
+  }
+
+  add_cutoff_markers <- function(p, show_legend = FALSE) {
+    if (base::is.finite(relaxed_cutoff) && !isTRUE(show_legend)) {
+      p <- p + ggplot2::geom_vline(
+        xintercept = relaxed_cutoff,
+        color = "#E69F00",
+        linetype = "dashed",
+        linewidth = if (base::identical(selected_policy, "relaxed") && same_cutoff(selected_cutoff, relaxed_cutoff)) 1.4 else 0.9
+      )
+    }
+    if (base::is.finite(strict_cutoff) && !isTRUE(show_legend)) {
+      p <- p + ggplot2::geom_vline(
+        xintercept = strict_cutoff,
+        color = "#1B9E77",
+        linetype = "solid",
+        linewidth = if (base::identical(selected_policy, "strict") && same_cutoff(selected_cutoff, strict_cutoff)) 1.4 else 0.9
+      )
+    }
+    if (base::is.finite(best_available_cutoff)) {
+      p <- p + ggplot2::geom_vline(
+        xintercept = best_available_cutoff,
+        color = "#D73027",
+        linetype = "dotdash",
+        linewidth = if (base::identical(selected_policy, "best_available") && same_cutoff(selected_cutoff, best_available_cutoff)) 1.4 else 0.9
+      )
+    }
+    if (base::is.finite(simple_cutoff)) {
+      p <- p + ggplot2::geom_vline(
+        xintercept = simple_cutoff,
+        color = "#2D2D2D",
+        linetype = "longdash",
+        linewidth = 0.8
+      )
+    }
+
+    has_selected_reference <- same_cutoff(selected_cutoff, strict_cutoff) ||
+      same_cutoff(selected_cutoff, relaxed_cutoff) ||
+      same_cutoff(selected_cutoff, best_available_cutoff) ||
+      same_cutoff(selected_cutoff, simple_cutoff)
+    if (base::is.finite(selected_cutoff) && !has_selected_reference) {
+      p <- p + ggplot2::geom_vline(
+        xintercept = selected_cutoff,
+        color = selected_color,
+        linetype = selected_dash,
+        linewidth = 1.3
+      )
+    }
+    if (isTRUE(show_legend)) {
+      legend_df <- base::data.frame(ref = base::character(0), cutoff = base::numeric(0), stringsAsFactors = FALSE)
+      if (base::is.finite(strict_cutoff)) {
+        legend_df <- base::rbind(
+          legend_df,
+          base::data.frame(ref = "strict", cutoff = strict_cutoff, stringsAsFactors = FALSE)
+        )
+      }
+      if (base::is.finite(relaxed_cutoff)) {
+        legend_df <- base::rbind(
+          legend_df,
+          base::data.frame(ref = "relaxed", cutoff = relaxed_cutoff, stringsAsFactors = FALSE)
+        )
+      }
+      if (base::nrow(legend_df) > 0) {
+        legend_breaks <- base::intersect(c("strict", "relaxed"), legend_df$ref)
+        p <- p +
+          ggplot2::geom_vline(
+            data = legend_df,
+            mapping = ggplot2::aes(xintercept = cutoff, color = ref, linetype = ref),
+            inherit.aes = FALSE,
+            linewidth = 1.1,
+            show.legend = TRUE
+          ) +
+          ggplot2::scale_color_manual(
+            name = "Cutoff lines",
+            values = c(strict = "#1B9E77", relaxed = "#E69F00"),
+            breaks = legend_breaks
+          ) +
+          ggplot2::scale_linetype_manual(
+            name = "Cutoff lines",
+            values = c(strict = "solid", relaxed = "dashed"),
+            breaks = legend_breaks
+          ) +
+          ggplot2::guides(
+            color = ggplot2::guide_legend(order = 1),
+            linetype = ggplot2::guide_legend(order = 1)
+          ) +
+          ggplot2::theme(legend.position = "right")
+      }
+    } else {
+      p <- p + ggplot2::guides(color = "none", linetype = "none")
+    }
+    p
+  }
+
+  add_policy_marker_values <- function(p, metric_col) {
+    policies <- list(
+      list(id = "strict", cutoff = strict_cutoff, color = "#1B9E77", prefix = "S ", nudge_x = nudge_base, vjust = -0.55),
+      list(id = "relaxed", cutoff = relaxed_cutoff, color = "#E69F00", prefix = "R ", nudge_x = -nudge_base, vjust = 1.35)
+    )
+    for (pol in policies) {
+      if (!base::is.finite(pol$cutoff)) {
+        next
+      }
+      st <- extract_marker_stats(pol$cutoff)
+      if (base::is.null(st)) {
+        next
+      }
+      x_val <- suppressWarnings(base::as.numeric(st[["corr"]][[1]]))
+      y_val <- suppressWarnings(base::as.numeric(st[[metric_col]][[1]]))
+      if (!base::is.finite(x_val) || !base::is.finite(y_val)) {
+        next
+      }
+      label_txt <- format_marker_label(y_val, metric = metric_col)
+      if (!base::is.character(label_txt) || base::is.na(label_txt) || !base::nzchar(label_txt)) {
+        next
+      }
+      label_txt <- base::paste0(pol$prefix, label_txt)
+      pt_df <- base::data.frame(corr = x_val, yval = y_val, label = label_txt)
+      p <- p +
+        ggplot2::geom_point(
+          data = pt_df,
+          mapping = ggplot2::aes(x = corr, y = yval),
+          inherit.aes = FALSE,
+          color = pol$color,
+          size = 2.5
+        ) +
+        ggplot2::geom_label(
+          data = pt_df,
+          mapping = ggplot2::aes(x = corr, y = yval, label = label),
+          inherit.aes = FALSE,
+          nudge_x = pol$nudge_x,
+          vjust = pol$vjust,
+          size = 2.8,
+          color = pol$color,
+          fill = "white",
+          linewidth = 0.15,
+          label.padding = grid::unit(0.08, "lines")
+        )
+    }
+    p
+  }
 
   # plot R-squared values:
   p1 <- ggplot2::ggplot(cutoff_stats, ggplot2::aes(x = corr))+
     ggplot2::geom_vline(xintercept = base::c(base::seq(from = base::min(cutoff_stats[["corr"]]), to = 1, by = 0.01)), color = "darkgrey")+
-    ggplot2::geom_hline(yintercept = hline[[1]], color = "darkgrey", size = 1.7)+
+    ggplot2::geom_hline(yintercept = hline[[1]], color = "darkgrey", linewidth = 1.7)+
     ggplot2::geom_line(ggplot2::aes(y = R.squared), color = "#374E55FF")+
     ggplot2::geom_point(ggplot2::aes(y = R.squared), color = "#374E55FF", size = 2)+
     ggplot2::theme_light()+
@@ -1277,13 +1537,15 @@ plot_cutoffs_internal_static <- function(cutoff_stats,
           axis.text.x = ggplot2::element_blank(),
           axis.ticks.x = ggplot2::element_blank()) +
     ggplot2::scale_x_continuous(breaks = base::seq(from = base::min(cutoff_stats[["corr"]]), to = 1, by = 0.005))+
-    ggplot2::scale_y_continuous(labels = scales::comma) +
-    ggplot2::ggtitle(hcobject[["layers_names"]][x])
+    ggplot2::scale_y_continuous(labels = scales::comma, expand = ggplot2::expansion(mult = c(0.05, 0.18))) +
+    ggplot2::ggtitle(layer_title)
+  p1 <- add_cutoff_markers(p1, show_legend = TRUE)
+  p1 <- add_policy_marker_values(p1, metric_col = "R.squared")
 
   # plot number of edges:
   p2 <- ggplot2::ggplot(cutoff_stats, ggplot2::aes(x = corr))+
     ggplot2::geom_vline(xintercept = base::c(base::seq(from = base::min(cutoff_stats[["corr"]]), to = 1, by = 0.01)), color = "darkgrey")+
-    ggplot2::geom_hline(yintercept = hline[[2]], color = "darkgrey", size = 1.7)+
+    ggplot2::geom_hline(yintercept = hline[[2]], color = "darkgrey", linewidth = 1.7)+
     ggplot2::geom_line(ggplot2::aes(y = no_edges), color = "#DF8F44FF")+
     ggplot2::geom_point(ggplot2::aes(y = no_edges), color = "#DF8F44FF", size = 2)+
     ggplot2::theme_light()+
@@ -1291,12 +1553,14 @@ plot_cutoffs_internal_static <- function(cutoff_stats,
           axis.text.x = ggplot2::element_blank(),
           axis.ticks.x = ggplot2::element_blank())+
     ggplot2::scale_x_continuous(breaks = base::seq(from = base::min(cutoff_stats[["corr"]]), to = 1, by = 0.005))+
-    ggplot2::scale_y_continuous(labels = scales::comma)
+    ggplot2::scale_y_continuous(labels = scales::comma, expand = ggplot2::expansion(mult = c(0.05, 0.18)))
+  p2 <- add_cutoff_markers(p2, show_legend = FALSE)
+  p2 <- add_policy_marker_values(p2, metric_col = "no_edges")
 
   # plot number of nodes:
   p3 <- ggplot2::ggplot(cutoff_stats, ggplot2::aes(x = corr))+
     ggplot2::geom_vline(xintercept = base::c(base::seq(from = base::min(cutoff_stats[["corr"]]), to = 1, by = 0.01)), color = "darkgrey")+
-    ggplot2::geom_hline(yintercept = hline[[3]], color = "darkgrey", size = 1.7)+
+    ggplot2::geom_hline(yintercept = hline[[3]], color = "darkgrey", linewidth = 1.7)+
     ggplot2::geom_line(ggplot2::aes(y = no_nodes), color = "#00A1D5FF")+
     ggplot2::geom_point(ggplot2::aes(y = no_nodes), color = "#00A1D5FF", size = 2)+
     ggplot2::theme_light()+
@@ -1304,16 +1568,21 @@ plot_cutoffs_internal_static <- function(cutoff_stats,
           axis.text.x = ggplot2::element_blank(),
           axis.ticks.x = ggplot2::element_blank())+
     ggplot2::scale_x_continuous(breaks = base::seq(from = base::min(cutoff_stats[["corr"]]), to = 1, by = 0.005))+
-    ggplot2::scale_y_continuous(labels = scales::comma)
+    ggplot2::scale_y_continuous(labels = scales::comma, expand = ggplot2::expansion(mult = c(0.05, 0.18)))
+  p3 <- add_cutoff_markers(p3, show_legend = FALSE)
+  p3 <- add_policy_marker_values(p3, metric_col = "no_nodes")
 
   # plot number of networks:
   p4 <- ggplot2::ggplot(cutoff_stats, ggplot2::aes(x = corr))+
     ggplot2::geom_vline(xintercept = base::c(base::seq(from = base::min(cutoff_stats[["corr"]]), to = 1, by = 0.01)), color = "darkgrey")+
-    ggplot2::geom_hline(yintercept = hline[[4]], color = "darkgrey", size = 1.7)+
+    ggplot2::geom_hline(yintercept = hline[[4]], color = "darkgrey", linewidth = 1.7)+
     ggplot2::geom_point(ggplot2::aes(y = no_of_networks), color = "#B24745FF", size = 2)+
     ggplot2::scale_x_continuous(breaks = base::seq(from = base::min(cutoff_stats[["corr"]]), to = 1, by = 0.005))+
     ggplot2::theme_light()+
-    ggplot2::theme(axis.text.x = ggplot2::element_text(angle=90))
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle=90)) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.18)))
+  p4 <- add_cutoff_markers(p4, show_legend = FALSE)
+  p4 <- add_policy_marker_values(p4, metric_col = "no_of_networks")
 
 
   p <- cowplot::plot_grid(p1, p2, p3, p4, ncol = 1, align = "v")
@@ -1325,12 +1594,120 @@ plot_cutoffs_internal_static <- function(cutoff_stats,
 #' Plots the R-squared vlaue, number of edges, number of genes and number of networks for different cut-offs as an interactive widget using plotly.
 #' @param cutoff_stats A dataframe of cutoff statistics generated in previous steps.
 #' @param x An integer giving the number of the currently processed layer.
+#' @param tuning_marker Optional list with selected/strict/relaxed/simple cutoff marker metadata.
 #' @noRd
 
 plot_cutoffs_internal_interactive <- function(cutoff_stats, 
-                            x){
+                            x,
+                            tuning_marker = NULL){
+  as_num1 <- function(z) {
+    out <- suppressWarnings(base::as.numeric(z))
+    if (base::length(out) < 1) {
+      return(NA_real_)
+    }
+    out[[1]]
+  }
+  as_chr1 <- function(z) {
+    out <- base::as.character(z)
+    if (base::length(out) < 1) {
+      return(NA_character_)
+    }
+    out[[1]]
+  }
+  normalize_policy <- function(z) {
+    pol <- base::tolower(as_chr1(z))
+    if (!base::is.character(pol) || base::is.na(pol) || !base::nzchar(pol)) {
+      return(NA_character_)
+    }
+    base::switch(
+      pol,
+      tier1 = "strict",
+      tier2 = "relaxed",
+      fallback = "best_available",
+      pol
+    )
+  }
+  same_cutoff <- function(a, b, tol = 1e-8) {
+    base::is.finite(a) && base::is.finite(b) && base::abs(a - b) <= tol
+  }
+  format_marker_label <- function(value, metric) {
+    if (!base::is.finite(value)) {
+      return(NA_character_)
+    }
+    if (metric == "R.squared") {
+      return(base::formatC(value, format = "f", digits = 3))
+    }
+    if (metric == "no_of_networks") {
+      return(base::formatC(base::round(value), format = "f", digits = 0))
+    }
+    scales::comma(base::round(value))
+  }
+  extract_marker_stats <- function(cutoff_value) {
+    if (!base::is.finite(cutoff_value)) {
+      return(NULL)
+    }
+    tmp <- cutoff_stats[, c("corr", "R.squared", "no_edges", "no_nodes", "no_of_networks"), drop = FALSE]
+    tmp[["corr"]] <- suppressWarnings(base::as.numeric(tmp[["corr"]]))
+    tmp <- tmp[base::order(tmp[["corr"]]), , drop = FALSE]
+    metric_at_cutoff <- function(metric) {
+      y <- suppressWarnings(base::as.numeric(tmp[[metric]]))
+      ok <- base::is.finite(tmp[["corr"]]) & base::is.finite(y)
+      if (base::sum(ok) < 1) {
+        return(NA_real_)
+      }
+      x_ok <- tmp[["corr"]][ok]
+      y_ok <- y[ok]
+      if (base::length(base::unique(x_ok)) >= 2) {
+        return(as.numeric(stats::approx(x = x_ok, y = y_ok, xout = cutoff_value, ties = base::mean, rule = 2)$y))
+      }
+      y_ok[[1]]
+    }
+    base::data.frame(
+      corr = cutoff_value,
+      R.squared = metric_at_cutoff("R.squared"),
+      no_edges = metric_at_cutoff("no_edges"),
+      no_nodes = metric_at_cutoff("no_nodes"),
+      no_of_networks = metric_at_cutoff("no_of_networks")
+    )
+  }
 
   cutoff_stats[["corr"]] <- base::rownames(cutoff_stats) %>% base::as.numeric()
+  selected_cutoff <- as_num1(tuning_marker[["selected_cutoff"]])
+  if (!base::is.finite(selected_cutoff)) {
+    selected_cutoff <- as_num1(tuning_marker[["tiered_cutoff"]])
+  }
+  selected_policy <- normalize_policy(tuning_marker[["selected_policy"]])
+  if (!base::is.character(selected_policy) || base::is.na(selected_policy) || !base::nzchar(selected_policy)) {
+    selected_policy <- normalize_policy(tuning_marker[["tier"]])
+  }
+  strict_cutoff <- as_num1(tuning_marker[["strict_cutoff"]])
+  relaxed_cutoff <- as_num1(tuning_marker[["relaxed_cutoff"]])
+  best_available_cutoff <- as_num1(tuning_marker[["best_available_cutoff"]])
+  simple_cutoff <- as_num1(tuning_marker[["simple_cutoff"]])
+  if (!base::is.finite(strict_cutoff) && base::identical(selected_policy, "strict") && base::is.finite(selected_cutoff)) {
+    strict_cutoff <- selected_cutoff
+  }
+  if (!base::is.finite(relaxed_cutoff) && base::identical(selected_policy, "relaxed") && base::is.finite(selected_cutoff)) {
+    relaxed_cutoff <- selected_cutoff
+  }
+  if (!base::is.finite(best_available_cutoff) && base::identical(selected_policy, "best_available") && base::is.finite(selected_cutoff)) {
+    best_available_cutoff <- selected_cutoff
+  }
+  selected_dash <- base::switch(
+    selected_policy,
+    strict = "solid",
+    relaxed = "dash",
+    best_available = "dashdot",
+    "dot"
+  )
+  selected_color <- base::switch(
+    selected_policy,
+    strict = "#1B9E77",
+    relaxed = "#E69F00",
+    best_available = "#D73027",
+    "#7B2CBF"
+  )
+  title_txt <- base::paste0("Cut-off selection guide: ", hcobject[["layers_names"]][x])
   
   # plot R-squared value:
   p1 <- plotly::plot_ly(cutoff_stats, x = ~corr, y = ~R.squared, type = 'scatter', 
@@ -1346,6 +1723,40 @@ plot_cutoffs_internal_interactive <- function(cutoff_stats,
                 mode = "markers", name = "no. networks", marker = list(color = "#B24745FF"))
   # combine plots:
   p <- plotly::subplot(p1, p2, p3, p4, nrows = 4, shareX = T)
+  add_reference_legend_trace <- function(p_obj, cutoff_value, nm, color, dash) {
+    if (!base::is.finite(cutoff_value)) {
+      return(p_obj)
+    }
+    x_vals <- suppressWarnings(base::as.numeric(cutoff_stats[["corr"]]))
+    x_vals <- x_vals[base::is.finite(x_vals)]
+    if (base::length(x_vals) >= 2) {
+      x_ref <- base::range(x_vals)
+    } else if (base::length(x_vals) == 1) {
+      x_ref <- base::rep(x_vals[[1]], 2)
+    } else {
+      x_ref <- c(0, 1)
+    }
+    y_ref <- suppressWarnings(base::as.numeric(cutoff_stats[["R.squared"]][[1]]))
+    if (!base::is.finite(y_ref)) {
+      y_ref <- 0
+    }
+    legend_df <- base::data.frame(corr = x_ref, y = base::rep(y_ref, 2))
+    p_obj %>% plotly::add_trace(
+      data = legend_df,
+      x = ~corr,
+      y = ~y,
+      type = "scatter",
+      mode = "lines",
+      line = list(color = color, dash = dash, width = 1.4),
+      name = nm,
+      showlegend = TRUE,
+      visible = "legendonly",
+      hoverinfo = "skip",
+      inherit = FALSE
+    )
+  }
+  p <- add_reference_legend_trace(p, strict_cutoff, "strict cutoff", "#1B9E77", "solid")
+  p <- add_reference_legend_trace(p, relaxed_cutoff, "relaxed cutoff", "#E69F00", "dash")
   
   # adjust layout:
   steps <- list()
@@ -1369,17 +1780,128 @@ plot_cutoffs_internal_interactive <- function(cutoff_stats,
     
     steps[[i]] <- step
   }
-  
-  
+  add_shape <- function(shape_list, x0, color, dash, width) {
+    if (!base::is.finite(x0)) {
+      return(shape_list)
+    }
+    shape_list[[base::length(shape_list) + 1]] <- list(
+      type = "line",
+      x0 = x0,
+      x1 = x0,
+      y0 = 0,
+      y1 = 1,
+      xref = "x",
+      yref = "paper",
+      line = list(color = color, dash = dash, width = width)
+    )
+    shape_list
+  }
+  shape_list <- list()
+  shape_list <- add_shape(
+    shape_list = shape_list,
+    x0 = relaxed_cutoff,
+    color = "#E69F00",
+    dash = "dash",
+    width = if (base::identical(selected_policy, "relaxed") && same_cutoff(selected_cutoff, relaxed_cutoff)) 1.5 else 1.0
+  )
+  shape_list <- add_shape(
+    shape_list = shape_list,
+    x0 = strict_cutoff,
+    color = "#1B9E77",
+    dash = "solid",
+    width = if (base::identical(selected_policy, "strict") && same_cutoff(selected_cutoff, strict_cutoff)) 1.5 else 1.0
+  )
+  shape_list <- add_shape(
+    shape_list = shape_list,
+    x0 = best_available_cutoff,
+    color = "#D73027",
+    dash = "dashdot",
+    width = if (base::identical(selected_policy, "best_available") && same_cutoff(selected_cutoff, best_available_cutoff)) 1.5 else 1.0
+  )
+  shape_list <- add_shape(
+    shape_list = shape_list,
+    x0 = simple_cutoff,
+    color = "#2D2D2D",
+    dash = "longdash",
+    width = 1.2
+  )
+  has_selected_reference <- same_cutoff(selected_cutoff, strict_cutoff) ||
+    same_cutoff(selected_cutoff, relaxed_cutoff) ||
+    same_cutoff(selected_cutoff, best_available_cutoff) ||
+    same_cutoff(selected_cutoff, simple_cutoff)
+  if (base::is.finite(selected_cutoff) && !has_selected_reference) {
+    shape_list <- add_shape(
+      shape_list = shape_list,
+      x0 = selected_cutoff,
+      color = selected_color,
+      dash = selected_dash,
+      width = 1.4
+    )
+  }
+  annotation_list <- list()
+  policy_ann <- list(
+    list(id = "strict", cutoff = strict_cutoff, color = "#1B9E77", prefix = "S ", ax = -30, ay = -18),
+    list(id = "relaxed", cutoff = relaxed_cutoff, color = "#E69F00", prefix = "R ", ax = 30, ay = 18)
+  )
+  marker_specs <- list(
+    list(metric = "R.squared", yref = "y"),
+    list(metric = "no_edges", yref = "y2"),
+    list(metric = "no_nodes", yref = "y3"),
+    list(metric = "no_of_networks", yref = "y4")
+  )
+  for (pol in policy_ann) {
+    if (!base::is.finite(pol$cutoff)) {
+      next
+    }
+    pol_stats <- extract_marker_stats(pol$cutoff)
+    if (base::is.null(pol_stats)) {
+      next
+    }
+    x_val <- suppressWarnings(base::as.numeric(pol_stats[["corr"]][[1]]))
+    if (!base::is.finite(x_val)) {
+      next
+    }
+    for (sp in marker_specs) {
+      y_val <- suppressWarnings(base::as.numeric(pol_stats[[sp$metric]][[1]]))
+      if (!base::is.finite(y_val)) {
+        next
+      }
+      label_txt <- format_marker_label(y_val, metric = sp$metric)
+      if (!base::is.character(label_txt) || base::is.na(label_txt) || !base::nzchar(label_txt)) {
+        next
+      }
+      annotation_list[[base::length(annotation_list) + 1]] <- list(
+        x = x_val,
+        y = y_val,
+        xref = "x",
+        yref = sp$yref,
+        text = base::paste0(pol$prefix, label_txt),
+        showarrow = TRUE,
+        arrowhead = 1,
+        arrowsize = 0.8,
+        arrowwidth = 1,
+        arrowcolor = pol$color,
+        ax = pol$ax,
+        ay = pol$ay,
+        font = list(color = pol$color, size = 10),
+        bgcolor = "rgba(255,255,255,0.85)",
+        bordercolor = pol$color,
+        borderwidth = 1,
+        borderpad = 2
+      )
+    }
+  }
+
   p <- p %>% plotly::layout(hovermode = "x unified") %>%
-    plotly::layout(title = base::paste0("Cut-off selection guide: ", hcobject[["layers_names"]][x]),
+    plotly::layout(title = title_txt,
            sliders = list(
              list(pad = list(t=60),
                   active = 2, 
                   currentvalue = list(prefix = "Cut-off: ", font = list(color = "black", size = 14)), 
                   steps = steps,
                   font = list(color = "white", size = 0))),
-           shapes = list(line))
+           shapes = shape_list,
+           annotations = annotation_list)
   return(p)
 }
 
@@ -2979,6 +3501,9 @@ replot_cluster_heatmap <- function(col_order = NULL,
     gfc_scale_breaks <- base::seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = 5)
   }
   gfc_scale_labels <- base::formatC(gfc_scale_breaks, format = "fg", digits = 3)
+  gfc_scale_labels <- base::trimws(gfc_scale_labels)
+  gfc_label_width <- base::max(base::nchar(gfc_scale_labels), na.rm = TRUE)
+  gfc_scale_labels <- base::format(gfc_scale_labels, width = gfc_label_width, justify = "right")
   gfc_palette <- grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(51)
   gfc_col_fun <- circlize::colorRamp2(
     seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = base::length(gfc_palette)),
@@ -3003,6 +3528,7 @@ replot_cluster_heatmap <- function(col_order = NULL,
                                   title = "",
                                   at = gfc_scale_breaks,
                                   labels = gfc_scale_labels,
+                                  labels_gp = grid::gpar(fontfamily = "mono"),
                                   legend_height = grid::unit(3, "cm")
                                 ), column_km = k)
 

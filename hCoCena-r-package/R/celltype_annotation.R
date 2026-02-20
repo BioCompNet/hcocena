@@ -396,6 +396,10 @@ hc_preview_celltype_database <- function(database,
 #' based on selected Enrichr term hits.
 #'
 #' @param databases Character vector of Enrichr library names.
+#' @param custom_gmt_files Optional custom GMT file(s) to include in the
+#'   cell-type annotation. Accepts a character vector or named list of file
+#'   paths. Paths can be absolute/relative or file names inside
+#'   `dir_reference_files`.
 #' @param clusters Either `"all"` (default) or a character vector of module
 #'   IDs/colors.
 #' @param mode Either `"coarse"` (broad classes) or `"fine"` (specific terms).
@@ -410,6 +414,12 @@ hc_preview_celltype_database <- function(database,
 #' @param annotation_slot Backward-compatibility option when only one database
 #'   is used. With multiple databases, one slot per DB is always written
 #'   (`enriched_per_cluster_<db>`), and previous DB slots are reset on each run.
+#' @param slot_suffix Optional character suffix appended to generated annotation
+#'   slots (for example `"decoupler"` -> `enriched_per_cluster_<db>_decoupler`).
+#'   Useful to keep multiple annotation runs side by side.
+#' @param clear_previous_slots Logical. If `TRUE` (default), previous
+#'   `enriched_per_cluster*` slots are removed before writing new results.
+#'   Set to `FALSE` to keep existing slots.
 #' @param coarse_map Optional named character vector with regex rules for
 #'   `mode = "coarse"`. Names are output class labels.
 #' @param coarse_include_other Logical. Keep unmatched terms as `"Other"` in
@@ -427,6 +437,7 @@ hc_preview_celltype_database <- function(database,
 #' @export
 celltype_annotation <- function(
     databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
+    custom_gmt_files = NULL,
     clusters = c("all"),
     mode = c("coarse", "fine"),
     top = 3,
@@ -436,6 +447,8 @@ celltype_annotation <- function(
     min_gs_size = 10,
     max_gs_size = 5000,
     annotation_slot = c("auto", "enriched_per_cluster", "enriched_per_cluster2"),
+    slot_suffix = NULL,
+    clear_previous_slots = TRUE,
     coarse_map = NULL,
     coarse_include_other = TRUE,
     refresh_db = FALSE,
@@ -452,14 +465,14 @@ celltype_annotation <- function(
   if (!requireNamespace("clusterProfiler", quietly = TRUE)) {
     stop("Package `clusterProfiler` is required for `celltype_annotation()`.")
   }
-  if (!base::is.character(databases) || base::length(databases) < 1) {
-    stop("`databases` must be a non-empty character vector.")
+  if (base::is.null(databases)) {
+    databases <- base::character(0)
+  }
+  if (!base::is.character(databases)) {
+    stop("`databases` must be a character vector.")
   }
   databases <- base::unique(base::trimws(base::as.character(databases)))
   databases <- databases[!base::is.na(databases) & databases != ""]
-  if (base::length(databases) == 0) {
-    stop("`databases` must contain at least one valid Enrichr library name.")
-  }
   if (!base::is.numeric(top) || base::length(top) != 1 || base::is.na(top) || top < 1) {
     stop("`top` must be a positive integer.")
   }
@@ -490,6 +503,24 @@ celltype_annotation <- function(
   }
   if (!base::is.logical(plot_heatmap) || base::length(plot_heatmap) != 1 || base::is.na(plot_heatmap)) {
     stop("`plot_heatmap` must be TRUE or FALSE.")
+  }
+  if (!base::is.null(slot_suffix)) {
+    if (!base::is.character(slot_suffix) || base::length(slot_suffix) != 1) {
+      stop("`slot_suffix` must be NULL or a single character string.")
+    }
+    slot_suffix <- base::trimws(slot_suffix)
+    if (!base::nzchar(slot_suffix)) {
+      stop("`slot_suffix` must be non-empty when provided.")
+    }
+    slot_suffix <- .hc_sanitize_db_token(slot_suffix)
+    if (!base::nzchar(slot_suffix)) {
+      stop("`slot_suffix` contains no usable characters after sanitization.")
+    }
+  }
+  if (!base::is.logical(clear_previous_slots) ||
+      base::length(clear_previous_slots) != 1 ||
+      base::is.na(clear_previous_slots)) {
+    stop("`clear_previous_slots` must be TRUE or FALSE.")
   }
 
   cluster_info <- tryCatch(hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]], error = function(e) NULL)
@@ -529,21 +560,52 @@ celltype_annotation <- function(
     }
   }
 
-  .hc_enrichr_db_table(refresh = isTRUE(refresh_db))
-  db_t2g <- lapply(
-    databases,
-    function(db) {
-      .hc_enrichr_fetch_library_term2gene(
-        database = db,
-        refresh = isTRUE(refresh_db),
-        min_genes_per_term = min_term_genes
-      )$term2gene
-    }
+  custom_t2g <- .hc_load_custom_gmt_term2gene(
+    custom_gmt_files = custom_gmt_files,
+    default_prefix = "CustomCellType",
+    uppercase_genes = TRUE,
+    add_database_prefix = TRUE,
+    title_case_names = FALSE
   )
-  names(db_t2g) <- databases
+  custom_gmt_paths <- base::attr(custom_t2g, "paths")
+
+  if (base::length(databases) > 0 && base::length(custom_t2g) > 0) {
+    overlap_db <- base::intersect(databases, base::names(custom_t2g))
+    if (base::length(overlap_db) > 0) {
+      stop(
+        "Overlapping Enrichr and custom GMT database names: ",
+        base::paste(overlap_db, collapse = ", "),
+        ". Rename custom GMT entries (names(custom_gmt_files))."
+      )
+    }
+  }
+
+  db_t2g <- list()
+  if (base::length(databases) > 0) {
+    .hc_enrichr_db_table(refresh = isTRUE(refresh_db))
+    db_t2g <- lapply(
+      databases,
+      function(db) {
+        .hc_enrichr_fetch_library_term2gene(
+          database = db,
+          refresh = isTRUE(refresh_db),
+          min_genes_per_term = min_term_genes
+        )$term2gene
+      }
+    )
+    names(db_t2g) <- databases
+  }
+  if (base::length(custom_t2g) > 0) {
+    db_t2g <- base::c(db_t2g, custom_t2g)
+  }
+  db_names <- base::names(db_t2g)
+  if (base::length(db_names) == 0) {
+    stop("No databases available. Provide `databases` and/or `custom_gmt_files`.")
+  }
+
   combined_t2g <- base::do.call(base::rbind, db_t2g)
   if (base::is.null(combined_t2g) || base::nrow(combined_t2g) == 0) {
-    stop("No usable TERM2GENE entries found for selected Enrichr databases.")
+    stop("No usable TERM2GENE entries found for selected Enrichr/custom databases.")
   }
   combined_t2g <- base::unique(combined_t2g)
   term_meta <- base::unique(combined_t2g[, c("term", "term_raw", "database"), drop = FALSE])
@@ -565,8 +627,8 @@ celltype_annotation <- function(
     universe <- base::unique(base::unlist(lapply(clusters, function(cl) .hc_extract_cluster_genes(cluster_info, cl))))
   }
 
-  selected_by_db_nested <- stats::setNames(vector("list", base::length(databases)), databases)
-  significant_by_db_nested <- stats::setNames(vector("list", base::length(databases)), databases)
+  selected_by_db_nested <- stats::setNames(vector("list", base::length(db_names)), db_names)
+  significant_by_db_nested <- stats::setNames(vector("list", base::length(db_names)), db_names)
 
   for (cl in clusters) {
     genes <- .hc_extract_cluster_genes(cluster_info, cl)
@@ -613,7 +675,7 @@ celltype_annotation <- function(
     sig$Count[!base::is.finite(sig$Count)] <- 0
     sig <- sig[base::order(sig$qvalue, sig$p.adjust, -sig$Count, sig$term), , drop = FALSE]
 
-    for (db_nm in databases) {
+    for (db_nm in db_names) {
       sig_db <- sig[sig$database == db_nm, , drop = FALSE]
       if (base::nrow(sig_db) == 0) {
         next
@@ -731,7 +793,7 @@ celltype_annotation <- function(
 
   categories_by_db <- list()
   celltype_order_by_db <- list()
-  for (db_nm in databases) {
+  for (db_nm in db_names) {
     sel_db <- selected_by_db[[db_nm]]
     if (base::is.null(sel_db) || base::nrow(sel_db) == 0) {
       categories_by_db[[db_nm]] <- base::data.frame(
@@ -825,43 +887,54 @@ celltype_annotation <- function(
   }
 
   db_tokens <- base::make.unique(
-    base::vapply(databases, .hc_sanitize_db_token, FUN.VALUE = base::character(1)),
+    base::vapply(db_names, .hc_sanitize_db_token, FUN.VALUE = base::character(1)),
     sep = "_"
   )
   db_slot_names <- base::paste0("enriched_per_cluster_", db_tokens)
-  base::names(db_slot_names) <- databases
-  if (base::length(databases) == 1 && annotation_slot != "auto") {
+  if (!base::is.null(slot_suffix) && base::nzchar(slot_suffix)) {
+    db_slot_names <- base::paste0(db_slot_names, "_", slot_suffix)
+  }
+  base::names(db_slot_names) <- db_names
+  if (base::length(db_names) == 1 && annotation_slot != "auto") {
     db_slot_names[[1]] <- annotation_slot
+    if (!base::is.null(slot_suffix) && base::nzchar(slot_suffix)) {
+      db_slot_names[[1]] <- base::paste0(db_slot_names[[1]], "_", slot_suffix)
+    }
   }
 
   sat_out <- hcobject[["satellite_outputs"]]
   if (base::is.null(sat_out) || !base::is.list(sat_out)) {
     sat_out <- list()
   }
-  sat_names <- base::names(sat_out)
-  old_dynamic_slots <- sat_names[base::grepl("^enriched_per_cluster_", sat_names)]
-  for (nm in old_dynamic_slots) {
-    sat_out[[nm]] <- NULL
-  }
-  # Reset legacy slots as well to avoid stale mixed annotations after reruns.
-  for (nm in c("enriched_per_cluster", "enriched_per_cluster2")) {
-    if (nm %in% sat_names) {
+  if (isTRUE(clear_previous_slots)) {
+    sat_names <- base::names(sat_out)
+    old_dynamic_slots <- sat_names[base::grepl("^enriched_per_cluster_", sat_names)]
+    for (nm in old_dynamic_slots) {
       sat_out[[nm]] <- NULL
+    }
+    # Reset legacy slots as well to avoid stale mixed annotations after reruns.
+    for (nm in c("enriched_per_cluster", "enriched_per_cluster2")) {
+      if (nm %in% sat_names) {
+        sat_out[[nm]] <- NULL
+      }
     }
   }
 
   hidden_common <- list(
     source = "celltype_annotation",
-    databases = databases,
+    databases = db_names,
+    custom_gmt_files = custom_gmt_paths,
     clusters = clusters,
     mode = mode,
     top = top,
     qval = qval,
-    padj = padj
+    padj = padj,
+    slot_suffix = slot_suffix,
+    clear_previous_slots = clear_previous_slots
   )
   base::attr(categories, "hidden") <- hidden_common
 
-  for (db_nm in databases) {
+  for (db_nm in db_names) {
     slot_nm <- db_slot_names[[db_nm]]
     if (base::is.na(slot_nm) || !base::nzchar(slot_nm)) {
       slot_nm <- base::paste0("enriched_per_cluster_", .hc_sanitize_db_token(db_nm))
@@ -894,12 +967,12 @@ celltype_annotation <- function(
     celltype_order_by_db = celltype_order_by_db,
     annotation_slots = base::unname(db_slot_names),
     annotation_slot_map = base::data.frame(
-      database = databases,
+      database = db_names,
       slot = base::unname(db_slot_names),
       stringsAsFactors = FALSE
     ),
     parameters = list(
-      databases = databases,
+      databases = db_names,
       clusters = clusters,
       mode = mode,
       top = top,
@@ -908,8 +981,11 @@ celltype_annotation <- function(
       min_term_genes = min_term_genes,
       min_gs_size = min_gs_size,
       max_gs_size = max_gs_size,
+      custom_gmt_files = custom_gmt_paths,
       annotation_slot = annotation_slot,
       annotation_slots = base::unname(db_slot_names),
+      slot_suffix = slot_suffix,
+      clear_previous_slots = clear_previous_slots,
       coarse_include_other = coarse_include_other
     )
   )
@@ -947,7 +1023,7 @@ celltype_annotation <- function(
         celltype_order = celltype_stats
       )
       used_sheet_names <- base::names(xlsx_tables)
-      for (db_nm in databases) {
+      for (db_nm in db_names) {
         sel_db <- selected_by_db[[db_nm]]
         sig_db <- significant_by_db[[db_nm]]
         cat_db <- categories_by_db[[db_nm]]

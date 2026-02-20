@@ -19,17 +19,72 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5){
   base::colnames(gtc) <- base::c("gene", "cluster")
   
   all_clusters <- base::unique(hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]][["color"]])
-  all_clusters <- all_clusters[all_clusters != "white"]
+  all_clusters <- base::as.character(all_clusters)
+  all_clusters <- all_clusters[!base::is.na(all_clusters) & all_clusters != "white" & all_clusters != ""]
   
-  if (clusters[1] == "all") {
+  module_label_map <- hcobject[["integrated_output"]][["cluster_calc"]][["module_label_map"]]
+  if (!base::is.null(module_label_map) && base::length(module_label_map) > 0) {
+    module_label_map <- base::as.character(module_label_map)
+    map_names <- base::names(hcobject[["integrated_output"]][["cluster_calc"]][["module_label_map"]])
+    if (!base::is.null(map_names) && base::length(map_names) == base::length(module_label_map)) {
+      base::names(module_label_map) <- base::as.character(map_names)
+    }
+    missing_before <- base::setdiff(all_clusters, base::names(module_label_map))
+    if (base::length(missing_before) > 0) {
+      inverse_map <- stats::setNames(base::names(module_label_map), base::as.character(module_label_map))
+      if (base::all(all_clusters %in% base::names(inverse_map))) {
+        module_label_map <- inverse_map
+      }
+    }
+  } else {
+    module_label_map <- NULL
+  }
+  
+  display_by_color <- stats::setNames(all_clusters, all_clusters)
+  if (!base::is.null(module_label_map) && base::length(module_label_map) > 0) {
+    mapped_labels <- base::as.character(module_label_map[all_clusters])
+    valid_labels <- !base::is.na(mapped_labels) & base::nzchar(mapped_labels)
+    display_by_color[valid_labels] <- mapped_labels[valid_labels]
+  }
+  label_to_color <- stats::setNames(all_clusters, base::as.character(display_by_color[all_clusters]))
+  
+  if (base::length(clusters) >= 1 && clusters[1] == "all") {
     clusters <- all_clusters
+  } else {
+    requested <- base::as.character(clusters)
+    requested <- requested[!base::is.na(requested) & requested != ""]
+    resolved_clusters <- base::character(0)
+    unresolved <- base::character(0)
+    for (cl in requested) {
+      if (cl %in% all_clusters) {
+        resolved_clusters <- base::c(resolved_clusters, cl)
+      } else if (cl %in% base::names(label_to_color)) {
+        resolved_clusters <- base::c(resolved_clusters, base::as.character(label_to_color[[cl]]))
+      } else {
+        unresolved <- base::c(unresolved, cl)
+      }
+    }
+    if (base::length(unresolved) > 0) {
+      warning("Ignoring unknown clusters/modules: ", base::paste(base::unique(unresolved), collapse = ", "))
+    }
+    clusters <- base::unique(resolved_clusters)
+    if (base::length(clusters) == 0) {
+      stop("No valid clusters/modules selected for TF overrepresentation.")
+    }
   }
   
   tt_list <- list()
   exp_plot_list <- list()
+  module_title_by_color <- stats::setNames(base::character(0), base::character(0))
   TFs <- NULL
   
   for(c in clusters){
+    module_display <- if (c %in% base::names(display_by_color)) {
+      base::as.character(display_by_color[[c]])
+    } else {
+      c
+    }
+    
     genes = dplyr::filter(hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]], color == c) %>%
       dplyr::pull(., "gene_n")%>%
       base::strsplit(., split = ",") %>%
@@ -66,7 +121,11 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5){
         }
       }
     }
-    output[[c]] <- resultlist
+    output_name <- module_display
+    if (output_name %in% base::names(output)) {
+      output_name <- base::paste0(module_display, " [", c, "]")
+    }
+    output[[output_name]] <- resultlist
     
     # prepare TF-target dataframe for visualization
     if (base::length(resultlist) == 0){
@@ -88,10 +147,11 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5){
     }
     
     exp_plot_df <- base::as.data.frame(base::unique(exp_plot_df))
-    base::colnames(exp_plot_df) <- c
+    base::colnames(exp_plot_df) <- module_display
     
     tt_list[[c]] <- tt_df
     exp_plot_list[[c]] <- exp_plot_df
+    module_title_by_color[[c]] <- module_display
   }
   
   # Save TF enrichment results
@@ -114,6 +174,15 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5){
   
   # loop in pairs of two to create double plots: 
   for(n in 1:base::length(tt_list)){
+    module_color <- base::names(tt_list)[n]
+    if (base::is.na(module_color) || !base::nzchar(module_color)) {
+      module_color <- base::as.character(clusters[[n]])
+    }
+    module_title <- if (module_color %in% base::names(module_title_by_color)) {
+      base::as.character(module_title_by_color[[module_color]])
+    } else {
+      module_color
+    }
     
     # set layout to plot two plots each in horizontal arrangement
     # graphics::layout(mat = base::matrix(1:2, 1, 2), widths = c(1,1), heights = c(1,1)) 
@@ -128,7 +197,7 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5){
     
     # dataframe that associates each gene with its cluster colour:
     NodeToColor <- base::rbind(base::data.frame(gene = fromto$TF, color = fromto$ClusterTF),
-                               base::data.frame(gene = fromto$Target, color = base::rep(base::names(tt_list)[n], base::nrow(fromto)))) %>%
+                               base::data.frame(gene = fromto$Target, color = base::rep(module_color, base::nrow(fromto)))) %>%
       base::unique()
     
     
@@ -182,11 +251,11 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5){
       
       
     }
-    graphics::title(base::names(tt_list)[n])
+    graphics::title(module_title)
     circlize::circos.clear()
     
     visualize_gene_expression(genes = exp_plot_list[[n]] %>% base::unlist(use.names = F), 
-                              name = base::names(exp_plot_list)[n], 
+                              name = module_title, 
                               save = F)
   }
   grDevices::dev.off()

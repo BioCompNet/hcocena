@@ -1,0 +1,726 @@
+---
+title: "hCoCena Plot Showcase (Heatmap + Enrichment + Satellite Gallery)"
+author: "hCoCena"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+  pdf_document:
+    toc: true
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, envir = globalenv()) })
+params:
+  showcase_version: "hc-only-2026-02-18"
+  hc_rds: "hc_after_main.rds"
+  run_heatmap_gallery: true
+  run_enrichment: true
+  run_upstream: true
+  run_knowledge_network: true
+  run_celltype: true
+  run_module_split_demo: false
+  apply_module_split: false
+  run_extra_examples: true
+---
+
+# Purpose
+
+This markdown is a compact but feature-rich showcase.
+
+1. Demonstrate many valid plotting parameter combinations on the same `hc` object.
+2. Make it easy for users to compare layout/label/scale choices side by side.
+3. Provide practical, copy-ready examples for post-main analysis steps.
+
+It is meant to run **after** the core workflow (`hcocena_main.Rmd`) has produced a valid `hc` object with integrated network + modules.
+By default, this script imports `hc_after_main.rds` (set via `params$hc_rds`).
+
+# 1 Setup
+
+```{r setup}
+library(hcocena)
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 13,
+  fig.height = 10,
+  out.width = "100%"
+)
+
+showcase_rds <- params$hc_rds
+if (!is.character(showcase_rds) || length(showcase_rds) != 1 || !nzchar(showcase_rds)) {
+  stop("`params$hc_rds` must be a non-empty path to an .rds file.")
+}
+
+if (!exists("hc", inherits = FALSE)) {
+  if (!file.exists(showcase_rds)) {
+    stop(
+      paste0(
+        "RDS file not found: ", showcase_rds, "\n",
+        "Run `hcocena_main.Rmd` first or render with a custom path via params$hc_rds."
+      )
+    )
+  }
+  hc <- readRDS(showcase_rds)
+}
+
+if (!inherits(hc, "HCoCenaExperiment")) {
+  stop("Loaded object `hc` is not an HCoCenaExperiment.")
+}
+
+extract_split_target <- function(hc_obj) {
+  out <- list(target = NULL, color = NA_character_, label = NA_character_, gene_n = NA_integer_)
+
+  cluster_info <- tryCatch(
+    as.data.frame(hc_obj@integration@cluster[["cluster_information"]]),
+    error = function(e) NULL
+  )
+  if (is.null(cluster_info) || nrow(cluster_info) == 0) {
+    return(out)
+  }
+  if (!all(c("color", "gene_n") %in% names(cluster_info))) {
+    return(out)
+  }
+
+  cluster_info <- cluster_info[
+    !is.na(cluster_info$color) & cluster_info$color != "" & cluster_info$color != "white",
+    ,
+    drop = FALSE
+  ]
+  if (nrow(cluster_info) == 0) {
+    return(out)
+  }
+
+  cluster_info$gene_n <- suppressWarnings(as.numeric(cluster_info$gene_n))
+  cluster_info <- cluster_info[order(cluster_info$gene_n, decreasing = TRUE), , drop = FALSE]
+
+  target_color <- as.character(cluster_info$color[[1]])
+  target_gene_n <- as.integer(round(cluster_info$gene_n[[1]]))
+
+  target_label <- NA_character_
+  raw_label_map <- tryCatch(hc_obj@integration@cluster[["module_label_map"]], error = function(e) NULL)
+  if (!is.null(raw_label_map) && length(raw_label_map) > 0) {
+    label_map <- as.character(raw_label_map)
+    label_map_names <- names(raw_label_map)
+    if (!is.null(label_map_names) && length(label_map_names) == length(label_map)) {
+      names(label_map) <- as.character(label_map_names)
+      if (target_color %in% names(label_map)) {
+        target_label <- as.character(label_map[[target_color]])
+      }
+    }
+  }
+
+  target_id <- if (!is.na(target_label) && nzchar(target_label)) target_label else target_color
+
+  out$target <- target_id
+  out$color <- target_color
+  out$label <- target_label
+  out$gene_n <- target_gene_n
+  out
+}
+
+split_target_info <- extract_split_target(hc)
+split_target <- split_target_info$target
+
+# Keep baseline sections unsplit even if the imported object contains split history.
+sat_setup <- tryCatch(as.list(hc@satellite), error = function(e) list())
+if ("module_split_history" %in% names(sat_setup) &&
+    length(sat_setup[["module_split_history"]]) > 0) {
+  hc <- tryCatch(
+    hc_unsplit_modules(hc, which = "all", verbose = TRUE),
+    error = function(e) {
+      warning("Could not reset split history automatically: ", conditionMessage(e))
+      hc
+    }
+  )
+  split_target_info <- extract_split_target(hc)
+  split_target <- split_target_info$target
+  cat("Detected module split history and restored unsplit state for baseline showcase sections.\n")
+}
+
+has_hc <- TRUE
+cat("Using `hc` object from:", showcase_rds, "\n")
+if (!is.null(split_target)) {
+  cat(
+    "Default module-split demo target:", split_target,
+    "(color:", split_target_info$color,
+    ", genes:", split_target_info$gene_n, ")\n"
+  )
+}
+```
+
+# 2 Main Module Heatmap Gallery
+
+This section shows how much can be changed in the core hCoCena module heatmap.
+The examples focus on three dimensions:
+
+1. Module label logic (`module_label_mode`, `module_prefix`, numbering strategy).
+2. Module gene-count rendering (`gene_count_mode` defaults to `text`; `bar_and_text` shown once).
+3. Visual emphasis via color-scale limits and overall plot scaling.
+
+## 2.1 Baseline: stable prefix labels
+
+```{r module-heatmap-baseline, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_baseline.pdf",
+  module_label_mode = "prefix",
+  module_label_numbering = "preserve_existing",
+  gene_count_mode = "text",
+  gfc_scale_limits = c(-2, 2),
+  overall_plot_scale = 1
+)
+```
+
+## 2.2 Prefix-label variants
+
+### Compact prefix style (minimal right-side annotations)
+
+```{r module-heatmap-prefix-compact, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_prefix_compact.pdf",
+  module_label_mode = "prefix",
+  module_prefix = "M",
+  module_label_numbering = "after_clustering",
+  module_label_preset = "compact",
+  gene_count_mode = "none",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+### Alternative prefix naming (`HC1`, `HC2`, ...)
+
+```{r module-heatmap-prefix-hc, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_prefix_HC.pdf",
+  module_label_mode = "prefix",
+  module_prefix = "HC",
+  module_label_numbering = "before_clustering",
+  module_label_preset = "presentation",
+  module_label_fontsize = 10,
+  module_box_width_cm = 1.9,
+  gene_count_mode = "text",
+  gene_count_fontface = "bold",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+```{r module-heatmap-prefix-hc-check, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery)}
+current_label_map <- tryCatch(hc@integration@cluster[["module_label_map"]], error = function(e) NULL)
+if (is.null(current_label_map) || length(current_label_map) == 0) {
+  cat("No module_label_map found after HC-prefix plot.\n")
+} else {
+  current_labels <- unique(as.character(current_label_map))
+  current_labels <- current_labels[!is.na(current_labels) & current_labels != ""]
+  cat("Current module labels (first up to 10): ", paste(utils::head(current_labels, 10), collapse = ", "), "\n", sep = "")
+}
+```
+
+### Reset to default prefix (`M1`, `M2`, ...)
+
+```{r module-heatmap-prefix-reset-m, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_prefix_reset_M.pdf",
+  module_label_mode = "prefix",
+  module_prefix = "M",
+  module_label_numbering = "before_clustering",
+  module_label_preset = "balanced",
+  gene_count_mode = "text",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+## 2.3 Legacy compatibility: color names + gene-count bars
+
+This confirms that the legacy-style module display still works:
+color names instead of prefix labels, and gene counts as barplot.
+
+```{r module-heatmap-legacy-colorname-bar, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_legacy_colornames_bar.pdf",
+  module_label_mode = "legacy",
+  show_module_color_names = TRUE,
+  gene_count_mode = "bar",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+## 2.4 Module-size annotation variants (gene count)
+
+### Text only
+
+```{r module-heatmap-gene-count-text, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_gene_count_text.pdf",
+  module_label_mode = "prefix",
+  module_label_numbering = "preserve_existing",
+  gene_count_mode = "text",
+  gene_count_renderer = "text",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+### Bar only
+
+```{r module-heatmap-gene-count-bar, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_gene_count_bar.pdf",
+  module_label_mode = "prefix",
+  module_label_numbering = "preserve_existing",
+  gene_count_mode = "bar",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+### Bar + text (highest information density)
+
+```{r module-heatmap-gene-count-bar-text, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery) && isTRUE(params$run_extra_examples)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_gene_count_bar_and_text.pdf",
+  module_label_mode = "prefix",
+  module_label_numbering = "preserve_existing",
+  gene_count_mode = "bar_and_text",
+  gene_count_fontface = "bold",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+## 2.5 Dramatic GFC scale changes
+
+Narrow limits emphasize small differences, while wide limits dampen color contrast.
+
+### Narrow scale: subtle shifts become visually stronger
+
+```{r module-heatmap-scale-narrow, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_scale_narrow.pdf",
+  module_label_mode = "prefix",
+  module_label_numbering = "preserve_existing",
+  gene_count_mode = "text",
+  gfc_scale_limits = c(-0.75, 0.75),
+  overall_plot_scale = 1
+)
+```
+
+### Wide scale: only strong effects remain saturated
+
+```{r module-heatmap-scale-wide, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_scale_wide.pdf",
+  module_label_mode = "prefix",
+  module_label_numbering = "preserve_existing",
+  gene_count_mode = "text",
+  gfc_scale_limits = c(-4, 4),
+  overall_plot_scale = 1
+)
+```
+
+## 2.6 Presentation-scale variant
+
+```{r module-heatmap-presentation, eval = isTRUE(has_hc) && isTRUE(params$run_heatmap_gallery) && isTRUE(params$run_extra_examples)}
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_presentation.pdf",
+  module_label_mode = "prefix",
+  module_prefix = "M",
+  module_label_numbering = "preserve_existing",
+  module_label_preset = "presentation",
+  gene_count_mode = "text",
+  module_label_fontsize = 10,
+  gene_count_fontsize = 9,
+  gfc_scale_limits = c(-2, 2),
+  overall_plot_scale = 1.2
+)
+```
+
+# 3 Functional Enrichment Gallery
+
+This section illustrates how enrichment composition changes with visual settings.
+Key controls shown here:
+
+1. Heatmap position (`heatmap_side = "left"` vs `"right"`).
+2. Label readability (`enrichment_label_fontsize`, wrapping).
+3. Compactness (`enrichment_column_spacing_scale`, `top`).
+
+## 3.1 Baseline enrichment (heatmap left)
+
+```{r enrichment-default-left, eval = isTRUE(has_hc) && isTRUE(params$run_enrichment), fig.width = 20, fig.height = 11}
+hc <- hc_functional_enrichment(
+  hc,
+  gene_sets = c("Hallmark", "Kegg", "Go"),
+  top = 5,
+  qval = 0.05,
+  heatmap_side = "left",
+  heatmap_show_gene_counts = TRUE,
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+## 3.2 Mirrored layout (heatmap right)
+
+```{r enrichment-default-right, eval = isTRUE(has_hc) && isTRUE(params$run_enrichment), fig.width = 20, fig.height = 11}
+hc <- hc_functional_enrichment(
+  hc,
+  gene_sets = c("Hallmark", "Kegg", "Go"),
+  top = 5,
+  qval = 0.05,
+  heatmap_side = "right",
+  heatmap_show_gene_counts = TRUE,
+  enrichment_vertical_line_mode = "full",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+## 3.3 Large wrapped term labels (readability-first)
+
+```{r enrichment-large-wrapped-labels, eval = isTRUE(has_hc) && isTRUE(params$run_enrichment), fig.width = 22, fig.height = 12}
+hc <- hc_functional_enrichment(
+  hc,
+  gene_sets = c("Hallmark", "Kegg", "Go"),
+  top = 5,
+  qval = 0.05,
+  heatmap_side = "left",
+  gfc_scale_limits = c(-2, 2),
+  heatmap_column_label_fontsize = 11,
+  heatmap_module_label_fontsize = 9.5,
+  legend_fontsize = 10,
+  enrichment_label_fontsize = 11,
+  enrichment_label_wrap = TRUE,
+  enrichment_label_wrap_width = 22,
+  enrichment_column_spacing_scale = 0.9,
+  pdf_width = 20,
+  pdf_height = 10,
+  pdf_pointsize = 11
+)
+```
+
+## 3.4 Compact panel variant
+
+```{r enrichment-compact, eval = isTRUE(has_hc) && isTRUE(params$run_enrichment) && isTRUE(params$run_extra_examples)}
+hc <- hc_functional_enrichment(
+  hc,
+  gene_sets = c("Hallmark", "Kegg"),
+  top = 3,
+  qval = 0.05,
+  heatmap_side = "right",
+  gfc_scale_limits = c(-2, 2),
+  enrichment_column_spacing_scale = 0.85,
+  enrichment_row_height_scale = 0.8,
+  enrichment_line_width_scale = 0.9,
+  enrichment_label_fontsize = 9,
+  enrichment_label_wrap = FALSE,
+  pdf_width = 12,
+  pdf_height = 9
+)
+```
+
+# 4 Upstream Inference
+
+This requires `decoupleR`, `dorothea`, `progeny`.
+
+## 4.1 Per-condition discovery view (`consistent_terms = FALSE`)
+
+```{r upstream-discovery, eval = isTRUE(has_hc) && isTRUE(params$run_upstream)}
+hc <- hc_upstream_inference(
+  hc,
+  resources = c("TF", "Pathway"),
+  top = 5,
+  qval = 0.05,
+  tf_confidence = c("A", "B", "C"),
+  minsize = 5,
+  method = "ulm",
+  activity_input = "gfc",
+  heatmap_side = "left",
+  gfc_scale_limits = c(-2, 2),
+  plot = TRUE,
+  save_pdf = TRUE,
+  plot_per_comparison = TRUE,
+  consistent_terms = FALSE
+)
+```
+
+## 4.2 Comparison-safe view (`consistent_terms = TRUE`)
+
+```{r upstream-consistent, eval = isTRUE(has_hc) && isTRUE(params$run_upstream)}
+hc <- hc_upstream_inference(
+  hc,
+  resources = c("TF", "Pathway"),
+  top = 5,
+  qval = 0.05,
+  tf_confidence = c("A", "B", "C"),
+  minsize = 5,
+  method = "ulm",
+  activity_input = "gfc",
+  heatmap_side = "left",
+  gfc_scale_limits = c(-2, 2),
+  plot = TRUE,
+  save_pdf = TRUE,
+  plot_per_comparison = TRUE,
+  consistent_terms = TRUE
+)
+```
+
+## 4.3 Upstream focus variant (stronger filtering)
+
+```{r upstream-focus, eval = isTRUE(has_hc) && isTRUE(params$run_upstream) && isTRUE(params$run_extra_examples)}
+hc <- hc_upstream_inference(
+  hc,
+  resources = c("TF", "Pathway"),
+  top = 3,
+  qval = 0.01,
+  tf_confidence = c("A", "B"),
+  minsize = 5,
+  method = "ulm",
+  activity_input = "gfc",
+  heatmap_side = "left",
+  gfc_scale_limits = c(-2, 2),
+  plot = TRUE,
+  save_pdf = TRUE,
+  plot_per_comparison = TRUE,
+  consistent_terms = TRUE
+)
+```
+
+# 5 Module Knowledge Network
+
+```{r knowledge-network, eval = isTRUE(has_hc) && isTRUE(params$run_knowledge_network)}
+hc <- hc_plot_enrichment_upstream_network(
+  hc,
+  enrichment_mode = "significant",
+  upstream_mode = "significant",
+  max_enrichment_per_module = 2,
+  max_upstream_per_module = 2,
+  label_mode = "both",
+  gfc_scale_limits = c(-2, 2),
+  show_plot = TRUE,
+  save_pdf = TRUE,
+  pdf_name = "Module_Knowledge_Network_showcase.pdf"
+)
+```
+
+## 5.1 Knowledge network compact variant
+
+```{r knowledge-network-compact, eval = isTRUE(has_hc) && isTRUE(params$run_knowledge_network) && isTRUE(params$run_extra_examples)}
+hc <- hc_plot_enrichment_upstream_network(
+  hc,
+  enrichment_mode = "selected",
+  upstream_mode = "selected",
+  max_enrichment_per_module = 1,
+  max_upstream_per_module = 1,
+  label_mode = "upstream_only",
+  gfc_scale_limits = c(-2, 2),
+  show_plot = TRUE,
+  save_pdf = TRUE,
+  pdf_name = "Module_Knowledge_Network_showcase_compact.pdf"
+)
+```
+
+# 6 Optional Cell-Type Annotation
+
+Cell-type annotation uses module gene lists from the integrated hCoCena result and tests them against Enrichr cell/tissue libraries.
+
+It adds value in three ways:
+
+1. It proposes biologically interpretable cell-type labels for each module.
+2. It writes structured outputs to `hc@satellite` (selected/significant terms, ordering, slot mapping).
+3. It can directly project selected cell-type signals back onto the module heatmap.
+
+The annotation uses:
+
+1. Module membership from `hc@integration@cluster`.
+2. Selected Enrichr libraries (`databases`).
+3. Statistical cutoffs (`qval`, `top`, `padj`) and optional coarse grouping rules (`mode = "coarse"`).
+
+## 6.1 Optional database overview helper
+
+```{r celltype-db-overview, eval = isTRUE(has_hc) && isTRUE(params$run_celltype)}
+db_overview <- tryCatch(
+  hc_list_celltype_databases(pattern = "Descartes|Human|Atlas|Immune", include_all = FALSE),
+  error = function(e) NULL
+)
+
+if (is.null(db_overview) || nrow(db_overview) == 0) {
+  cat("No Enrichr database overview available right now (network/API may be unavailable).\n")
+} else {
+  show_cols <- intersect(c("database", "num_terms", "genes_per_term", "gene_coverage"), names(db_overview))
+  print(utils::head(db_overview[, show_cols, drop = FALSE], 12))
+}
+```
+
+## 6.2 Optional term preview helper
+
+```{r celltype-db-term-preview, eval = isTRUE(has_hc) && isTRUE(params$run_celltype) && isTRUE(params$run_extra_examples)}
+term_preview <- tryCatch(
+  hc_preview_celltype_database(
+    database = "Human_Gene_Atlas",
+    tissue_pattern = "macrophage|monocyte|immune",
+    max_terms = 12,
+    max_genes_per_term = 12,
+    include_genes = TRUE
+  ),
+  error = function(e) NULL
+)
+
+if (is.null(term_preview) || nrow(term_preview) == 0) {
+  cat("No term preview available for Human_Gene_Atlas right now.\n")
+} else {
+  print(term_preview)
+}
+```
+
+## 6.3 Cell-type annotation run
+
+```{r celltype-optional, eval = isTRUE(has_hc) && isTRUE(params$run_celltype)}
+hc <- hc_celltype_annotation(
+  hc,
+  databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
+  mode = "coarse",
+  top = 3,
+  qval = 0.1,
+  min_term_genes = 5,
+  export_excel = TRUE,
+  excel_file = "Module_Celltype_Annotation_showcase.xlsx",
+  plot_heatmap = TRUE,
+  heatmap_file_name = "Heatmap_modules_celltype_annotation_showcase.pdf",
+  module_label_mode = "prefix",
+  module_label_numbering = "preserve_existing",
+  gene_count_mode = "text",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+# 7 Optional Module-Split Demo
+
+Module splitting is a focused re-clustering step inside one or multiple parent modules.
+It is useful when a large parent module likely mixes multiple biological programs.
+All sections above (2-6) are intentionally rendered in **unsplit** state.
+The split operation below is an isolated demonstration and can be undone afterwards.
+
+The split step uses:
+
+1. Genes inside the selected parent module(s) only.
+2. Graph-based clustering (default Leiden) at chosen resolution(s).
+3. Minimum-size filters (`min_submodule_size`) to avoid unstable tiny submodules.
+
+Recommended workflow in this showcase:
+
+1. Preview several resolutions with `resolution_test_only = TRUE`.
+2. Apply one resolution only if the preview indicates meaningful split behavior.
+3. Re-plot heatmap with `module_label_numbering = "preserve_existing"` to keep split labels interpretable.
+
+## 7.1 Split target summary
+
+```{r module-split-target-summary, eval = isTRUE(has_hc) && isTRUE(params$run_module_split_demo)}
+if (is.null(split_target)) {
+  cat("No valid split target could be derived from current module information.\n")
+} else {
+  cat("Split target:", split_target, "\n")
+  cat("Parent color:", split_target_info$color, "\n")
+  cat("Parent module size (genes):", split_target_info$gene_n, "\n")
+}
+```
+
+## 7.2 Resolution preview (no structural changes)
+
+```{r module-split-resolution-preview, eval = isTRUE(has_hc) && isTRUE(params$run_module_split_demo) && !is.null(split_target)}
+hc <- hc_split_modules(
+  hc,
+  modules = split_target,
+  resolution_grid = c(0.04, 0.08, 0.12, 0.16, 0.20),
+  resolution_test_only = TRUE,
+  min_submodule_size = 20,
+  verbose = TRUE
+)
+
+sat <- tryCatch(as.list(hc@satellite), error = function(e) list())
+preview_overview <- NULL
+if ("module_split_resolution_test_last" %in% names(sat)) {
+  x <- sat[["module_split_resolution_test_last"]]
+  if (is.list(x) && "overview" %in% names(x)) {
+    preview_overview <- x[["overview"]]
+  }
+}
+
+if (is.null(preview_overview) || !is.data.frame(preview_overview) || nrow(preview_overview) == 0) {
+  cat("No preview table found in hc@satellite$module_split_resolution_test_last.\n")
+} else {
+  print(preview_overview)
+}
+```
+
+## 7.3 Optional split apply + immediate replot
+
+```{r module-split-apply, eval = isTRUE(has_hc) && isTRUE(params$run_module_split_demo) && isTRUE(params$apply_module_split) && !is.null(split_target)}
+hc <- hc_split_modules(
+  hc,
+  modules = split_target,
+  resolution = 0.12,
+  resolution_test_only = FALSE,
+  drop_small_submodules = TRUE,
+  min_submodule_size = 20,
+  verbose = TRUE
+)
+
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_after_module_split.pdf",
+  module_label_mode = "prefix",
+  module_label_numbering = "preserve_existing",
+  module_label_preset = "presentation",
+  gene_count_mode = "text",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+## 7.4 Split-aware enrichment view (same split state)
+
+```{r module-split-enrichment, eval = isTRUE(has_hc) && isTRUE(params$run_module_split_demo) && isTRUE(params$apply_module_split) && !is.null(split_target), fig.width = 22, fig.height = 12}
+hc <- hc_functional_enrichment(
+  hc,
+  gene_sets = c("Hallmark", "Kegg", "Go"),
+  top = 5,
+  qval = 0.05,
+  heatmap_side = "left",
+  heatmap_module_label_mode = "same",
+  heatmap_show_gene_counts = TRUE,
+  enrichment_label_fontsize = 10,
+  enrichment_label_wrap = TRUE,
+  enrichment_label_wrap_width = 24,
+  gfc_scale_limits = c(-2, 2),
+  pdf_width = 13,
+  pdf_height = 10
+)
+```
+
+Even this split-specific enrichment can be mirrored to right-side layouts, compact label settings, and all other style parameters from section 3.
+
+## 7.5 Undo split to return to pre-split state
+
+```{r module-split-undo, eval = isTRUE(has_hc) && isTRUE(params$run_module_split_demo) && isTRUE(params$apply_module_split) && !is.null(split_target)}
+hc <- hc_unsplit_modules(hc, which = "last", verbose = TRUE)
+
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  file_name = "Heatmap_showcase_after_module_unsplit.pdf",
+  module_label_mode = "prefix",
+  module_label_numbering = "preserve_existing",
+  gene_count_mode = "text",
+  gfc_scale_limits = c(-2, 2)
+)
+```
+
+# 8 Save Updated Object
+
+```{r save-object, eval = isTRUE(has_hc)}
+saveRDS(hc, file = "hc_showcase_after_plots.rds")
+cat("Saved: hc_showcase_after_plots.rds\n")
+```

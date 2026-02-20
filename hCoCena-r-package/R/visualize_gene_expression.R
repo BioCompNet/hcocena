@@ -29,7 +29,7 @@ visualize_gene_expression <- function(genes, name = NULL, width = 15, height = 1
   
   for(x in base::seq_along(hcobject[["layers"]])){
     
-    exp <- hcobject[["data"]][[base::paste0("set",x, "_counts")]][genes, ]
+    exp <- hcobject[["data"]][[base::paste0("set",x, "_counts")]][genes, , drop = FALSE]
     
     hm_anno <- hcobject[["data"]][[base::paste0("set",x, "_anno")]][base::colnames(exp),] %>% 
       dplyr::select(., dplyr::all_of(hcobject[["global_settings"]][["voi"]])) 
@@ -39,7 +39,14 @@ visualize_gene_expression <- function(genes, name = NULL, width = 15, height = 1
     
     mexp <- base::lapply(conditions, function(y){
       samples <- base::subset(hm_anno, voi == y) %>% base::rownames()
-      tmp_exp <- dplyr::select(exp, dplyr::all_of(samples))
+      missing_samples <- base::setdiff(samples, base::colnames(exp))
+      if (base::length(missing_samples) > 0) {
+        stop(
+          "Samples from annotation not found in expression matrix for layer ",
+          x, ": ", base::paste(missing_samples, collapse = ", ")
+        )
+      }
+      tmp_exp <- exp[, samples, drop = FALSE]
       tmp_mexp <- base::data.frame(V1 = base::apply(tmp_exp, 1, base::mean))
       base::colnames(tmp_mexp) <- y
       return(tmp_mexp)

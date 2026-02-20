@@ -3,6 +3,8 @@
 #' 
 #' Plots a heatmap with sample groups as columns and gene clusters as rows. The cells are coloured according to the mean GFC of a given cluster in the respective sample group.
 #'  If categorical or numerical metadata annotations or user-defined enrichments have been created with satellite functions, they will be incorporated into the heatmap as column/row annotations.
+#'  A `Module_Gene_List.xlsx` export (columns: `genes`, `module`) is written to the save folder
+#'  based on the currently displayed module labels (including split-module labels, if present).
 #'  For the available options check out the satellite functions.
 #' @param col_order Defines the order in which the sample groups (conditions) appear in the heatmap. 
 #'  Accepts a vector of strings giving the conditions in their desired order, default is NULL (automatic order, determined by clustering).
@@ -308,6 +310,9 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     gfc_scale_breaks <- base::seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = 5)
   }
   gfc_scale_labels <- base::formatC(gfc_scale_breaks, format = "fg", digits = 3)
+  gfc_scale_labels <- base::trimws(gfc_scale_labels)
+  gfc_label_width <- base::max(base::nchar(gfc_scale_labels), na.rm = TRUE)
+  gfc_scale_labels <- base::format(gfc_scale_labels, width = gfc_label_width, justify = "right")
   
   # --- 1. Load Satellite Outputs (Enrichments & Metadata) ---
   
@@ -645,18 +650,42 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       has_split_like_labels <- base::any(base::grepl("^[^.]+\\.[0-9]+$", labels_in_order))
 
       if (isTRUE(has_split_like_labels)) {
+        split_mask <- base::grepl("^[^.]+\\.[0-9]+$", labels_in_order)
+        parent_labels_raw <- base::vapply(
+          labels_in_order,
+          function(lbl) {
+            if (base::grepl("^[^.]+\\.[0-9]+$", lbl)) {
+              base::sub("\\.[0-9]+$", "", lbl)
+            } else {
+              lbl
+            }
+          },
+          FUN.VALUE = base::character(1)
+        )
+        parent_labels_in_order <- parent_labels_raw
+        parent_labels_in_order <- base::unique(parent_labels_in_order)
+        parent_remap <- stats::setNames(
+          base::paste0(module_prefix, base::seq_along(parent_labels_in_order)),
+          parent_labels_in_order
+        )
         counters <- base::list()
         for (ii in base::seq_along(labels_in_order)) {
           current_label <- labels_in_order[[ii]]
-          if (!base::grepl("^[^.]+\\.[0-9]+$", current_label)) {
-            next
+          parent_label_old <- parent_labels_raw[[ii]]
+          parent_label_new <- if (parent_label_old %in% base::names(parent_remap)) {
+            base::as.character(parent_remap[[parent_label_old]])
+          } else {
+            parent_label_old
           }
-          parent_label <- base::sub("\\.[0-9]+$", "", current_label)
-          if (!(parent_label %in% base::names(counters))) {
-            counters[[parent_label]] <- 0L
+          if (split_mask[[ii]]) {
+            if (!(parent_label_new %in% base::names(counters))) {
+              counters[[parent_label_new]] <- 0L
+            }
+            counters[[parent_label_new]] <- counters[[parent_label_new]] + 1L
+            labels_in_order[[ii]] <- base::paste0(parent_label_new, ".", counters[[parent_label_new]])
+          } else {
+            labels_in_order[[ii]] <- parent_label_new
           }
-          counters[[parent_label]] <- counters[[parent_label]] + 1L
-          labels_in_order[[ii]] <- base::paste0(parent_label, ".", counters[[parent_label]])
         }
         remap <- stats::setNames(labels_in_order, numbering_order)
         module_labels <- base::as.character(remap[row_order])
@@ -703,27 +732,27 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       base_font <- base::max(
         5,
         base::min(
-          11,
+          10,
           base::floor(((module_box_width_cm * 10) - 1.5) / base::max(1, max_chars) * 1.55)
         )
       )
     } else {
       # Auto-size by number of modules and label length to avoid overlap.
       fontsize_by_rows <- if (n_rows <= 10) {
-        10
-      } else if (n_rows <= 15) {
         9
-      } else if (n_rows <= 25) {
+      } else if (n_rows <= 15) {
         8
+      } else if (n_rows <= 25) {
+        7.5
       } else if (n_rows <= 40) {
-        7
+        6.8
       } else {
         6
       }
       fontsize_by_chars <- base::max(5, base::floor(16 / base::max(1, max_chars)))
-      base_font <- base::max(5, base::min(11, fontsize_by_rows, fontsize_by_chars))
+      base_font <- base::max(5, base::min(10, fontsize_by_rows, fontsize_by_chars))
     }
-    module_label_fontsize <- base::max(5, base::min(11, base::round(base_font * preset_scale_font, 1)))
+    module_label_fontsize <- base::max(5, base::min(10, base::round(base_font * preset_scale_font, 1)))
   }
 
   if (!user_set_module_box_width_cm) {
@@ -744,15 +773,15 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
 
   if (!user_set_module_label_pt_size) {
     base_pt <- if (n_rows <= 10) {
-      0.44
+      0.34
     } else if (n_rows <= 15) {
-      0.39
+      0.30
     } else if (n_rows <= 25) {
-      0.33
+      0.26
     } else if (n_rows <= 40) {
-      0.28
-    } else {
       0.22
+    } else {
+      0.18
     }
     char_penalty <- 1 + base::max(0, max_chars - 2) * 0.12
     module_label_pt_size <- base::max(
@@ -1043,7 +1072,8 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       heatmap_legend_param = list(
         title = "GFC",
         at = gfc_scale_breaks,
-        labels = gfc_scale_labels
+        labels = gfc_scale_labels,
+        labels_gp = grid::gpar(fontfamily = "mono")
       ),
       column_km = k
     )
@@ -1196,7 +1226,78 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   if (!base::is.null(module_labels)) {
     module_label_map <- stats::setNames(base::as.character(module_labels), base::as.character(row_order))
   }
+  module_export_labels <- if (!base::is.null(module_labels)) {
+    base::as.character(module_labels)
+  } else {
+    base::as.character(row_order)
+  }
+  if (base::length(module_export_labels) != base::length(row_order)) {
+    module_export_labels <- base::as.character(row_order)
+  }
+  module_export_map <- stats::setNames(module_export_labels, base::as.character(row_order))
+  module_gene_rows <- base::lapply(base::as.character(row_order), function(cl) {
+    idx <- base::which(base::as.character(c_df$color) == cl)
+    if (base::length(idx) == 0) {
+      return(NULL)
+    }
+    gene_n_value <- c_df$gene_n[[idx[[1]]]]
+    if (base::is.null(gene_n_value) ||
+        base::length(gene_n_value) == 0 ||
+        base::all(base::is.na(gene_n_value))) {
+      return(NULL)
+    }
+    genes <- base::trimws(
+      base::unlist(
+        base::strsplit(base::as.character(gene_n_value), ",", fixed = TRUE),
+        use.names = FALSE
+      )
+    )
+    genes <- genes[genes != "" & !base::is.na(genes)]
+    if (base::length(genes) == 0) {
+      return(NULL)
+    }
+    base::data.frame(
+      genes = genes,
+      module = base::as.character(module_export_map[[cl]]),
+      stringsAsFactors = FALSE
+    )
+  })
+  module_gene_rows <- module_gene_rows[!base::vapply(module_gene_rows, base::is.null, FUN.VALUE = base::logical(1))]
+  module_gene_list_tbl <- if (base::length(module_gene_rows) > 0) {
+    out <- base::do.call(base::rbind, module_gene_rows)
+    out <- out[, base::c("genes", "module"), drop = FALSE]
+    base::rownames(out) <- NULL
+    out
+  } else {
+    base::data.frame(
+      genes = base::character(0),
+      module = base::character(0),
+      stringsAsFactors = FALSE
+    )
+  }
+  module_gene_list_file <- base::paste0(
+    hcobject[["working_directory"]][["dir_output"]],
+    hcobject[["global_settings"]][["save_folder"]],
+    "/Module_Gene_List.xlsx"
+  )
+  tryCatch(
+    {
+      openxlsx::write.xlsx(
+        x = list(module_gene_list = module_gene_list_tbl),
+        file = module_gene_list_file,
+        overwrite = TRUE
+      )
+    },
+    error = function(e) {
+      warning(
+        "Could not write Module_Gene_List.xlsx: ",
+        base::conditionMessage(e)
+      )
+    }
+  )
   hcobject[["integrated_output"]][["cluster_calc"]][["module_label_map"]] <<- module_label_map
+  hcobject[["integrated_output"]][["cluster_calc"]][["module_gene_list"]] <<- module_gene_list_tbl
+  hcobject[["satellite_outputs"]][["module_gene_list"]] <<- module_gene_list_tbl
   hcobject[["integrated_output"]][["cluster_calc"]][["module_label_mode"]] <<- module_label_mode
   hcobject[["integrated_output"]][["cluster_calc"]][["module_label_numbering"]] <<- module_label_numbering
   hcobject[["integrated_output"]][["cluster_calc"]][["module_label_fontsize"]] <<- module_label_fontsize

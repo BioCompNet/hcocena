@@ -30,6 +30,10 @@
 #'   `activity_input = "fc"`. Each entry must be formatted as
 #'   `"groupA_vs_groupB"` (numerator vs denominator), e.g.
 #'   `c("IFNg_seq_vs_baseline_seq", "IL4_seq_vs_baseline_seq")`.
+#' @param custom_pathway_gmt Optional custom pathway GMT file(s) added to the
+#'   pathway inference resource. Accepts a character vector or named list of
+#'   file paths. Paths can be absolute/relative or file names inside
+#'   `dir_reference_files`.
 #' @param heatmap_side Position of the hCoCena heatmap in the combined output.
 #'   Choose one of `"left"` (default) or `"right"`.
 #' @param gfc_scale_limits Optional numeric vector controlling the module-heatmap
@@ -73,6 +77,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
                                method = "ulm",
                                activity_input = "gfc",
                                fc_comparisons = NULL,
+                               custom_pathway_gmt = NULL,
                                heatmap_side = "left",
                                gfc_scale_limits = NULL,
                                plot = TRUE,
@@ -233,9 +238,13 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     if (base::length(br) < 3) {
       br <- base::seq(lims[1], lims[2], length.out = 5)
     }
+    tick_labels <- base::formatC(br, format = "fg", digits = 3)
+    tick_labels <- base::trimws(tick_labels)
+    tick_label_width <- base::max(base::nchar(tick_labels), na.rm = TRUE)
+    tick_labels <- base::format(tick_labels, width = tick_label_width, justify = "right")
     list(
       breaks = br,
-      labels = base::formatC(br, format = "fg", digits = 3)
+      labels = tick_labels
     )
   }
 
@@ -699,6 +708,17 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
 
   tf_network <- NULL
   pathway_network <- NULL
+  pathway_database_label <- "PROGENy"
+  custom_pathway_network <- .hc_load_custom_gmt_pathway_network(
+    custom_pathway_gmt = custom_pathway_gmt,
+    default_prefix = "CustomPathway"
+  )
+  custom_pathway_paths <- base::attr(custom_pathway_network, "paths")
+  custom_pathway_databases <- base::attr(custom_pathway_network, "databases")
+  if (base::is.null(custom_pathway_databases)) {
+    custom_pathway_databases <- base::character(0)
+  }
+
   if ("TF" %in% resources) {
     tf_network <- .hc_ui_load_tf_network(organism = organism, tf_confidence = tf_confidence)
     tf_network <- tf_network[tf_network$target %in% base::rownames(activity_mat), , drop = FALSE]
@@ -707,10 +727,64 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     }
   }
   if ("PATHWAY" %in% resources) {
-    pathway_network <- .hc_ui_load_pathway_network(organism = organism)
-    pathway_network <- pathway_network[pathway_network$target %in% base::rownames(activity_mat), , drop = FALSE]
+    progeny_network <- tryCatch(
+      .hc_ui_load_pathway_network(organism = organism),
+      error = function(e) {
+        warning("Could not load PROGENy pathway model: ", conditionMessage(e))
+        NULL
+      }
+    )
+    if (!base::is.null(progeny_network) && base::nrow(progeny_network) > 0) {
+      progeny_network <- progeny_network[progeny_network$target %in% base::rownames(activity_mat), , drop = FALSE]
+      if (base::nrow(progeny_network) == 0) {
+        progeny_network <- NULL
+      }
+    }
+
+    if (!base::is.null(custom_pathway_network) && base::nrow(custom_pathway_network) > 0) {
+      custom_pathway_network <- custom_pathway_network[
+        custom_pathway_network$target %in% base::rownames(activity_mat),
+        ,
+        drop = FALSE
+      ]
+      if (base::nrow(custom_pathway_network) == 0) {
+        custom_pathway_network <- NULL
+      }
+    }
+
+    pathway_parts <- list()
+    if (!base::is.null(progeny_network) && base::nrow(progeny_network) > 0) {
+      pathway_parts[[base::length(pathway_parts) + 1]] <- progeny_network
+    }
+    if (!base::is.null(custom_pathway_network) && base::nrow(custom_pathway_network) > 0) {
+      pathway_parts[[base::length(pathway_parts) + 1]] <- custom_pathway_network
+    }
+    if (base::length(pathway_parts) > 0) {
+      pathway_network <- base::do.call(base::rbind, pathway_parts)
+      pathway_network <- pathway_network %>% base::as.data.frame(stringsAsFactors = FALSE)
+      pathway_network <- base::unique(pathway_network)
+      base::rownames(pathway_network) <- NULL
+    } else {
+      pathway_network <- base::data.frame(
+        source = base::character(0),
+        target = base::character(0),
+        mor = base::numeric(0),
+        stringsAsFactors = FALSE
+      )
+    }
+
     if (base::nrow(pathway_network) == 0) {
       warning("Pathway network contains no targets overlapping with ", activity_label, " genes.")
+    } else {
+      has_progeny <- !base::is.null(progeny_network) && base::nrow(progeny_network) > 0
+      has_custom <- !base::is.null(custom_pathway_network) && base::nrow(custom_pathway_network) > 0
+      pathway_database_label <- if (has_progeny && has_custom) {
+        "PROGENy+CustomGMT"
+      } else if (has_custom) {
+        "CustomGMT"
+      } else {
+        "PROGENy"
+      }
     }
   }
 
@@ -946,7 +1020,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
   )
   pathway_out <- run_one_resource(
     resource_name = "Pathway",
-    database_name = "PROGENy",
+    database_name = pathway_database_label,
     network_df = pathway_network
   )
 
@@ -1072,7 +1146,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     out
   }
   raw_decouple_tf <- flatten_raw_decouple(tf_out$raw, resource_label = "TF", database_label = "DoRothEA")
-  raw_decouple_pathway <- flatten_raw_decouple(pathway_out$raw, resource_label = "Pathway", database_label = "PROGENy")
+  raw_decouple_pathway <- flatten_raw_decouple(pathway_out$raw, resource_label = "Pathway", database_label = pathway_database_label)
   raw_parts <- list(raw_decouple_tf, raw_decouple_pathway)
   raw_parts <- raw_parts[base::vapply(raw_parts, function(x) !base::is.null(x) && base::nrow(x) > 0, FUN.VALUE = base::logical(1))]
   raw_decouple_all <- if (base::length(raw_parts) > 0) {
@@ -1395,6 +1469,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
       activity_input = activity_input,
       fc_comparisons = if (!base::is.null(fc_summary)) fc_summary$used else NULL,
       fc_comparisons_missing = if (!base::is.null(fc_summary)) fc_summary$missing else NULL,
+      custom_pathway_gmt = custom_pathway_paths,
+      pathway_database = pathway_database_label,
+      custom_pathway_databases = custom_pathway_databases,
       plot_per_comparison = plot_per_comparison,
       consistent_terms = consistent_terms,
       resources = resources,
@@ -1883,9 +1960,13 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     if (base::length(br) < 3) {
       br <- base::seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = 5)
     }
+    tick_labels <- base::formatC(br, format = "fg", digits = 3)
+    tick_labels <- base::trimws(tick_labels)
+    tick_label_width <- base::max(base::nchar(tick_labels), na.rm = TRUE)
+    tick_labels <- base::format(tick_labels, width = tick_label_width, justify = "right")
     gfc_scale_ticks <- list(
       breaks = br,
-      labels = base::formatC(br, format = "fg", digits = 3)
+      labels = tick_labels
     )
   }
 
@@ -2179,7 +2260,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     heatmap_legend_param = list(
       title = module_heatmap_name,
       at = gfc_scale_ticks$breaks,
-      labels = gfc_scale_ticks$labels
+      labels = gfc_scale_ticks$labels,
+      labels_gp = grid::gpar(fontfamily = "mono")
     )
   )
 

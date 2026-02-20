@@ -128,9 +128,13 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     if (base::length(br) < 3) {
       br <- base::seq(lims[1], lims[2], length.out = 5)
     }
+    tick_labels <- base::formatC(br, format = "fg", digits = 3)
+    tick_labels <- base::trimws(tick_labels)
+    tick_label_width <- base::max(base::nchar(tick_labels), na.rm = TRUE)
+    tick_labels <- base::format(tick_labels, width = tick_label_width, justify = "right")
     list(
       breaks = br,
-      labels = base::formatC(br, format = "fg", digits = 3)
+      labels = tick_labels
     )
   }
 
@@ -246,6 +250,43 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
       return(NULL)
     }
     out
+  }
+  read_enrichment_xlsx_by_mode <- function(file, mode = c("selected", "significant")) {
+    mode <- base::match.arg(mode)
+    if (!requireNamespace("openxlsx", quietly = TRUE)) {
+      return(NULL)
+    }
+    if (!base::file.exists(file)) {
+      return(NULL)
+    }
+    sheet_names <- tryCatch(openxlsx::getSheetNames(file), error = function(e) NULL)
+    if (base::is.null(sheet_names) || base::length(sheet_names) == 0) {
+      return(NULL)
+    }
+    if (identical(mode, "selected")) {
+      top_like <- base::grep("^top_[0-9]+_enrichments_all_dbs$", sheet_names, value = TRUE)
+      if (base::length(top_like) > 1) {
+        ord <- base::order(
+          suppressWarnings(base::as.integer(base::sub("^top_([0-9]+)_.*$", "\\1", top_like))),
+          decreasing = TRUE,
+          na.last = TRUE
+        )
+        top_like <- top_like[ord]
+      }
+      candidate_sheets <- base::unique(base::c("selected_enrichments_all_dbs", top_like))
+    } else {
+      candidate_sheets <- "significant_enrichments_all_dbs"
+    }
+    for (nm in candidate_sheets) {
+      if (!(nm %in% sheet_names)) {
+        next
+      }
+      tmp <- read_xlsx_sheet(file = file, sheet = nm)
+      if (!base::is.null(tmp) && base::nrow(tmp) > 0) {
+        return(tmp)
+      }
+    }
+    NULL
   }
 
   normalize_enrichment_df <- function(df) {
@@ -383,11 +424,10 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
   if (base::is.null(enrich_store)) {
     enrich_store <- list()
   }
-  enrich_key <- if (identical(enrichment_mode, "selected")) "selected_enrichments_all_dbs" else "significant_enrichments_all_dbs"
   enrich_df <- resolve_enrichment_df(enrich_store, enrichment_mode)
   if (base::is.null(enrich_df) || base::nrow(enrich_df) == 0) {
     enrich_file <- base::paste0(file_prefix, "/Enrichment_Selected_All_DBs.xlsx")
-    enrich_df <- normalize_enrichment_df(read_xlsx_sheet(enrich_file, enrich_key))
+    enrich_df <- normalize_enrichment_df(read_enrichment_xlsx_by_mode(enrich_file, enrichment_mode))
   }
   if (base::is.null(enrich_df) || base::nrow(enrich_df) == 0) {
     stop("Missing enrichment results. Run `functional_enrichment()` first.")

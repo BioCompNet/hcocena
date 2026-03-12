@@ -1,6 +1,7 @@
 #' Initialise hCoCena Object
 #' 
 #' Creates an object called 'hcobject' in the global envirentment that will be used by hCoCena throughout the analysis.
+#' @param envo Environment where `hcobject` should be created. Defaults to `.GlobalEnv`.
 #' @export
 
 init_object <- function(envo = .GlobalEnv){

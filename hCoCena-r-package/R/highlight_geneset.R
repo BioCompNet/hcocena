@@ -2,6 +2,7 @@
 #' 
 #' Receives and highlights a list of genes in the integrated network.
 #' @param gene_set A vector of gene symbols (as strings) to be highlighted in the network.
+#' @param name Optional legacy label argument retained for backward compatibility.
 #' @param col A string specifying the color with which the nodes of the genes are framed to highlight them. Default is "black".
 #' @param label_offset A numeric specifying the distance between the labeled genes and the network. Default is 3.
 #' @param save A Boolean. Whether or not a labelled hub-network per cluster and the expression heatmap are to be save to PDF. Default is FALSE.

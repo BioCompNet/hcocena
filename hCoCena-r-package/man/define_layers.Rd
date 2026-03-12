@@ -18,9 +18,21 @@ The annotation object must also be a data frame, where row names are sample name
 The function collects descriptive names of the datasets as well as the names of the count and annotation files for each dataset.
 }
 \examples{
-define_layers(data_sets = list(rhinovirusSet = c("rhinovirusSetCount.txt", "rhinovirusSetAnno.txt"),
-								  influenzaSet = c("influenzaSetCount.txt", "influenzaSetAnno.txt")))
-or from data frames:
-define_layers(data_sets = list(rhinovirusSet = c("rhinovirusSetCountDf", "rhinovirusSetAnnoDf"),
-								  influenzaSet = c("influenzaSetCountDf", "influenzaSetAnnoDf")))
+\dontrun{
+init_object()
+define_layers(
+  data_sets = list(
+    rhinovirusSet = c("rhinovirusSetCount.txt", "rhinovirusSetAnno.txt"),
+    influenzaSet = c("influenzaSetCount.txt", "influenzaSetAnno.txt")
+  )
+)
+
+# or from data frames:
+define_layers(
+  data_sets = list(
+    rhinovirusSet = c("rhinovirusSetCountDf", "rhinovirusSetAnnoDf"),
+    influenzaSet = c("influenzaSetCountDf", "influenzaSetAnnoDf")
+  )
+)
+}
 }

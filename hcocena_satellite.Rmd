@@ -1,429 +1,563 @@
 ---
 title: "hcocena satellite markdown"
-author: "Marie Oestreich, Lisa Holsten, Kilian Dahm"
+author: "Marie Oestreich, Lisa Holsten, Kilian Dahm, Thomas Ulas"
 date: "05 01 2024"
 output: html_document
 ---
 
-# Pre-integration phase
-
-## Suggest Top Most Variant Genes
-
-To determine the most variable genes used as input for network calculations the function identifies the inflection point in a curve of the logged variance of ranked genes. The calculation of the inflection point is a fast approach to identify a first threshold for potentially interesting genes that describe differences in the data while excluding non-variable genes and thereby significantly reducing the calculation time during further analyses.
-
-```{r suggest top most variant genes}
-
-hcocena::suggest_topvar()
-
+```{r setup, include=FALSE}
+library(hcocena)
 ```
 
+# 0 Satellite Overview
 
-## Data distribution
+This file contains optional extensions to the core pipeline in `hcocena_main.Rmd`.
+Run only the sections relevant to your project.
 
-  To get a better feeling for the datasets and to detect possible outliers or prominent differences within datasets, the distribution of count values across all samples per dataset can be visualized either as boxplots or frequency distributions. For information on the settable parameters, refer to the function documentation with ?hcocena::plot_sample_distributions.
+# 1 Pre-integration QC {#sat-pre-qc}
 
+## Suggest top variable genes {#sat-topvar}
 
-```{r data distribution plots, warning = FALSE}
+Purpose: suggest a data-driven threshold for top-variable genes.
 
-plot_sample_distributions(plot_type = "boxplot", log_2 = F, plot = T)
+Key parameter:
+- none required; read output and use as guidance for `top_var`.
 
-plot_sample_distributions(plot_type = "freqdist", log_2 = F,  plot = T)
+```{r}
+hc <- hc_suggest_topvar(hc)
 ```
 
+## Sample distribution {#sat-sample-distribution}
 
-## PCA 
+Purpose: detect outliers and global sample-shift effects.
 
-  Plots one PCA for each data set. The PCA can be based either on all genes, top most variant genes or network genes. For details, refer to the function documentation with ?hcocena::PCA.
+Key parameters:
+- `plot_type`: `"boxplot"` or `"freqdist"`.
+- `log_2`: set `TRUE` only if you need log transform inside plot call.
 
-```{r PCA, warning = FALSE}
-
-PCA(which = "all", color_by = c("merged", "merged"))
-
+```{r warning=FALSE}
+hc <- hc_plot_sample_distributions(hc, plot_type = "boxplot", log_2 = FALSE, plot = TRUE)
+hc <- hc_plot_sample_distributions(hc, plot_type = "freqdist", log_2 = FALSE, plot = TRUE)
 ```
 
+## PCA {#sat-pca}
 
-## Meta data distribution
+Purpose: inspect sample structure before integration.
 
-  Visualize the meta data with respect to a grouping of choice, e.g., how outcome or age are distributed across the groups of your variable of interest. In case of categorical data, stacked bar plots will be plotted, in case of numerical data it will be box plots.
-  NOTE: this function works per dataset/layer, not cross-layer!
-For details on the settable parameters, refer to the function documentation with ?hcocena::meta_plot.
+Key parameter:
+- `which`: `"all"`, `"topvar"`, or `"network_genes"`.
 
-```{r meta data plots}
-
-meta_plot(set = 2, group_col = "status", meta_col = "Age", type = "num")
-
+```{r warning=FALSE}
+hc <- hc_pca(hc, which = "all")
 ```
 
+## Metadata distribution {#sat-meta-distribution}
 
+Purpose: inspect distribution of metadata across groups.
 
-# ---
+Key parameters:
+- `set`: layer index.
+- `group_col`: grouping variable.
+- `meta_col`: metadata field to visualize.
+- `type`: `"cat"` or `"num"`.
 
-
-# Post-integration phase
-
-
-## Export clustering
-
-  This will export your clustering to a tab separated text file with two columns, the first one named gene (containing the gene names) and the second one named color (containing the corresponding cluster color to which the gene belongs).
-
-```{r export clustering}
-
-export_clusters()
-
+```{r eval=FALSE}
+hc <- hc_meta_plot(hc, set = 1, group_col = "time_token", meta_col = "Age", type = "num")
 ```
 
+# 2 Post-integration module refinement {#sat-module-refinement}
 
-## Import clustering and plot module heatmap
+## Export and import clustering {#sat-export-import}
 
-  Uses an imported clustering model instead of clustering the integrated network. The model must be saved as two columns, the first containing genes, the second cluster colors (this is the format export_clusters() exports to).
-  For details on available parameters, refer to the function documentation with ?hcocena::import_clusters.
+Purpose: reuse or compare clustering solutions.
 
-```{r import clustering}
+```{r eval=FALSE}
+# Export current module assignment
+hc <- hc_export_clusters(hc)
 
-import_clusters(file = "PATH_TO_GENE_TO_CLUSTER_FILE")
-
-plot_cluster_heatmap()
-
+# Import external assignment and replot
+gtc <- read.delim("PATH_TO_GENE_TO_CLUSTER_FILE", header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+hc <- hc_update_clustering_algorithm(hc, gtc = gtc)
+hc <- hc_plot_cluster_heatmap(hc)
 ```
-
 
 ## Module scores
 
-  For every gene, the ratio of its edges that it shares with genes in the same cluster to its total number of edges is determined. The corresponding values are returned as a data frame and a box plot is generated showing the scores for each of the clusters.
-  
-```{r module scores}
+Purpose: evaluate gene-to-module assignment quality.
 
-get_module_scores()
-
+```{r eval=FALSE}
+hc <- hc_get_module_scores(hc)
 ```
 
+## Cutoff tuning before final cutoff selection {#sat-cutoff-tuning}
 
-## Evaluating different community detection algorithms
+Purpose: recommend stricter/relaxed candidate correlation cutoffs per layer.
 
-  In the subsequent steps, different visualizations are provided to illustrate how the clustering changes when using other algorithms compared to the reference (per default that would be Leiden). 
-  
-### Alluvial plots
+Key parameters:
+- `apply`: `FALSE` to inspect recommendations first.
+- `max_no_networks`: max candidate networks retained per layer.
+- `min_node_fraction`: minimum retained node fraction threshold.
 
-   Alluvial plots will be generated demonstrating how the genes change clusters if the current clustering algorithm (always shown on the left) was changed to any of the other clustering options (always shown on the right). The produced plot is interactive, hover over it to get more details.
-  
-```{r alluvial plots}
+```{r eval=FALSE}
+hc <- hc_tune_cutoff(
+  hc,
+  apply = FALSE,
+  max_no_networks = 3,
+  min_node_fraction = 0.6,
+  verbose = TRUE
+)
 
-algo_alluvial()
-
+hc@satellite$cutoff_tuning$comparison_with_simple
 ```
 
+## Resolution tuning {#sat-resolution-tuning}
 
-### PCA for clustering algorithm comparison
+Purpose: recommend a Leiden resolution before final module detection.
 
-  For a more detailed inspection, a series of principle component analyses (PCAs) are performed and plotted. The first one to be shown is based on the top most variant genes for each data set. The following PCAs demonstrate for each clustering algorithm the spatial arrangement of the samples in the space of the first two principle components based on their expression behaviour among the clusters. Samples that show similar behaviour among the defined clusters are located closer together than samples that show very different expressions across clusters. A suitable clustering algorithm will identify clusters such that samples that have similar underlying data (first PCA) will also be closely situated in the PCA based on similar cluster expressions.  
-  
-```{r PCAs before regrouping, fig.width=15, fig.height=5}
+Key parameters:
+- `apply`: `FALSE` for recommendation only, `TRUE` to apply directly.
 
-PCA_algo_compare()
-
+```{r eval=FALSE}
+hc <- hc_tune_resolution(hc, apply = FALSE)
+hc@satellite$auto_tune$clustering$best
 ```
 
+## Module splitting {#sat-module-splitting}
 
-### Changing the clustering algorithm
+Purpose: split broad modules into submodules.
 
-  Based on the previously gathered information, the clustering algorithm may be changed by setting the "new_algo" parameter accordingly. 
+Key parameters:
+- `modules`: one or more module labels.
+- `resolution`: split strength.
+- `resolution_test_only`: `TRUE` to test only.
 
-```{r choose clustering algorithm}
+```{r eval=FALSE, message=TRUE, warning=FALSE}
+# Test candidate resolutions
+hc <- hc_split_modules(
+  hc,
+  modules = "M1",
+  resolution_grid = c(0.05, 0.1, 0.2, 0.8, 1.0),
+  resolution_test_only = TRUE
+)
 
-update_clustering_algorithm(new_algo = "cluster_infomap")
+# Apply split
+hc <- hc_split_modules(
+  hc,
+  modules = "M1",
+  resolution = 1.0
+)
 
+# Remove the last split again
+hc <- hc_unsplit_modules(hc, which = "last")
+
+# Remove all split history and restore the original modules
+#hc <- hc_unsplit_modules(hc, which = "all")
+
+hc <- hc_plot_cluster_heatmap(hc)
 ```
 
+## Compare clustering algorithms {#sat-algo-compare}
 
-## Cytoscape
+Purpose: compare Leiden with alternatives before selecting final algorithm.
 
-### Using Cytoscape from within the docker container
-
-  If you are working within a docker container, a direct communication with Cytoscape is unfortunately not possible. Therefore, you first need to save the network and clustering information and import it into a local R session.
-  
-```{r}
-export_to_local_folder()
+```{r eval=FALSE}
+hc <- hc_algo_alluvial(hc)
+hc <- hc_pca_algo_compare(hc)
+hc <- hc_update_clustering_algorithm(hc, new_algo = "cluster_infomap")
 ```
 
-  In Cytoscape:
-  - press ""Import Network From File System" and select the "network.txt" file within your hCoCena output folder
-  - set the "from" column to "Source Node" and the "to" column to "Target Node", then press "ok"
-  - the default layout algorithm "Prefuse Force Directed Layout" will be applied automatically, but you can apply any other algorithm available
-  
-  To export the node position open a local R session:
-  
-```{r}
-# execute this chunk within a local R session 
+# 3 Network visualization utilities {#sat-network}
 
-# install RCy3
-BiocManager::install(package = "RCy3") 
+## Plot network by module {#sat-network-by-module}
 
-# import the layout from Cytoscape to your local R session
-layout <- base::as.matrix(RCy3::getNodePosition())
+Purpose: inspect the integrated network colored by module assignment.
 
-# save the layout in your local hCoCena output folder 
-## Adapt the path to your hCoCena output folder, but don't rename the file
-utils::write.csv(x = layout, file = base::paste0("[path_to_local_hCoCena_output_directory]", "/network_layout.csv"), row.names = T)
-
+```{r fig.width=10, fig.height=7}
+hc <- hc_plot_integrated_network(hc)
 ```
 
+## Cytoscape round-trip {#sat-cytoscape}
 
-  Now, proceed in your docker container to import the layout and save it within the hcobject:
+Purpose: edit layout in Cytoscape and re-import coordinates.
 
-```{r}
-import_layout_from_local_folder()
+```{r eval=FALSE}
+# Docker workflow:
+hc <- hc_export_to_local_folder(hc)
+# ... edit layout in Cytoscape and save network_layout.csv into output folder ...
+hc <- hc_import_layout_from_local_folder(hc)
+
+# Local workflow (Cytoscape open):
+# hc <- hc_export_to_cytoscape(hc)
+# hc <- hc_import_layout_from_cytoscape(hc)
 ```
 
+## Network colored by GFC {#sat-network-gfc}
 
+Purpose: show condition-specific GFC on network nodes.
 
-
-### Using Cytoscape from a local R session
-
-Export Network
-
-  This function exports the network to Cytoscape. There you can apply a variety of Cytoscape's great layout algorithms.
-  
-  Cytoscape MUST BE OPEN for this to work. 
-  **To shorten the time needed, please read the docs to the export_to_cytoscape function (?export_to_cytoscape).** 
-
-  
-```{r Cytoscape export}
-# local R only
-
-export_to_cytoscape() 
-
+```{r eval=FALSE, fig.width=10, fig.height=7}
+hc <- hc_plot_gfc_network(hc)
 ```
 
+## TF overrepresentation for full network {#sat-tf-network}
 
-Import Layout
+Purpose: optional TF enrichment on the full network.
 
-  After deciding on a layout that optimally visualises the network structure, this function imports the nodes' coordinates into your local R session.
-  
-```{r Import layout}
-# local R only
-
-import_layout_from_cytoscape() 
-
+```{r eval=FALSE}
+hc <- hc_tf_overrep_network(hc)
 ```
 
+## Hub and targeted network plots
 
-### Plotting the network coloured by module
+Purpose: inspect hubs and custom gene/module highlights.
 
-  Plots the network using the imported layout.
+```{r eval=FALSE, warning=FALSE}
+hc <- hc_find_hubs(
+  hc,
+  top = 10,
+  save = FALSE,
+  tree_layout = FALSE,
+  TF_only = "TF",
+  plot = TRUE
+)
 
-```{r Plot network}
+hc <- hc_visualize_gene_expression(
+  hc,
+  genes = c("STAT6", "MAFG", "ETS2", "RUNX1", "IRF4", "BATF3")
+)
 
-plot_integrated_network( layout = hcobject[["integrated_output"]][["cluster_calc"]][["layout"]] )
+hc <- hc_highlight_geneset(
+  hc,
+  gene_set = c("IRF7", "STAT1", "STAT2", "ETV7"),
+  name = "Geneset_IFNg"
+)
 
+hc <- hc_colour_single_cluster(hc, cluster = "M1")
 ```
 
+# 4 Module annotations and interpretation {#sat-module-annotations}
 
+## TF overrepresentation per module {#sat-tf-module}
 
-## Plotting network coloured by GFC
+Purpose: identify candidate TF regulators for selected modules.
 
-  For visualization of the GFC for every gene under the different observed groups, the network can be additionally replotted once for every group, with nodes being coloured according to their GFC value. This provides a more detailed resolution of the information acquired from the module heatmap.
- 
-
-```{r plot network with GFCs, fig.width=10, fig.height=7}
-
-plot_GFC_network()
-
+```{r eval=FALSE, fig.width = 10, fig.height = 7}
+hc <- hc_tf_overrep_module(
+  hc,
+  clusters = "all",
+  topTF = 5,
+  topTarget = 5
+)
 ```
 
+## Module cell-type annotation {#sat-celltype-annotation}
 
+Purpose: module-level cell/tissue annotation from Enrichr resources.
 
-## Network comparison
+Key parameters:
+- `databases`: one or more Enrichr databases.
+- `mode`: `"coarse"` or `"fine"`.
+- `top`: number of top terms per module.
+- `qval`: significance threshold.
 
-### Compare clusters of 2 networks
+```{r eval=FALSE}
+# Inspect available resources and terms first
+hc_list_celltype_databases()
 
-  This function calculates and visualizes the Jaccard-Index of all pairs of clusters from two networks.
-This allows the comparison of the two networks with respect to the clusters they form and how those clusters relate to each other.
-For details on parameters, please refer to the function documentation with ?hcocena::network_comparison_1
-
-```{r , fig.width=5, fig.height=7}
-network_comparison_1(gtc1_path = "PATH_TO_FIRST_GENE_TO_CLUSTER_FILE",
-                     gtc2_path = "PATH_TO_SECOND_GENE_TO_CLUSTER_FILE")
+hc_preview_celltype_database(
+  database = "Human_Gene_Atlas",
+  pattern = "mono|macroph|neutro|lymph|dendritic",
+  n = 30
+)
 ```
 
+```{r eval=FALSE, fig.width=13, fig.height=10, out.width="100%", message=TRUE, warning=FALSE}
+hc <- hc_celltype_annotation(
+  hc,
+  databases = c("Human_Gene_Atlas"),
+  mode = "coarse",
+  top = 3,
+  qval = 0.1,
+  export_excel = TRUE,
+  excel_file = "Module_Celltype_Annotation.xlsx",
+  plot_heatmap = TRUE,
+  heatmap_file_name = "Heatmap_modules_celltype_annotation.pdf"
+)
 
-### Compare degree distribution of gene set
-
-  This function accepts two networks and a set of genes. It then calculates the degree-distribution of each gene in both networks and also the Jaccard-Index of each gene's neighbourhoods in the two networks. The results are visualized in a 2D dot plot.
-This allows the comparison of the two networks with respect to the connectivity of selected genes.
-For details on parameters, please refer to the function documentation with ?hcocena::network_comparison_2
-
-```{r}
-network_comparison_2(net1 = g, 
-                     net2 = hcobject$integrated_output$merged_net, 
-                     gene_vec = c( "YME1L1", "SLC2A5", "SIAH2", "GPI", "IL10RB"))
+# Heatmap annotation display control:
+# - bar_and_text: stacked bars + dominant label
+# - bar: bars only
+# - text: dominant label only (space-saving)
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  include_dynamic_enrichment_slots = TRUE,
+  celltype_bar_mode = "bar_and_text",
+  celltype_bar_top_n = 3,
+  celltype_bar_include_other = TRUE,
+  celltype_bar_show_dominant = TRUE,
+  gfc_legend_side = "right"
+)
 ```
 
+```{r eval=FALSE, fig.width=11, fig.height=6}
+# Alternative compact matrix view
+ct_mat <- hc_plot_celltype_annotation_matrix(
+  hc,
+  database = "Human_Gene_Atlas",
+  value = "pct",
+  top_celltypes = 15,
+  include_other = TRUE
+)
 
-
-## Transcription factor analysis for the entire network
-
-```{r}
-TF_overrep_network()
+ct_mat$plot
+ct_mat$matrix
 ```
 
-  This function leverages the information collected with TF_overrep_network() to allow the user to query a specific transcription factor of interest and see how the top targets are spread across modules. The goal is to uncover potential co-regulations between clusters. The result is plotted and can be found in higher quality the save folder.
+## Metadata annotation for heatmap
 
-```{r, fig.width = 10, fig.height = 7, echo = F}
+Purpose: add categorical metadata bars to module heatmap columns.
 
-check_tf("IRF7")
+Key parameters:
+- `variables`: per-layer metadata column names.
+- `variable_label`: label shown in heatmap annotation.
 
+```{r eval=FALSE}
+hc <- hc_col_anno_categorical(hc, variables = "cohort", variable_label = "cohort")
+hc <- hc_col_anno_categorical(hc, variables = "Intubated", variable_label = "intubated")
+
+# Remove all additional categorical heatmap annotations again
+hc@satellite[["column_annos_categorical"]] <- NULL
+
+hc <- hc_plot_cluster_heatmap(hc)
 ```
 
+## Module-condition significance {#sat-module-significance}
 
+Purpose: test module-level differential behavior between conditions.
 
-## Hub gene detection
+Key parameters:
+- `condition_col`: usually your variable of interest.
+- `run_wilcox`, `run_limma`, `run_lmm`: choose test families.
+- `module_significance_method`: select display method in heatmap.
 
-  Hub gene detection is available for clusters. Hub genes are determined using a combined ranking based on weighted degree centrality, weighted closeness centrality and weighted betweenness centrality. A high quality version of the plots will be available in your save folder. 
-  For details, please refer to the function documentation with ?hcocena::find_hubs.
-  
-  Note: The filtering for transcription factors only works for human and mouse data.
-  
-```{r Hub gene detection, warning=F}
+```{r eval=FALSE, fig.width=13, fig.height=10, out.width="100%", message=TRUE, warning=FALSE}
+hc <- hc_module_condition_significance(
+  hc,
+  set = "all",
+  condition_col = "condition",
+  donor_col = NULL,
+  time_col = NULL,
+  run_wilcox = TRUE,
+  run_limma = TRUE,
+  run_lmm = FALSE,
+  lmm_include_time = FALSE,
+  limma_reference = NULL,
+  padj = "BH",
+  export_excel = TRUE,
+  excel_file = "Module_condition_significance.xlsx"
+)
 
-find_hubs(top = 10, 
-          save = F, 
-          tree_layout = F, 
-          TF_only = "TF", 
-          plot = T)
-
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  include_module_significance = TRUE,
+  module_significance_method = "auto",
+  module_significance_show_qvalue = FALSE,
+  module_significance_annotation_name = "sig"
+)
 ```
 
+## AI-assisted module interpretation {#sat-llm}
 
-# Expression of a specific gene set
-  
-  Plots the mean expression values per condition for the given genes for each dataset as a heatmap. Values are scaled across rows.
-  
-```{r visualize specific gene set}
+Purpose: summarize module biology using Gemini, OpenAI, or vLLM.
 
-visualize_gene_expression(genes = c("STAT6", "MAFG", "ETS2", "RUNX1", "TFE3", "HES6", "IRF4", "FOXQ1", "CREB5", "SPN", "SOX8", "SIP1", "FOXD2", "GTF3C3", "BATF3", "EGR3", "FOS"))
+Key parameters:
+- `module`: one label (e.g. `"M1"`) or `"all"`.
+- `biological_context`: study context to guide interpretation.
+- `system_instruction`: prompt constraints.
+- Provider/model params:
+  `llm`, `gemini_model`, `openai_model`, `vllm_model`, `vllm_base_url`.
 
+```{r eval=FALSE}
+biological_context <- "maturation of monocytes in preterm infants over the first year of life"
+
+system_instruction <- paste("You are an expert transcriptomics analyst.",  "Task: Infer the overarching biological program from the provided list of co-expressed genes.",  "Use the provided biological context to inform your interpretation and synthesize it into a precise biological description.",  "For the 'contextual_state' field, strictly describe the specific cellular or transcriptional state.",  "Constraint 1: Start your descriptions directly with the relevant nouns or biological terms. Completely omit filler phrases like 'this module' or 'the genes'.",  "Constraint 2: Formulate your answer as a direct biological interpretation based on the supplied genes, without claiming any statistical enrichment tests.",  "Output: Return ONLY a valid JSON object matching the requested schema. Do not output markdown formatting, code blocks, or any conversational text.")
+
+hc <- hc_module_function_llm(
+  hc,
+  module = "all",
+  biological_context = biological_context,
+  system_instruction = system_instruction,
+  llm = "gemini",
+  gemini_model = "gemini-2.5-pro",
+  api_key = "YOUR_GEMINI_API_KEY",
+  timeout_sec = NULL,
+  pause_sec = NULL,
+  continue_on_error = TRUE
+)
+
+Optional providers:
+hc <- hc_module_function_llm(hc, module = "all", llm = "openai",
+  openai_model = "gpt-4.1-mini", api_key = "YOUR_OPENAI_API_KEY")
+
+hc <- hc_module_function_vllm(hc, module = "all",
+  biological_context = biological_context,
+  system_instruction = system_instruction,
+  vllm_model = "Qwen/Qwen2.5-VL-32B-Instruct",
+  vllm_base_url = "http://bn-hl-compute-8mi210-03:8000/v1",
+  api_key = "EMPTY")
+
+plots <- hc_plot_module_function_llm(hc)
+print(plots$general_processes)
+print(plots$contextual_state)
+print(plots$key_regulators)
+
+View(hc@satellite$llm_module_function_summary)
 ```
 
+# 5 Longitudinal endotype workflow (3 steps) {#sat-longitudinal}
 
-# Colour specific gene set within the network
+## Step 1: module-wise donor clustering
 
-  Replots the network and highlights the genes in a provided gene set by increasing their vertex size and adding a frame.
-  
-```{r highlight specific gene set, fig.width=10, fig.height=7}
+Purpose: cluster donor trajectories within each module and compute CAP.
 
-highlight_geneset(gene_set = c("MAFA", "IRF9", "IRF7", "STAT2", "STAT1", "NFIX", "ELF4", "ETV7"),
-                  name = "Geneset_IFNg")
+Key parameters:
+- `donor_col`, `time_col`, `time_levels`: longitudinal design definition.
+- `k`: candidate cluster counts per module.
+- `rerolls`: stability repetitions.
+- `impute_method`, `ntree`: imputation setup.
 
+```{r eval=FALSE, message=TRUE, warning=FALSE}
+long_step1 <- hc_longitudinal_step1_module_donor(
+  hc,
+  donor_col = "PatID",
+  time_col = "Timepoint_rough_num",
+  time_levels = c("1", "2", "3"),
+  k = 2:6,
+  rerolls = 1000,
+  impute = TRUE,
+  impute_method = "rfcont",
+  ntree = 10,
+  min_cluster_fraction = 0.1,
+  score_method = "median",
+  seed = 42
+)
+hc <- long_step1$hc
+
+long_step1$plots$module_means_waves
+long_step1$plots$module_cluster_waves
+long_step1$plots$module_cluster_heatmap
+long_step1$plots$cap_heatmap
 ```
 
+## Step 2: meta-clustering on CAP
 
-# Colour single module within the network
+Purpose: derive donor meta-clusters and visualize them in PCA/UMAP space.
 
-  To plot the network highlighting a specific cluster, set the "cluster" variable accordingly. The nodes of the cluster in question will be plotted larger and in colour while all other will remain white.
-  
-```{r colour single cluster, fig.width=10, fig.height=7}
+Key parameters:
+- `dimensions`: number of CAP dimensions used.
+- `graph_k`, `resolution`: major controls for meta-cluster granularity.
 
-colour_single_cluster(cluster = "gold")
+```{r eval=FALSE, message=TRUE, warning=FALSE}
+long_step2 <- hc_longitudinal_step2_meta_clustering(
+  hc,
+  slot_name = "longitudinal_endotypes",
+  dimensions = 4,
+  graph_method = "knn",
+  knn_method = "annoy",
+  graph_k = 7,
+  resolution = 0.3,
+  leiden_method = "RBConfigurationVertexPartition"
+)
+hc <- long_step2$hc
 
+long_step2$plots$pca
+long_step2$plots$umap
 ```
 
+## Step 3: module trajectories by meta-cluster
 
-## Module analysis and meta-annotation
+Purpose: plot trajectory waves grouped by inferred meta-clusters.
 
-### User Specific Cluster Profiling
- 
-  Offers a user-defined enrichment analysis for the identified modules. There are two options:
-	
-	1) The user provides their own enrichment file. 
-		This file should be provided in .csv format where the column names represent the categories ("keys", e.g. cell types), and the columns contain genes representative of that key. The genes do not have to be exclusive with regard to the key they belong to and the columns are not required to be of the same length. If such a file is provided, the "from_file" parameter needs to be set to TRUE and the path parameter needs to be set to the path at which to find the file. 
-	
-	2) Instead of providing an enrichment file, the user can also choose any of the databases stored in the hcobject (by setting the parameter 'db') and define a vector of keys as strings. The function then conducts an enrichment analysis using clusterProfiler functions (Guangchuang Yu, 2012) and filters the enrichment results for terms including the defined keys. In this case, the "from_file" parameter needs to be set to FALSE and the "enrichment_keys" parameter must be set to the vector of keys, the modules should be screened for. Up to 2 user-defined enrichments are possible so far and they are saved as "enriched_per_cluster" and "enriched_per_cluster2" in hcobject[["satellite_outputs"]]. 
-  For parameter details, please refer to the function documentation using ?hcocena::user_specific_cluster_profiling.
+Key parameters:
+- `value_mode`: `"scaled_mean_vst"` (default recommended) or alternative modes.
+- `value_range`: y-range for scaled mode (default recommendation: `c(-2, 2)`).
+- `free_y`: `FALSE` for comparability across modules.
 
-```{r enriched signatures, echo = F}
+```{r eval=FALSE, message=TRUE, warning=FALSE}
+long_step3 <- hc_longitudinal_step3_meta_module_trajectories(
+  hc,
+  slot_name = "longitudinal_endotypes",
+  facet_ncol = 4,
+  free_y = FALSE,
+  value_mode = "scaled_mean_vst",
+  value_range = c(-2, 2)
+)
+hc <- long_step3$hc
 
-user_specific_cluster_profiling(from_file =  T, path = paste0(hcobject$working_directory$dir_reference_files,"immune_sig_m.csv"))
-
+long_step3$plots$meta_module_waves
 ```
 
+## Longitudinal enrichment waves by meta-cluster {#sat-longitudinal-enrichment}
 
-### Meta information enrichment
+Purpose: track enrichment trajectories of top terms across time and meta-clusters.
 
-Categorical and Numerical Metadata Annotation For The Module Heatmap
- 
-  Annotates the sample groups in the module heatmap with categorical or numerical metadata from the annotations.
-The annotations will be shown in the heatmap when calling plot_cluster_heatmap() the next time.
-  Use the function col_anno_categorical() for categorical metadata and col_anno_numerical() for numerical metadata.
-  For information on the available parameters, refer to the function documentations with ?hcocena::col_anno_categorical or ?hcocena::col_anno_numerical.
-  
-```{r create column annotation matrices}
+Key parameters:
+- `databases`: one or more enrichment DBs.
+- `top`: top terms per module.
+- `show_donor_lines`: show faint donor-level lines behind mean trajectories.
+- `score_method`: `"ssgsea"` recommended.
+- `score_scale`: `"z"` for z-scaled enrichment scores.
 
-# some categorical annotations, add or remove lines as desired:
-col_anno_categorical(variables = c("gender", "Sex"), variable_label = "sex") 
-col_anno_categorical(variables = c("Intubated", NA), variable_label = "intubated")
+```{r eval=FALSE, fig.height=12, fig.width=24, message=TRUE, warning=TRUE}
+long_enr <- hc_plot_longitudinal_enrichment_meta_waves(
+  hc,
+  slot_name = "longitudinal_endotypes",
+  databases = c("Kegg", "Hallmark", "Go"),
+  top = 3,
+  show_donor_lines = TRUE,
+  donor_alpha = 0.05,
+  donor_linewidth = 0.12,
+  score_method = "ssgsea",
+  score_scale = "z"
+)
 
-# some numerical annotations, add or remove lines as desired:
-col_anno_numerical(variables = c("age", "Age"), variable_label = "age")
-col_anno_numerical(variables = c("neutro_count", NA), variable_label = "neutrophil_count")
-
+for (nm in names(long_enr$plots)) {
+  print(long_enr$plots[[nm]])
+}
 ```
 
+## Replot heatmap by meta-cluster x timepoint {#sat-meta-time-heatmap}
 
-## Correlate meta data with modules
+Purpose: create a combined grouping (`meta_cluster_time`) and replot GFC heatmap
+without re-running network integration/clustering.
 
-### Correlate numeric meta data with modules
+Key parameters:
+- `donor_col`, `time_col`: annotation fields.
+- `group_by` in `hc_change_grouping_parameter`: grouping variable to recompute GFC.
+- `col_order`: explicit order of combined groups.
 
-  Calculates a matrix where columns are names of the meta categories and rows are clusters. Cells contain the Pearson correlation value between a) the mean expressions of cluster genes in each sample with b) the numeric meta value in each sample.
-  For details on settable parameters, please refer to the function documentation with ?hcocena::meta_correlation_num.
-  
-```{r Correlate numeric meta data with clusters}
+```{r eval=FALSE}
+hc <- hc_add_meta_time_grouping(
+  hc,
+  donor_col = "PatID",
+  time_col = "Timepoint_rough",
+  grouping_col = "meta_cluster_time"
+)
 
-meta_correlation_num(set = 1, meta = c("age", "neutro_count"), p_val = 0.05)
+col_order <- hc_get_meta_time_col_order(hc, layer = 1)
 
+hc <- hc_change_grouping_parameter(
+  hc,
+  group_by = "meta_cluster_time",
+  cluster_columns = FALSE,
+  col_order = col_order
+)
 ```
 
+# 6 Replot heatmap with alternative grouping
 
-### Correlate categorical meta data with modules
+Purpose: quickly test an alternative grouping variable for final heatmap view.
 
-  Calculates a matrix where columns are the different values of the meta category (e.g. if meta = survival and survival can have values "yes" or "no", then "yes" and "no" will be the columns) and rows are clusters. Cells contain the Pearson correlation value between a) the mean expressions of cluster genes in each voi group with b) the counts of the meta value (e.g., "yes" or "no") across voi groups.
-  For details on settable parameters, please refer to the function documentation with ?hcocena::meta_correlation_cat.
-  
-  
-```{r Correlate categorical meta data with clusters}
-
-meta_correlation_cat(set = 2, meta = "Sex", p_val = .05)
-
-```
-  
-
-
-# Change Grouping Parameter of Heatmap
-
-  The variable by which the samples are grouped and based on which the GFCs are calculated can be changed and the cluster heatmap will be replotted. 
-  This is particularly useful in cases where different variables are potential candidates for driving the genes’ expression changes in the data and an explorative approach is required to decide on the most suitable one. 
-  Note that any previously generated column annotation will not be plotted, since the grouping will change. 
-  If you eventually decide on another grouping variable, please run the analysis again entirely with the changed "voi" from the very beginning. 
-  For details on available parameters, please refer to the function documentation with ?hcocena::change_grouping_parameter.
-  
-```{r}
-
-change_grouping_parameter(group_by = "Sex")
-
-```
-
-
-
-# Regrouping samples
-
-
-  If the variable of interest (voi) does not go well with the clustering of the heatmaps returned by "run_expression_analysis_2" or as seen in the PCA, new group labels can be assigned to the samples based on the data structure rather than meta information. This allows you to analyse the data by defining unknown subgroups and thus not solely rely on prior knowledge. The regrouping can be performed using hierarchical clustering on all genes, the network genes or the modules. 
-  Note: This function can be rerun to try out multiple settings for the k-parameter, if the 'save' parameter is set to FALSE. If it is set to TRUE, the original groups will be OVERWRITTEN Thus, only set 'save' to TRUE once you have decided on your k to cut the tree.
-  For details on parameters, please refer to the fucntion documentation with ?hcocena::cut_hclust.
-    
-NOTE: New annotation files are always exported WITHOUT ROWNAMES. 
-  
-```{r Regroup samples using hierarchical clustering}
-
-cut_hclust(by = "module", save = F, k = c(8,8))
-
+```{r eval=FALSE}
+hc <- hc_change_grouping_parameter(hc, group_by = "Timepoint_rough")
 ```

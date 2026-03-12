@@ -3,7 +3,24 @@
 #' @return A valid, empty `HCoCenaExperiment`.
 #' @export
 hc_init <- function() {
-  new("HCoCenaExperiment")
+  methods::new("HCoCenaExperiment")
+}
+
+.hc_normalize_path_value <- function(x, arg_name) {
+  if (base::isFALSE(x) || base::identical(x, FALSE)) {
+    return(FALSE)
+  }
+
+  if (base::length(x) != 1) {
+    stop("`", arg_name, "` must be a scalar path string or FALSE.")
+  }
+
+  x_chr <- base::as.character(x[[1]])
+  if (base::is.na(x_chr) || !base::nzchar(x_chr)) {
+    stop("`", arg_name, "` must be a non-empty path string or FALSE.")
+  }
+
+  x_chr
 }
 
 #' Set input/output paths in an `HCoCenaExperiment`
@@ -19,6 +36,12 @@ hc_set_paths <- function(hc, dir_count_data, dir_annotation, dir_reference_files
   if (!inherits(hc, "HCoCenaExperiment")) {
     stop("`hc` must be a `HCoCenaExperiment`.")
   }
+
+  dir_count_data <- .hc_normalize_path_value(dir_count_data, "dir_count_data")
+  dir_annotation <- .hc_normalize_path_value(dir_annotation, "dir_annotation")
+  dir_reference_files <- .hc_normalize_path_value(dir_reference_files, "dir_reference_files")
+  dir_output <- .hc_normalize_path_value(dir_output, "dir_output")
+
   hc@config@paths <- S4Vectors::DataFrame(
     dir_count_data = dir_count_data,
     dir_annotation = dir_annotation,
@@ -27,6 +50,232 @@ hc_set_paths <- function(hc, dir_count_data, dir_annotation, dir_reference_files
   )
   methods::validObject(hc)
   hc
+}
+
+.hc_path_with_trailing_slash <- function(x) {
+  x <- base::as.character(x[[1]])
+  x <- base::gsub("\\\\", "/", x)
+  if (base::grepl("/$", x)) x else base::paste0(x, "/")
+}
+
+.hc_scalar_or_null <- function(x, arg_name) {
+  if (is.null(x)) {
+    return(NULL)
+  }
+  if (base::length(x) != 1) {
+    stop("`", arg_name, "` must be NULL or a scalar string.")
+  }
+  out <- base::as.character(x[[1]])
+  if (base::is.na(out) || !base::nzchar(out)) {
+    return(NULL)
+  }
+  out
+}
+
+.hc_find_local_dir <- function(project_root, subdir) {
+  if (is.null(subdir) || !base::nzchar(subdir)) {
+    return(NULL)
+  }
+  candidate <- base::file.path(project_root, subdir)
+  if (!base::dir.exists(candidate)) {
+    return(NULL)
+  }
+  .hc_path_with_trailing_slash(base::normalizePath(candidate, winslash = "/", mustWork = TRUE))
+}
+
+#' Resolve hCoCena input/output directories for Docker or local projects
+#'
+#' @param project_root_hint Optional local project root to prioritize if it exists.
+#'   If missing or not found, the current working directory is used.
+#' @param local_count_subdir Local count-data subfolder below `project_root_hint`.
+#' @param local_annotation_subdir Local annotation-data subfolder below `project_root_hint`.
+#' @param local_reference_subdir Local reference-files subfolder below `project_root_hint`.
+#' @param local_output_subdir Local output subfolder below `project_root_hint`.
+#' @param docker_reference_dir Docker reference-files directory used to detect Docker mode.
+#' @param docker_count_dir Docker count-data directory.
+#' @param docker_annotation_dir Docker annotation-data directory.
+#' @param docker_output_dir Docker output directory.
+#' @param create_docker_dirs Boolean. If TRUE and Docker mode is detected, create the
+#'   Docker directories when missing.
+#' @param fallback_count_data Fallback count-data directory string used outside Docker
+#'   when no local folder was detected.
+#' @param fallback_annotation Fallback annotation directory string used outside Docker
+#'   when no local folder was detected.
+#' @param fallback_reference_files Fallback reference-files directory string used outside
+#'   Docker when no local folder was detected.
+#' @param fallback_output Fallback output directory string used outside Docker when no
+#'   local folder was detected.
+#' @return Named list with `docker_mode`, `project_root`, `dir_count_data`,
+#'   `dir_annotation`, `dir_reference_files`, and `dir_output`.
+#' @export
+hc_resolve_paths <- function(
+    project_root_hint = NULL,
+    local_count_subdir = "count_data",
+    local_annotation_subdir = "annotation_data",
+    local_reference_subdir = "reference_files",
+    local_output_subdir = "output",
+    docker_reference_dir = "/home/rstudio/reference_files",
+    docker_count_dir = "/home/rstudio/count_data",
+    docker_annotation_dir = "/home/rstudio/annotation_data",
+    docker_output_dir = "/home/rstudio/output",
+    create_docker_dirs = TRUE,
+    fallback_count_data = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_GENE_EXPRESSION_TABLES/",
+    fallback_annotation = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_ANNOTATION_TABLES/",
+    fallback_reference_files = "PATH_TO_REFERENCE_FILES_FOLDER/",
+    fallback_output = "PATH_TO_FOLDER_WHERE_HCOCENA_SHOULD_SAVE_ALL_ANALYSIS_OUTPUTS/"
+) {
+  project_root_hint <- .hc_scalar_or_null(project_root_hint, "project_root_hint")
+  local_count_subdir <- .hc_scalar_or_null(local_count_subdir, "local_count_subdir")
+  local_annotation_subdir <- .hc_scalar_or_null(local_annotation_subdir, "local_annotation_subdir")
+  local_reference_subdir <- .hc_scalar_or_null(local_reference_subdir, "local_reference_subdir")
+  local_output_subdir <- .hc_scalar_or_null(local_output_subdir, "local_output_subdir")
+  docker_reference_dir <- .hc_scalar_or_null(docker_reference_dir, "docker_reference_dir")
+  docker_count_dir <- .hc_scalar_or_null(docker_count_dir, "docker_count_dir")
+  docker_annotation_dir <- .hc_scalar_or_null(docker_annotation_dir, "docker_annotation_dir")
+  docker_output_dir <- .hc_scalar_or_null(docker_output_dir, "docker_output_dir")
+  fallback_count_data <- .hc_scalar_or_null(fallback_count_data, "fallback_count_data")
+  fallback_annotation <- .hc_scalar_or_null(fallback_annotation, "fallback_annotation")
+  fallback_reference_files <- .hc_scalar_or_null(fallback_reference_files, "fallback_reference_files")
+  fallback_output <- .hc_scalar_or_null(fallback_output, "fallback_output")
+
+  docker_mode <- !is.null(docker_reference_dir) && base::dir.exists(docker_reference_dir)
+  if (isTRUE(docker_mode) && isTRUE(create_docker_dirs)) {
+    for (x in base::c(docker_count_dir, docker_annotation_dir, docker_reference_dir, docker_output_dir)) {
+      if (!is.null(x) && base::nzchar(x)) {
+        base::dir.create(x, recursive = TRUE, showWarnings = FALSE)
+      }
+    }
+  }
+
+  project_root <- if (!is.null(project_root_hint) && base::dir.exists(project_root_hint)) {
+    base::normalizePath(project_root_hint, winslash = "/", mustWork = TRUE)
+  } else {
+    base::normalizePath(".", winslash = "/", mustWork = TRUE)
+  }
+
+  local_count_dir <- .hc_find_local_dir(project_root, local_count_subdir)
+  local_annotation_dir <- .hc_find_local_dir(project_root, local_annotation_subdir)
+  local_reference_dir <- .hc_find_local_dir(project_root, local_reference_subdir)
+  local_output_dir <- .hc_find_local_dir(project_root, local_output_subdir)
+
+  dir_count_data <- if (!is.null(local_count_dir)) {
+    local_count_dir
+  } else if (isTRUE(docker_mode) && !is.null(docker_count_dir)) {
+    .hc_path_with_trailing_slash(docker_count_dir)
+  } else {
+    .hc_path_with_trailing_slash(fallback_count_data)
+  }
+
+  dir_annotation <- if (!is.null(local_annotation_dir)) {
+    local_annotation_dir
+  } else if (isTRUE(docker_mode) && !is.null(docker_annotation_dir)) {
+    .hc_path_with_trailing_slash(docker_annotation_dir)
+  } else {
+    .hc_path_with_trailing_slash(fallback_annotation)
+  }
+
+  dir_reference_files <- if (!is.null(local_reference_dir)) {
+    local_reference_dir
+  } else if (isTRUE(docker_mode) && !is.null(docker_reference_dir)) {
+    .hc_path_with_trailing_slash(docker_reference_dir)
+  } else {
+    .hc_path_with_trailing_slash(fallback_reference_files)
+  }
+
+  dir_output <- if (!is.null(local_output_dir)) {
+    local_output_dir
+  } else if (isTRUE(docker_mode) && !is.null(docker_output_dir)) {
+    .hc_path_with_trailing_slash(docker_output_dir)
+  } else {
+    .hc_path_with_trailing_slash(fallback_output)
+  }
+
+  list(
+    docker_mode = isTRUE(docker_mode),
+    project_root = project_root,
+    dir_count_data = dir_count_data,
+    dir_annotation = dir_annotation,
+    dir_reference_files = dir_reference_files,
+    dir_output = dir_output
+  )
+}
+
+#' Resolve and apply standard paths in one call
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param dir_count_data Optional explicit override for count-data directory.
+#' @param dir_annotation Optional explicit override for annotation directory.
+#' @param dir_reference_files Optional explicit override for reference-files directory.
+#' @param dir_output Optional explicit override for output directory.
+#' @inheritParams hc_resolve_paths
+#' @return Updated `HCoCenaExperiment`.
+#' @export
+hc_auto_set_paths <- function(
+    hc,
+    project_root_hint = NULL,
+    local_count_subdir = "count_data",
+    local_annotation_subdir = "annotation_data",
+    local_reference_subdir = "reference_files",
+    local_output_subdir = "output",
+    docker_reference_dir = "/home/rstudio/reference_files",
+    docker_count_dir = "/home/rstudio/count_data",
+    docker_annotation_dir = "/home/rstudio/annotation_data",
+    docker_output_dir = "/home/rstudio/output",
+    create_docker_dirs = TRUE,
+    fallback_count_data = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_GENE_EXPRESSION_TABLES/",
+    fallback_annotation = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_ANNOTATION_TABLES/",
+    fallback_reference_files = "PATH_TO_REFERENCE_FILES_FOLDER/",
+    fallback_output = "PATH_TO_FOLDER_WHERE_HCOCENA_SHOULD_SAVE_ALL_ANALYSIS_OUTPUTS/",
+    dir_count_data = NULL,
+    dir_annotation = NULL,
+    dir_reference_files = NULL,
+    dir_output = NULL
+) {
+  resolved <- hc_resolve_paths(
+    project_root_hint = project_root_hint,
+    local_count_subdir = local_count_subdir,
+    local_annotation_subdir = local_annotation_subdir,
+    local_reference_subdir = local_reference_subdir,
+    local_output_subdir = local_output_subdir,
+    docker_reference_dir = docker_reference_dir,
+    docker_count_dir = docker_count_dir,
+    docker_annotation_dir = docker_annotation_dir,
+    docker_output_dir = docker_output_dir,
+    create_docker_dirs = create_docker_dirs,
+    fallback_count_data = fallback_count_data,
+    fallback_annotation = fallback_annotation,
+    fallback_reference_files = fallback_reference_files,
+    fallback_output = fallback_output
+  )
+
+  final_count <- if (is.null(dir_count_data)) {
+    resolved$dir_count_data
+  } else {
+    .hc_normalize_path_value(dir_count_data, "dir_count_data")
+  }
+  final_anno <- if (is.null(dir_annotation)) {
+    resolved$dir_annotation
+  } else {
+    .hc_normalize_path_value(dir_annotation, "dir_annotation")
+  }
+  final_ref <- if (is.null(dir_reference_files)) {
+    resolved$dir_reference_files
+  } else {
+    .hc_normalize_path_value(dir_reference_files, "dir_reference_files")
+  }
+  final_out <- if (is.null(dir_output)) {
+    resolved$dir_output
+  } else {
+    .hc_normalize_path_value(dir_output, "dir_output")
+  }
+
+  hc_set_paths(
+    hc,
+    dir_count_data = final_count,
+    dir_annotation = final_anno,
+    dir_reference_files = final_ref,
+    dir_output = final_out
+  )
 }
 
 #' Define layers in an `HCoCenaExperiment`
@@ -53,11 +302,36 @@ hc_define_layers <- function(hc, data_sets = list()) {
   rows <- vector("list", length(data_sets))
   for (i in seq_along(data_sets)) {
     pair <- data_sets[[i]]
+    if (length(pair) < 2) {
+      stop(
+        "Layer `", layer_names[[i]], "` must provide exactly two entries: ",
+        "count source and annotation source."
+      )
+    }
+
+    count_src <- pair[[1]]
+    anno_src <- pair[[2]]
+
+    if (!is.character(count_src) || length(count_src) != 1 || is.na(count_src) || !nzchar(count_src)) {
+      stop(
+        "Layer `", layer_names[[i]], "`: count source must be a single string.\n",
+        "If you use objects from the environment, pass quoted object names, e.g. ",
+        "`c(\"counts_df\", \"anno_df\")` (not `c(counts_df, anno_df)`)."
+      )
+    }
+    if (!is.character(anno_src) || length(anno_src) != 1 || is.na(anno_src) || !nzchar(anno_src)) {
+      stop(
+        "Layer `", layer_names[[i]], "`: annotation source must be a single string.\n",
+        "If you use objects from the environment, pass quoted object names, e.g. ",
+        "`c(\"counts_df\", \"anno_df\")` (not `c(counts_df, anno_df)`)."
+      )
+    }
+
     rows[[i]] <- list(
       layer_id = paste0("set", i),
       layer_name = as.character(layer_names[[i]]),
-      count_source = if (length(pair) >= 1) as.character(pair[[1]]) else NA_character_,
-      annotation_source = if (length(pair) >= 2) as.character(pair[[2]]) else NA_character_
+      count_source = as.character(count_src),
+      annotation_source = as.character(anno_src)
     )
   }
   hc@config@layer <- .hc_rows_to_data_frame(rows)
@@ -147,14 +421,14 @@ hc_read_data <- function(hc,
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_set_global_settings <- function(hc,
-                                   organism,
-                                   control_keyword,
-                                   variable_of_interest,
-                                   min_nodes_number_for_network = 15,
-                                   min_nodes_number_for_cluster = 15,
+                                   organism = "human",
+                                   control_keyword = "none",
+                                   variable_of_interest = "merged",
+                                   min_nodes_number_for_network = 50,
+                                   min_nodes_number_for_cluster = 50,
                                    range_GFC = 2.0,
-                                   layout_algorithm = "layout_with_fr",
-                                   data_in_log) {
+                                   layout_algorithm = "layout_with_stress",
+                                   data_in_log = TRUE) {
   .hc_run_legacy(
     hc = hc,
     fun = "set_global_settings",
@@ -194,6 +468,7 @@ hc_set_layer_settings <- function(hc,
 #'
 #' @inheritParams set_supp_files
 #' @param hc A `HCoCenaExperiment`.
+#' @param ... Additional supplementary files passed through to `set_supp_files()`.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_set_supp_files <- function(hc, Tf = NULL, Hallmark = NULL, Go = NULL, Kegg = NULL, Reactome = NULL, ...) {
@@ -598,10 +873,555 @@ hc_unsplit_modules <- function(hc,
   )
 }
 
+# Internal helpers for S4 functional-enrichment panel redraw.
+# @noRd
+.hc_functional_enrichment_entries <- function(hc) {
+  sat <- as.list(hc@satellite)
+  enrich <- sat[["enrichments"]]
+  if (is.null(enrich)) {
+    sat_keys <- names(sat)
+    if (!is.null(sat_keys) && any(grepl("^top_", sat_keys))) {
+      enrich <- sat
+    }
+  }
+  if (is.null(enrich)) {
+    return(list())
+  }
+  enrich_names <- names(enrich)
+  enrich <- as.list(enrich)
+  if (is.null(names(enrich)) && !is.null(enrich_names) && length(enrich_names) == length(enrich)) {
+    names(enrich) <- enrich_names
+  }
+  if (length(enrich) == 0) {
+    return(list())
+  }
+  enrich
+}
+
+.hc_functional_enrichment_panel_keys <- function(enrich) {
+  if (is.null(enrich) || length(enrich) == 0) {
+    return(character(0))
+  }
+
+  panel_keys <- names(enrich)
+  panel_keys <- panel_keys[grepl("^top_", panel_keys)]
+  if (length(panel_keys) == 0) {
+    return(character(0))
+  }
+  panel_keys <- unique(panel_keys)
+
+  requested_order <- enrich[["panel_order"]]
+  if (!is.null(requested_order)) {
+    requested_order <- base::as.character(requested_order)
+    requested_order <- requested_order[!base::is.na(requested_order) & base::nzchar(requested_order)]
+    requested_order <- requested_order[requested_order %in% panel_keys]
+    panel_keys <- unique(base::c(requested_order, panel_keys))
+  }
+
+  single_db_keys <- panel_keys[!panel_keys %in% c("top_all_dbs", "top_all_dbs_mixed")]
+  combined_keys <- intersect(c("top_all_dbs", "top_all_dbs_mixed"), panel_keys)
+  panel_keys <- unique(c(single_db_keys, combined_keys))
+
+  panel_keys
+}
+
+.hc_functional_enrichment_has_draw_object <- function(entry) {
+  entry <- tryCatch(as.list(entry), error = function(e) NULL)
+  if (is.null(entry)) {
+    return(FALSE)
+  }
+  for (nm in c("p", "hc_heatmap", "enrichment_plot")) {
+    if (nm %in% names(entry) && !is.null(entry[[nm]])) {
+      return(TRUE)
+    }
+  }
+  FALSE
+}
+
+.hc_functional_enrichment_draw_object <- function(entry, heatmap_side = "left") {
+  if (is.null(entry)) {
+    return(NULL)
+  }
+  entry <- tryCatch(as.list(entry), error = function(e) NULL)
+  if (is.null(entry)) {
+    return(NULL)
+  }
+
+  clone_obj <- function(x) {
+    .hc_safe_deep_clone(x, context = "stored enrichment panel object")
+  }
+
+  draw_obj <- NULL
+  has_components <- (
+    "hc_heatmap" %in% names(entry) &&
+      "enrichment_plot" %in% names(entry)
+  )
+  if (isTRUE(has_components)) {
+    hc_ht <- clone_obj(entry[["hc_heatmap"]])
+    enr_ht <- clone_obj(entry[["enrichment_plot"]])
+    if (inherits(hc_ht, "Heatmap") && inherits(enr_ht, "Heatmap")) {
+      draw_obj <- if (identical(heatmap_side, "right")) {
+        enr_ht + hc_ht
+      } else {
+        hc_ht + enr_ht
+      }
+    }
+  }
+  if (is.null(draw_obj)) {
+    p <- clone_obj(entry[["p"]])
+    if (inherits(p, "HeatmapList")) {
+      draw_obj <- p
+    }
+  }
+  draw_obj
+}
+
+.hc_functional_enrichment_panel_title <- function(panel_key) {
+  if (is.null(panel_key) || length(panel_key) != 1 || is.na(panel_key)) {
+    return(NULL)
+  }
+  panel_key <- as.character(panel_key[[1]])
+  if (identical(panel_key, "top_all_dbs")) {
+    return("Combined enrichment (all DBs)")
+  }
+  if (identical(panel_key, "top_all_dbs_mixed")) {
+    return("Combined enrichment (all DBs, mixed)")
+  }
+  db_name <- sub("^top_", "", panel_key)
+  if (!nzchar(db_name) || identical(db_name, panel_key)) {
+    return(NULL)
+  }
+  db_name <- gsub("_", " ", db_name, fixed = TRUE)
+  paste0(db_name, " enrichment")
+}
+
+.hc_functional_enrichment_panel_target <- function(panel_key) {
+  if (is.null(panel_key) || length(panel_key) != 1 || is.na(panel_key)) {
+    return(NULL)
+  }
+  panel_key <- as.character(panel_key[[1]])
+  if (identical(panel_key, "top_all_dbs")) {
+    return("enrichment_all")
+  }
+  if (identical(panel_key, "top_all_dbs_mixed")) {
+    return("enrichment_all_mixed")
+  }
+  "enrichment"
+}
+
+.hc_draw_functional_enrichment_panel_title <- function(panel_key, fontsize = 16) {
+  panel_title <- .hc_functional_enrichment_panel_title(panel_key)
+  panel_target <- .hc_functional_enrichment_panel_target(panel_key)
+  if (is.null(panel_title) || !nzchar(panel_title) || is.null(panel_target)) {
+    return(invisible(NULL))
+  }
+
+  panel_key_chr <- as.character(panel_key[[1]])
+  title_drawn <- FALSE
+  slice_candidates <- if (identical(panel_key_chr, "top_all_dbs")) c(2L, 1L) else 1L
+  title_offset_mm <- max(4, 0.35 * as.numeric(fontsize))
+  components <- try(ComplexHeatmap::list_components(), silent = TRUE)
+  if (inherits(components, "try-error")) {
+    components <- character(0)
+  }
+
+  if (identical(panel_key_chr, "top_all_dbs") && length(components) > 0) {
+    body_pattern <- paste0("^", panel_target, "_heatmap_body_[0-9]+_[0-9]+$")
+    body_components <- components[grepl(body_pattern, components)]
+    if (length(body_components) >= 1) {
+      draw_res <- try(
+        {
+          left_edges <- numeric(0)
+          right_edges <- numeric(0)
+          top_edges <- numeric(0)
+
+          for (vp_name in body_components) {
+            grid::seekViewport(vp_name)
+            loc_left <- grid::deviceLoc(
+              x = grid::unit(0, "npc"),
+              y = grid::unit(1, "npc")
+            )
+            loc_right <- grid::deviceLoc(
+              x = grid::unit(1, "npc"),
+              y = grid::unit(1, "npc")
+            )
+            grid::upViewport(0)
+            left_edges <- c(left_edges, grid::convertX(loc_left[["x"]], "inches", valueOnly = TRUE))
+            right_edges <- c(right_edges, grid::convertX(loc_right[["x"]], "inches", valueOnly = TRUE))
+            top_edges <- c(top_edges, grid::convertY(loc_left[["y"]], "inches", valueOnly = TRUE))
+          }
+
+          loc_x <- grid::unit((min(left_edges) + max(right_edges)) / 2, "inches")
+          loc_y <- grid::unit(max(top_edges), "inches")
+          grid::grid.text(
+            label = panel_title,
+            x = loc_x,
+            y = loc_y + grid::unit(title_offset_mm, "mm"),
+            just = c("center", "bottom"),
+            gp = grid::gpar(fontsize = fontsize, fontface = "bold")
+          )
+        },
+        silent = TRUE
+      )
+      try(grid::upViewport(0), silent = TRUE)
+      if (!inherits(draw_res, "try-error")) {
+        return(invisible(NULL))
+      }
+    }
+  }
+
+  for (slice_idx in slice_candidates) {
+    body_vp_name <- paste0(panel_target, "_heatmap_body_", slice_idx, "_1")
+    if (length(components) > 0 && !(body_vp_name %in% components)) {
+      next
+    }
+    draw_res <- try(
+      {
+        grid::seekViewport(body_vp_name)
+        loc <- grid::deviceLoc(
+          x = grid::unit(0.5, "npc"),
+          y = grid::unit(1, "npc")
+        )
+        grid::upViewport(0)
+        loc_x <- loc[["x"]]
+        loc_y <- loc[["y"]]
+        grid::grid.text(
+          label = panel_title,
+          x = loc_x,
+          y = loc_y + grid::unit(title_offset_mm, "mm"),
+          just = c("center", "bottom"),
+          gp = grid::gpar(fontsize = fontsize, fontface = "bold")
+        )
+      },
+      silent = TRUE
+    )
+    try(grid::upViewport(0), silent = TRUE)
+    if (!inherits(draw_res, "try-error")) {
+      title_drawn <- TRUE
+      break
+    }
+  }
+  if (!title_drawn) {
+    return(invisible(NULL))
+  }
+  invisible(NULL)
+}
+
+.hc_draw_functional_enrichment_panels <- function(hc, heatmap_side = "left", record_history = FALSE) {
+  enrich <- .hc_functional_enrichment_entries(hc)
+  panel_keys <- .hc_functional_enrichment_panel_keys(enrich)
+  if (length(panel_keys) == 0) {
+    return(invisible(NULL))
+  }
+
+  if (isTRUE(record_history) && grDevices::dev.cur() > 1) {
+    try(grDevices::dev.control(displaylist = "enable"), silent = TRUE)
+  }
+
+  draw_errors <- character(0)
+  for (k in panel_keys) {
+    draw_obj <- .hc_functional_enrichment_draw_object(enrich[[k]], heatmap_side = heatmap_side)
+    if (is.null(draw_obj)) {
+      next
+    }
+
+    draw_res <- try(
+      ComplexHeatmap::draw(
+        draw_obj,
+        newpage = TRUE,
+        merge_legends = TRUE,
+        show_annotation_legend = TRUE,
+        show_heatmap_legend = TRUE
+      ),
+      silent = TRUE
+    )
+    if (inherits(draw_res, "try-error")) {
+      draw_errors <- c(draw_errors, k)
+      next
+    }
+    try(.hc_draw_functional_enrichment_panel_title(k), silent = TRUE)
+    if (isTRUE(record_history) && grDevices::dev.cur() > 1) {
+      try(grDevices::recordPlot(), silent = TRUE)
+    }
+  }
+
+  if (length(draw_errors) > 0) {
+    warning(
+      "Could not redraw enrichment panel(s): ",
+      paste(unique(draw_errors), collapse = ", "),
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
+.hc_emit_functional_enrichment_knitr_panels <- function(hc,
+                                                        heatmap_side = "left",
+                                                        panel_keys = NULL,
+                                                        res = 200) {
+  if (!isTRUE(getOption("knitr.in.progress")) &&
+      !isTRUE(getOption("rstudio.notebook.executing"))) {
+    return(invisible(NULL))
+  }
+  if (requireNamespace("knitr", quietly = TRUE)) {
+    old_fig_keep <- try(knitr::opts_current$get("fig.keep"), silent = TRUE)
+    if (!inherits(old_fig_keep, "try-error")) {
+      on.exit(
+        try(knitr::opts_current$set(fig.keep = old_fig_keep), silent = TRUE),
+        add = TRUE
+      )
+    }
+    try(knitr::opts_current$set(fig.keep = "all"), silent = TRUE)
+  }
+
+  enrich <- .hc_functional_enrichment_entries(hc)
+  available_panel_keys <- .hc_functional_enrichment_panel_keys(enrich)
+  combined_panel_keys <- intersect(c("top_all_dbs", "top_all_dbs_mixed"), available_panel_keys)
+  if (is.null(panel_keys)) {
+    panel_keys <- available_panel_keys
+  } else {
+    panel_keys <- base::as.character(panel_keys)
+    panel_keys <- panel_keys[!base::is.na(panel_keys) & base::nzchar(panel_keys)]
+    panel_keys <- panel_keys[panel_keys %in% available_panel_keys]
+  }
+  panel_keys <- unique(panel_keys)
+  panel_keys <- c(
+    panel_keys[!panel_keys %in% combined_panel_keys],
+    intersect(combined_panel_keys, panel_keys),
+    setdiff(panel_keys[panel_keys %in% combined_panel_keys], combined_panel_keys)
+  )
+  if (length(panel_keys) == 0) {
+    return(invisible(NULL))
+  }
+  panel_keys <- c(
+    panel_keys[!panel_keys %in% c("top_all_dbs", "top_all_dbs_mixed")],
+    intersect(c("top_all_dbs", "top_all_dbs_mixed"), panel_keys)
+  )
+
+  tmp_plot_dir <- tempfile(pattern = "hc_functional_enrichment_panels_")
+  dir.create(tmp_plot_dir, recursive = TRUE, showWarnings = FALSE)
+  png_paths <- character(0)
+  failed_panels <- character(0)
+
+  for (idx in base::seq_along(panel_keys)) {
+    k <- panel_keys[[idx]]
+    draw_obj <- .hc_functional_enrichment_draw_object(enrich[[k]], heatmap_side = heatmap_side)
+    if (is.null(draw_obj)) {
+      next
+    }
+
+    is_combined_panel <- k %in% c("top_all_dbs", "top_all_dbs_mixed")
+    panel_width_in <- if (is_combined_panel) 18 else 14
+    panel_height_in <- if (is_combined_panel) 10 else 9
+    safe_key <- gsub("[^A-Za-z0-9._-]+", "_", k)
+    png_file <- base::file.path(tmp_plot_dir, sprintf("%03d_%s.png", idx, safe_key))
+    opened <- FALSE
+    open_res <- try(
+      {
+        grDevices::png(
+          filename = png_file,
+          width = panel_width_in,
+          height = panel_height_in,
+          units = "in",
+          res = res
+        )
+        opened <- TRUE
+      },
+      silent = TRUE
+    )
+    if (!isTRUE(opened) || inherits(open_res, "try-error")) {
+      failed_panels <- c(failed_panels, k)
+      next
+    }
+
+    draw_ok <- FALSE
+    draw_res <- try(
+      {
+        ComplexHeatmap::draw(
+          draw_obj,
+          newpage = TRUE,
+          merge_legends = TRUE,
+          show_annotation_legend = TRUE,
+          show_heatmap_legend = TRUE
+        )
+        .hc_draw_functional_enrichment_panel_title(k)
+        draw_ok <- TRUE
+      },
+      silent = TRUE
+    )
+    try(grDevices::dev.off(), silent = TRUE)
+
+    if (inherits(draw_res, "try-error") || !isTRUE(draw_ok) || !file.exists(png_file)) {
+      failed_panels <- c(failed_panels, k)
+      if (file.exists(png_file)) {
+        try(unlink(png_file, force = TRUE), silent = TRUE)
+      }
+      next
+    }
+    png_paths <- c(png_paths, png_file)
+  }
+
+  if (length(png_paths) > 0) {
+    if (requireNamespace("knitr", quietly = TRUE)) {
+      print(knitr::include_graphics(png_paths))
+    } else {
+      warning(
+        "Package `knitr` is required for notebook panel rendering.",
+        call. = FALSE
+      )
+    }
+  }
+
+  if (length(failed_panels) > 0) {
+    warning(
+      "Could not render enrichment panel(s) for knitr output: ",
+      paste(unique(failed_panels), collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  invisible(NULL)
+}
+
+#' Draw saved functional-enrichment panels from the current object
+#'
+#' This is a convenience plotting helper for notebook/interactive usage. It
+#' draws the enrichment panels already stored in `hc@satellite$enrichments`
+#' after `hc_functional_enrichment()`, without recomputing enrichment.
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param panels Optional character vector of panel names to draw.
+#'   Default (`NULL`) draws all available panels in standard order.
+#'   Accepted values include `"top_Hallmark"`, `"top_Kegg"`,
+#'   `"top_all_dbs"`, `"top_all_dbs_mixed"` (or without `"top_"` prefix).
+#' @param heatmap_side One of `"left"` (default) or `"right"`.
+#' @return Invisibly returns `hc`.
+#' @export
+hc_plot_enrichment_panels <- function(hc,
+                                      panels = NULL,
+                                      heatmap_side = "left") {
+  if (!inherits(hc, "HCoCenaExperiment")) {
+    stop("`hc` must be a `HCoCenaExperiment`.")
+  }
+
+  heatmap_side <- base::match.arg(heatmap_side, choices = c("left", "right"))
+
+  enrich <- .hc_functional_enrichment_entries(hc)
+  if (length(enrich) == 0) {
+    stop(
+      "No enrichment panels found in `hc@satellite$enrichments`. ",
+      "Run `hc_functional_enrichment()` first."
+    )
+  }
+
+  available_panel_keys <- .hc_functional_enrichment_panel_keys(enrich)
+  if (length(available_panel_keys) == 0) {
+    stop(
+      "No drawable enrichment panels found. ",
+      "Expected entries like `top_Hallmark`, `top_all_dbs`, ... in ",
+      "`hc@satellite$enrichments`."
+    )
+  }
+
+  combined_panel_keys <- intersect(c("top_all_dbs", "top_all_dbs_mixed"), available_panel_keys)
+  single_panel_keys <- available_panel_keys[!available_panel_keys %in% combined_panel_keys]
+  panel_keys <- c(single_panel_keys, combined_panel_keys)
+  if (!is.null(panels)) {
+    panels <- base::as.character(panels)
+    panels <- panels[!base::is.na(panels) & base::nzchar(panels)]
+    panels <- ifelse(grepl("^top_", panels), panels, paste0("top_", panels))
+    missing_panels <- panels[!panels %in% available_panel_keys]
+    if (length(missing_panels) > 0) {
+      warning(
+        "Skipping unknown enrichment panel(s): ",
+        paste(unique(missing_panels), collapse = ", "),
+        call. = FALSE
+      )
+    }
+    requested <- panels[panels %in% available_panel_keys]
+    if (length(requested) == 0) {
+      stop(
+        "None of the requested panels are available. Available panels: ",
+        paste(available_panel_keys, collapse = ", ")
+      )
+    }
+
+    panel_keys <- unique(requested)
+  }
+
+  panel_keys <- unique(panel_keys)
+  drawable_mask <- base::vapply(
+    panel_keys,
+    function(k) .hc_functional_enrichment_has_draw_object(enrich[[k]]),
+    FUN.VALUE = base::logical(1)
+  )
+  if (!base::any(drawable_mask)) {
+    stop(
+      "Selected enrichment panels were not stored as drawable objects in `hc`. ",
+      "This usually happens in memory-saving mode for multi-database enrichment runs. ",
+      "Rerun `hc_functional_enrichment(..., store_panel_objects = 'always')` if you need redraw from the object."
+    )
+  }
+  message(
+    "Drawing enrichment panels in order: ",
+    paste(panel_keys, collapse = ", ")
+  )
+
+  in_notebook <- isTRUE(getOption("knitr.in.progress")) ||
+    isTRUE(getOption("rstudio.notebook.executing"))
+  if (isTRUE(in_notebook)) {
+    for (k in panel_keys) {
+      .hc_emit_functional_enrichment_knitr_panels(
+        hc = hc,
+        heatmap_side = heatmap_side,
+        panel_keys = k
+      )
+    }
+    return(invisible(hc))
+  }
+
+  draw_errors <- character(0)
+  for (k in panel_keys) {
+    draw_obj <- .hc_functional_enrichment_draw_object(enrich[[k]], heatmap_side = heatmap_side)
+    if (is.null(draw_obj)) {
+      draw_errors <- c(draw_errors, k)
+      next
+    }
+
+    draw_res <- try({
+      grid::grid.newpage()
+      ComplexHeatmap::draw(
+        draw_obj,
+        newpage = FALSE,
+        merge_legends = TRUE,
+        show_annotation_legend = TRUE,
+        show_heatmap_legend = TRUE
+      )
+    }, silent = TRUE)
+    if (inherits(draw_res, "try-error")) {
+      draw_errors <- c(draw_errors, k)
+      next
+    }
+    try(.hc_draw_functional_enrichment_panel_title(k), silent = TRUE)
+  }
+
+  if (length(draw_errors) > 0) {
+    warning(
+      "Could not draw enrichment panel(s): ",
+      paste(unique(draw_errors), collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  invisible(hc)
+}
+
 #' Functional enrichment (S4 API)
 #'
 #' @inheritParams functional_enrichment
 #' @param hc A `HCoCenaExperiment`.
+#' @param ... Additional plotting arguments forwarded to the legacy
+#'   `functional_enrichment()` implementation.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_functional_enrichment <- function(hc,
@@ -616,6 +1436,7 @@ hc_functional_enrichment <- function(hc,
                                      heatmap_cluster_columns = FALSE,
                                      heatmap_show_row_dend = FALSE,
                                      heatmap_show_column_dend = FALSE,
+                                     heatmap_col_order = NULL,
                                      heatmap_order = NULL,
                                      heatmap_module_label_mode = "same",
                                      heatmap_show_gene_counts = FALSE,
@@ -627,6 +1448,7 @@ hc_functional_enrichment <- function(hc,
                                      enrichment_label_wrap = FALSE,
                                      enrichment_label_wrap_width = 30,
                                      gfc_scale_limits = NULL,
+                                     store_panel_objects = c("auto", "always", "never"),
                                      pdf_width = NULL,
                                      pdf_height = NULL,
                                      pdf_pointsize = 11,
@@ -645,6 +1467,7 @@ hc_functional_enrichment <- function(hc,
     heatmap_cluster_columns = heatmap_cluster_columns,
     heatmap_show_row_dend = heatmap_show_row_dend,
     heatmap_show_column_dend = heatmap_show_column_dend,
+    heatmap_col_order = heatmap_col_order,
     heatmap_order = heatmap_order,
     heatmap_module_label_mode = heatmap_module_label_mode,
     heatmap_show_gene_counts = heatmap_show_gene_counts,
@@ -656,6 +1479,7 @@ hc_functional_enrichment <- function(hc,
     enrichment_label_wrap = enrichment_label_wrap,
     enrichment_label_wrap_width = enrichment_label_wrap_width,
     gfc_scale_limits = gfc_scale_limits,
+    store_panel_objects = store_panel_objects,
     pdf_width = pdf_width,
     pdf_height = pdf_height,
     pdf_pointsize = pdf_pointsize,
@@ -682,6 +1506,8 @@ hc_upstream_inference <- function(hc,
                                   fc_comparisons = NULL,
                                   custom_pathway_gmt = NULL,
                                   heatmap_side = "left",
+                                  heatmap_cluster_columns = FALSE,
+                                  heatmap_col_order = NULL,
                                   gfc_scale_limits = NULL,
                                   plot = TRUE,
                                   save_pdf = TRUE,
@@ -706,6 +1532,8 @@ hc_upstream_inference <- function(hc,
     fc_comparisons = fc_comparisons,
     custom_pathway_gmt = custom_pathway_gmt,
     heatmap_side = heatmap_side,
+    heatmap_cluster_columns = heatmap_cluster_columns,
+    heatmap_col_order = heatmap_col_order,
     gfc_scale_limits = gfc_scale_limits,
     plot = plot,
     save_pdf = save_pdf,
@@ -849,6 +1677,8 @@ hc_plot_enrichment_upstream_network <- function(hc,
                                                 save_pdf = TRUE,
                                                 pdf_name = "Module_Knowledge_Network.pdf",
                                                 gfc_scale_limits = NULL,
+                                                heatmap_col_order = NULL,
+                                                heatmap_cluster_columns = FALSE,
                                                 pdf_width = NULL,
                                                 pdf_height = NULL,
                                                 pdf_pointsize = 11,
@@ -866,6 +1696,8 @@ hc_plot_enrichment_upstream_network <- function(hc,
     save_pdf = save_pdf,
     pdf_name = pdf_name,
     gfc_scale_limits = gfc_scale_limits,
+    heatmap_col_order = heatmap_col_order,
+    heatmap_cluster_columns = heatmap_cluster_columns,
     pdf_width = pdf_width,
     pdf_height = pdf_height,
     pdf_pointsize = pdf_pointsize,
@@ -919,11 +1751,63 @@ hc_plot_deg_dist <- function(hc) {
 #' Plot module heatmap (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
+#' @param file_name Optional file name passed to `plot_cluster_heatmap()`.
 #' @param ... Passed to `plot_cluster_heatmap()`.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_plot_cluster_heatmap <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = "plot_cluster_heatmap", ...)
+hc_plot_cluster_heatmap <- function(hc, file_name = NULL, ...) {
+  if (!inherits(hc, "HCoCenaExperiment")) {
+    stop("`hc` must be a `HCoCenaExperiment`.")
+  }
+
+  legacy_envo <- .hc_legacy_state_env()
+  legacy_state <- .hc_bind_legacy_hcobject(
+    .hc_as_hcobject_for_cluster_plot(hc),
+    envo = legacy_envo
+  )
+  on.exit(.hc_restore_legacy_hcobject(legacy_state), add = TRUE)
+
+  old_opt <- getOption("hcocena.suppress_legacy_warning", FALSE)
+  options(hcocena.suppress_legacy_warning = TRUE)
+  on.exit(options(hcocena.suppress_legacy_warning = old_opt), add = TRUE)
+
+  base::do.call(plot_cluster_heatmap, c(list(file_name = file_name), list(...)))
+  .hc_update_hc_from_cluster_plot(
+    hc = hc,
+    hcobject = base::get("hcobject", envir = legacy_envo, inherits = FALSE)
+  )
+}
+
+#' Recalculate grouped GFCs and replot module heatmap (S4 API)
+#'
+#' Uses the existing module definitions from the current object and only
+#' recalculates grouped GFCs for a different grouping variable. No integrated
+#' network rebuild and no module re-clustering is performed.
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param group_by Grouping column to use (must be present in all annotation tables).
+#' @param col_order Optional heatmap column order.
+#' @param cluster_columns Whether to cluster heatmap columns. Default is
+#'   `FALSE`, so the stored main hCoCena column order is reused when available.
+#' @param row_order Optional heatmap row order.
+#' @param cluster_rows Whether to cluster heatmap rows.
+#' @return Updated `HCoCenaExperiment`.
+#' @export
+hc_change_grouping_parameter <- function(hc,
+                                         group_by,
+                                         col_order = NULL,
+                                         cluster_columns = FALSE,
+                                         row_order = NULL,
+                                         cluster_rows = TRUE) {
+  .hc_run_legacy(
+    hc = hc,
+    fun = "change_grouping_parameter",
+    group_by = group_by,
+    col_order = col_order,
+    cluster_columns = cluster_columns,
+    row_order = row_order,
+    cluster_rows = cluster_rows
+  )
 }
 
 #' Plot integrated network (S4 API)
@@ -1168,4 +2052,14 @@ hc_col_anno_categorical <- function(hc, ...) {
 #' @export
 hc_meta_correlation_cat <- function(hc, ...) {
   .hc_run_legacy(hc = hc, fun = "meta_correlation_cat", ...)
+}
+
+#' Test module differences between conditions (S4 API)
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param ... Passed to `module_condition_significance()`.
+#' @return Updated `HCoCenaExperiment`.
+#' @export
+hc_module_condition_significance <- function(hc, ...) {
+  .hc_run_legacy(hc = hc, fun = "module_condition_significance", ...)
 }

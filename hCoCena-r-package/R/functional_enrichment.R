@@ -18,6 +18,9 @@
 #' @param heatmap_cluster_columns A Boolean whether or not to cluster columns in the hCoCena heatmap.
 #' @param heatmap_show_row_dend A Boolean whether to show the row dendrogram when `heatmap_cluster_rows = TRUE`.
 #' @param heatmap_show_column_dend A Boolean whether to show the column dendrogram when `heatmap_cluster_columns = TRUE`.
+#' @param heatmap_col_order Optional character vector overriding the hCoCena
+#'   heatmap column order for this enrichment plot only. If `NULL` (default),
+#'   the column order from the main module heatmap is reused when available.
 #' @param heatmap_order Optional character vector specifying module order in the hCoCena heatmap.
 #'  Entries can be module colors (e.g. "turquoise") or module labels from the main heatmap
 #'  (e.g. "M1", "M2", ...). Modules not listed are appended afterwards.
@@ -53,8 +56,8 @@
 #' @param enrichment_label_wrap_width Integer wrap width used when
 #'  `enrichment_label_wrap = TRUE`. Default is 30.
 #' @param gfc_colors Optional character vector of colors for the hCoCena heatmap
-#'  GFC scale. If NULL, uses the legacy default
-#'  `rev(RColorBrewer::brewer.pal(11, "RdBu"))`.
+#'  GFC scale. If NULL, uses the hCoCena default GFC palette
+#'  (RdBu-based with darker extremes).
 #' @param gfc_scale_limits Optional numeric vector controlling the module-heatmap
 #'  color scale limits used in enrichment plots. Provide one positive number
 #'  (`x` -> `c(-x, x)`) or two numbers (`c(min, max)`). If NULL, uses stored
@@ -69,6 +72,10 @@
 #' @param overall_plot_scale Numeric scaling factor for the entire combined output
 #'  (hCoCena heatmap + enrichment panel + title/labels/legend). Values > 1 enlarge
 #'  the full plot, values < 1 make it smaller. Default is 1.
+#' @param store_panel_objects One of `"auto"` (default), `"always"`, or `"never"`.
+#'  Controls whether heavy heatmap/panel objects are stored inside `hc` for later
+#'  redraw with `hc_plot_enrichment_panels()`. `"auto"` stores them only for a
+#'  single selected database; multi-database runs keep only tables to save memory.
 #' @export
 
 functional_enrichment <- function(gene_sets = "Hallmark",
@@ -82,6 +89,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                                   heatmap_cluster_columns = FALSE,
                                   heatmap_show_row_dend = FALSE,
                                   heatmap_show_column_dend = FALSE,
+                                  heatmap_col_order = NULL,
                                   heatmap_order = NULL,
                                   heatmap_module_label_mode = "same",
                                   heatmap_show_gene_counts = FALSE,
@@ -101,7 +109,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                                   pdf_width = NULL,
                                   pdf_height = NULL,
                                   pdf_pointsize = 11,
-                                  overall_plot_scale = 1) {
+                                  overall_plot_scale = 1,
+                                  store_panel_objects = c("auto", "always", "never")) {
   .hc_legacy_warning("functional_enrichment")
   gfc_colors_was_missing <- missing(gfc_colors)
 
@@ -168,6 +177,10 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       "Use `hc_set_supp_files()`/`hc_read_supplementary()` or `custom_gmt_files`."
     )
   }
+  store_panel_objects <- .hc_resolve_panel_storage_mode(
+    store_panel_objects = store_panel_objects,
+    n_databases = base::length(gene_sets)
+  )
 
   heatmap_side <- base::match.arg(heatmap_side, choices = c("left", "right"))
   heatmap_module_label_mode <- base::match.arg(
@@ -189,6 +202,9 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   }
   if (!base::is.logical(heatmap_show_column_dend) || base::length(heatmap_show_column_dend) != 1) {
     stop("`heatmap_show_column_dend` must be TRUE or FALSE.")
+  }
+  if (!base::is.null(heatmap_col_order)) {
+    heatmap_col_order <- base::as.character(heatmap_col_order)
   }
   if (!base::is.logical(heatmap_show_gene_counts) || base::length(heatmap_show_gene_counts) != 1) {
     stop("`heatmap_show_gene_counts` must be TRUE or FALSE.")
@@ -371,6 +387,13 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   gfc_scale_ticks <- compute_scale_ticks(gfc_scale_limits)
   pdf_width_input <- pdf_width
   pdf_height_input <- pdf_height
+  deep_clone <- function(x, context = "functional enrichment heatmap object") {
+    .hc_safe_deep_clone(
+      x,
+      context = context,
+      max_bytes = 32 * 1024^2
+    )
+  }
   resolve_pdf_device_dim <- function(user_dim, auto_dim) {
     if (base::is.null(user_dim)) {
       return(auto_dim)
@@ -619,16 +642,18 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   if (base::length(clusters) == 0) {
     stop("No valid clusters available for enrichment.")
   }
+  if (base::is.null(hcobject[["satellite_outputs"]][["enrichments"]]) ||
+      !base::is.list(hcobject[["satellite_outputs"]][["enrichments"]])) {
+    hcobject[["satellite_outputs"]][["enrichments"]] <<- list()
+  } else {
+    hcobject[["satellite_outputs"]][["enrichments"]] <<- as.list(hcobject[["satellite_outputs"]][["enrichments"]])
+  }
 
   # Build a robust hCoCena heatmap matrix (rows = modules, columns = conditions).
   cluster_calc <- hcobject[["integrated_output"]][["cluster_calc"]]
-  stored_hm <- cluster_calc[["heatmap_cluster"]]
-  m <- tryCatch(
-    {
-      stored_hm@ht_list[[1]]@matrix
-    },
-    error = function(e) NULL
-  )
+  heatmap_info <- .hc_heatmap_cache_info(cluster_calc)
+  stored_hm <- heatmap_info$heatmap_obj
+  m <- heatmap_info$matrix
 
   if (base::is.null(m)) {
     gfc_all <- hcobject[["integrated_output"]][["GFC_all_layers"]]
@@ -669,34 +694,21 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   }
 
   # Keep condition order from the previously drawn main heatmap when available.
-  if (!base::is.null(stored_hm)) {
-    col_order <- tryCatch(ComplexHeatmap::column_order(stored_hm), error = function(e) NULL)
-    if (base::is.list(col_order) && base::length(col_order) > 0) {
-      col_order <- col_order[[1]]
-    }
-    if (base::is.numeric(col_order) && base::length(col_order) == base::ncol(m)) {
-      m <- m[, col_order, drop = FALSE]
-    } else if (base::is.character(col_order)) {
-      keep_cols <- col_order[col_order %in% base::colnames(m)]
-      if (base::length(keep_cols) > 0) {
-        m <- m[, keep_cols, drop = FALSE]
-      }
-    }
+  selected_col_order <- .hc_select_heatmap_col_order(
+    available_cols = base::colnames(m),
+    plot_order = heatmap_col_order,
+    main_order = heatmap_info$col_order,
+    context = "functional enrichment heatmap"
+  )
+  if (base::length(selected_col_order) > 0) {
+    m <- m[, selected_col_order, drop = FALSE]
   }
 
   module_order <- module_colors
-  if (!base::is.null(stored_hm)) {
-    row_order <- tryCatch(ComplexHeatmap::row_order(stored_hm), error = function(e) NULL)
-    if (base::is.list(row_order) && base::length(row_order) > 0) {
-      row_order <- row_order[[1]]
-    }
-    if (base::is.numeric(row_order) && base::length(row_order) == base::length(module_colors)) {
-      module_order <- module_colors[row_order]
-    } else if (base::is.character(row_order)) {
-      keep_rows <- row_order[row_order %in% module_colors]
-      if (base::length(keep_rows) > 0) {
-        module_order <- base::c(keep_rows, base::setdiff(module_colors, keep_rows))
-      }
+  if (!base::is.null(heatmap_info$row_order) && base::length(heatmap_info$row_order) > 0) {
+    keep_rows <- heatmap_info$row_order[heatmap_info$row_order %in% module_colors]
+    if (base::length(keep_rows) > 0) {
+      module_order <- base::c(keep_rows, base::setdiff(module_colors, keep_rows))
     }
   }
 
@@ -794,7 +806,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     gfc_colors <- stored_gfc_colors
   }
   if (base::is.null(gfc_colors)) {
-    gfc_colors <- base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))
+    gfc_colors <- .hc_default_gfc_colors()
   }
   if (!base::is.character(gfc_colors) || base::length(gfc_colors) < 2) {
     stop("`gfc_colors` must be NULL or a character vector with at least two colors.")
@@ -1339,7 +1351,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           selected_enrichments = selected_summary,
           significant_enrichments = significant_summary
         )
-        hcobject[["integrated_output"]][["enrichments"]][[base::paste0("top_", i)]] <<- output
+        hcobject[["satellite_outputs"]][["enrichments"]][[base::paste0("top_", i)]] <<- output
         openxlsx::write.xlsx(
           x = build_enrichment_export(
             res_list = res,
@@ -1408,7 +1420,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           selected_enrichments = selected_summary,
           significant_enrichments = significant_summary
         )
-        hcobject[["integrated_output"]][["enrichments"]][[base::paste0("top_", i)]] <<- output
+        hcobject[["satellite_outputs"]][["enrichments"]][[base::paste0("top_", i)]] <<- output
         openxlsx::write.xlsx(
           x = build_enrichment_export(
             res_list = res,
@@ -1820,16 +1832,24 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       )
 
       output <- list()
-      output[["p"]] <- cp_w_lgd
-      output[["enrichment_plot"]] <- enrichment_ht
-      output[["hc_heatmap"]] <- hc_ht
+      if (identical(store_panel_objects, "always")) {
+        output[["p"]] <- deep_clone(cp_w_lgd, context = "functional enrichment combined plot")
+        output[["enrichment_plot"]] <- deep_clone(enrichment_ht, context = "functional enrichment panel heatmap")
+        output[["hc_heatmap"]] <- deep_clone(hc_ht, context = "functional enrichment module heatmap")
+      } else {
+        output[["p"]] <- NULL
+        output[["enrichment_plot"]] <- NULL
+        output[["hc_heatmap"]] <- NULL
+      }
+      output[["panel_objects_stored"]] <- identical(store_panel_objects, "always")
+      output[["panel_storage_mode"]] <- store_panel_objects
       output[["module_label_map"]] <- module_label_map_current
       output[["result"]] <- top_enr_out
       output[["enrichment"]] <- res
       output[["all_enrichments"]] <- all_summary
       output[["selected_enrichments"]] <- selected_summary
       output[["significant_enrichments"]] <- significant_summary
-      hcobject[["integrated_output"]][["enrichments"]][[base::paste0("top_", i)]] <<- output
+      hcobject[["satellite_outputs"]][["enrichments"]][[base::paste0("top_", i)]] <<- output
     } else {
       print(base::paste0("invalid database: ", i))
     }
@@ -1838,8 +1858,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   combined_all_summary <- combine_summary_tables(all_summary_all_dbs)
   combined_selected_summary <- combine_summary_tables(selected_summary_all_dbs)
   combined_significant_summary <- combine_summary_tables(significant_summary_all_dbs)
-  hcobject[["integrated_output"]][["enrichments"]][["top_all_dbs"]] <<- NULL
-  hcobject[["integrated_output"]][["enrichments"]][["top_all_dbs_mixed"]] <<- NULL
+  hcobject[["satellite_outputs"]][["enrichments"]][["top_all_dbs"]] <<- NULL
+  hcobject[["satellite_outputs"]][["enrichments"]][["top_all_dbs_mixed"]] <<- NULL
 
   if (base::nrow(combined_selected_summary) > 0) {
     combined_plot_df <- combined_selected_summary
@@ -2230,13 +2250,27 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         padding = draw_padding_all
       )
 
-      hcobject[["integrated_output"]][["enrichments"]][["top_all_dbs"]] <<- list(
-        p = cp_all_w_lgd,
-        enrichment_plot = enrichment_ht_all,
-        hc_heatmap = hc_ht,
-        module_label_map = module_label_map_current,
-        result = combined_selected_summary
-      )
+      if (identical(store_panel_objects, "always")) {
+        hcobject[["satellite_outputs"]][["enrichments"]][["top_all_dbs"]] <<- list(
+          p = deep_clone(cp_all_w_lgd, context = "functional enrichment all-db combined plot"),
+          enrichment_plot = deep_clone(enrichment_ht_all, context = "functional enrichment all-db panel heatmap"),
+          hc_heatmap = deep_clone(hc_ht, context = "functional enrichment all-db module heatmap"),
+          panel_objects_stored = TRUE,
+          panel_storage_mode = store_panel_objects,
+          module_label_map = module_label_map_current,
+          result = combined_selected_summary
+        )
+      } else {
+        hcobject[["satellite_outputs"]][["enrichments"]][["top_all_dbs"]] <<- list(
+          p = NULL,
+          enrichment_plot = NULL,
+          hc_heatmap = NULL,
+          panel_objects_stored = FALSE,
+          panel_storage_mode = store_panel_objects,
+          module_label_map = module_label_map_current,
+          result = combined_selected_summary
+        )
+      }
 
       # Additional mixed all-DB plot: keep terms interleaved across DBs.
       # This ordering lets GO/KEGG/Hallmark terms sit next to each other.
@@ -2415,13 +2449,27 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         padding = draw_padding_all
       )
 
-      hcobject[["integrated_output"]][["enrichments"]][["top_all_dbs_mixed"]] <<- list(
-        p = cp_all_mixed_w_lgd,
-        enrichment_plot = enrichment_ht_all_mixed,
-        hc_heatmap = hc_ht,
-        module_label_map = module_label_map_current,
-        result = combined_selected_summary
-      )
+      if (identical(store_panel_objects, "always")) {
+        hcobject[["satellite_outputs"]][["enrichments"]][["top_all_dbs_mixed"]] <<- list(
+          p = deep_clone(cp_all_mixed_w_lgd, context = "functional enrichment mixed all-db combined plot"),
+          enrichment_plot = deep_clone(enrichment_ht_all_mixed, context = "functional enrichment mixed all-db panel heatmap"),
+          hc_heatmap = deep_clone(hc_ht, context = "functional enrichment mixed all-db module heatmap"),
+          panel_objects_stored = TRUE,
+          panel_storage_mode = store_panel_objects,
+          module_label_map = module_label_map_current,
+          result = combined_selected_summary
+        )
+      } else {
+        hcobject[["satellite_outputs"]][["enrichments"]][["top_all_dbs_mixed"]] <<- list(
+          p = NULL,
+          enrichment_plot = NULL,
+          hc_heatmap = NULL,
+          panel_objects_stored = FALSE,
+          panel_storage_mode = store_panel_objects,
+          module_label_map = module_label_map_current,
+          result = combined_selected_summary
+        )
+      }
     }
   }
 
@@ -2450,15 +2498,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     ),
     overwrite = TRUE
   )
-  hcobject[["integrated_output"]][["enrichments"]][["all_enrichments_all_dbs"]] <<- combined_all_summary
-  hcobject[["integrated_output"]][["enrichments"]][["selected_enrichments_all_dbs"]] <<- combined_selected_summary
-  hcobject[["integrated_output"]][["enrichments"]][["significant_enrichments_all_dbs"]] <<- combined_significant_summary
-  hcobject[["integrated_output"]][["enrichments"]][["module_gene_list"]] <<- module_gene_list_tbl
-  # Mirror enrichment outputs into satellite storage so S4 <-> legacy conversion
-  # keeps them available for downstream plotting helpers.
-  hcobject[["satellite_outputs"]][["enrichments"]] <<- hcobject[["integrated_output"]][["enrichments"]]
-  hcobject[["satellite_outputs"]][["all_enrichments_all_dbs"]] <<- combined_all_summary
-  hcobject[["satellite_outputs"]][["selected_enrichments_all_dbs"]] <<- combined_selected_summary
-  hcobject[["satellite_outputs"]][["significant_enrichments_all_dbs"]] <<- combined_significant_summary
+  hcobject[["satellite_outputs"]][["enrichments"]][["all_enrichments_all_dbs"]] <<- combined_all_summary
+  hcobject[["satellite_outputs"]][["enrichments"]][["selected_enrichments_all_dbs"]] <<- combined_selected_summary
+  hcobject[["satellite_outputs"]][["enrichments"]][["significant_enrichments_all_dbs"]] <<- combined_significant_summary
   hcobject[["satellite_outputs"]][["module_gene_list"]] <<- module_gene_list_tbl
 }

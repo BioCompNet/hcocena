@@ -5,11 +5,11 @@
 #' @param control_keyword Either 'none' if no controls are present (only possible when analysing one single dataset) or a string contained in the control sample descriptor of all annotation files, e.g. "healthy".
 #' 	The string must only be contained in the descriptor, e.g. "healthy" would work for "rhinovirusSetHealthy" and "influenzaSetHealthy", it does not have to match it perfectly.
 #' @param variable_of_interest The name of the column that mus be rpesent in all annotation files and which will be used for grouping samples, e.g., "condition"".
-#' @param min_nodes_number_for_network An integer. The minimum number of nodes in the subsequently created network that can define a graph component. Graph components with less nodes will be discarded. Default is 15.
-#' @param min_nodes_number_for_cluster An integer. The minimum number of nodes that constitute a module/cluster when detecting community structures in the network. Default is 15.
+#' @param min_nodes_number_for_network An integer. The minimum number of nodes in the subsequently created network that can define a graph component. Graph components with less nodes will be discarded. Default is 50.
+#' @param min_nodes_number_for_cluster An integer. The minimum number of nodes that constitute a module/cluster when detecting community structures in the network. Default is 50.
 #' @param range_GFC A float. Defines the maximum value the group fold changes (GFCs) can acquire, all values above this value or beneath its negative will be truncated. Default is 2.0.
 #' @param layout_algorithm Layout algorithm used for the network. Supported values are:
-#'  `"layout_with_fr"` (default), `"layout_with_stress"`, `"layout_with_sparse_stress"`,
+#'  `"layout_with_stress"` (default), `"layout_with_sparse_stress"`, `"layout_with_fr"`,
 #'  `"layout_with_drl"`, `"layout_with_kk"` and `"cytoscape"`.
 #'  The stress-based layouts require the optional `graphlayouts` package and are typically
 #'  more stable/readable than Fruchterman-Reingold for medium/large graphs.
@@ -19,17 +19,25 @@
 
 
 
-set_global_settings <- function(organism, 
-								control_keyword, 
-								variable_of_interest, 
-								min_nodes_number_for_network = 15, 
-								min_nodes_number_for_cluster = 15,
+set_global_settings <- function(organism = "human",
+								control_keyword = "none",
+								variable_of_interest = "merged",
+								min_nodes_number_for_network = 50,
+								min_nodes_number_for_cluster = 50,
 								range_GFC = 2.0,
-								layout_algorithm = "layout_with_fr",
-								data_in_log){
+								layout_algorithm = "layout_with_stress",
+								data_in_log = TRUE){
 	.hc_legacy_warning("set_global_settings")
 
   layout_algorithm <- .hc_normalize_layout_algorithm(layout_algorithm)
+  if (layout_algorithm %in% c("layout_with_stress", "layout_with_sparse_stress") &&
+      !requireNamespace("graphlayouts", quietly = TRUE)) {
+    warning(
+      "Selected `layout_algorithm = '", layout_algorithm, "'`, but package `graphlayouts` is not installed.\n",
+      "Network plotting will fall back to `layout_with_fr` until `graphlayouts` is available.",
+      call. = FALSE
+    )
+  }
 
   hcobject[["global_settings"]][["organism"]] <<- organism 
   
@@ -71,9 +79,9 @@ set_global_settings <- function(organism,
     "`layout_algorithm` not supported. Use one of: ",
     paste(
       c(
-        "\"layout_with_fr\"",
         "\"layout_with_stress\"",
         "\"layout_with_sparse_stress\"",
+        "\"layout_with_fr\"",
         "\"layout_with_drl\"",
         "\"layout_with_kk\"",
         "\"cytoscape\""

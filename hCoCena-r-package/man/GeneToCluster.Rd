@@ -9,6 +9,10 @@ GeneToCluster(
     hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]]
 )
 }
+\arguments{
+\item{cluster_information}{Cluster table, typically
+\code{hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]]}.}
+}
 \value{
 A data frame with two columns, the first containing gene names as strings, the second containing cluster colours as strings.
 }

@@ -43,7 +43,7 @@ plot_inflections <- function(var.df, i, setname = "my data"){
   out = stats::predict(lo,xl)
   infl <- base::as.logical(base::diff(base::sign(base::diff(base::diff(out, differences = 1)))))
   plot(var.df$rank, log(var.df$variance), type="l", xlab = "Rank", ylab = "log(Variance)", main = setname)
-  points(xl[infl ], out[infl ], col="red")
+  graphics::points(xl[infl ], out[infl ], col="red")
   print(base::paste0(setname, ": Inflection points at the following #genes: "))
   print(base::ceiling(xl[infl ]))
 }

@@ -35,10 +35,17 @@ meta_correlation_num <- function(set, meta, p_val = 0.05, padj = "BH"){
     }
   }) %>% base::as.numeric()
 
+  heatmap_info <- .hc_heatmap_cache_info(hcobject[["integrated_output"]][["cluster_calc"]])
+  row_levels <- heatmap_info$row_order
+  if (is.null(row_levels) || length(row_levels) == 0) {
+    row_levels <- unique(as.character(cors$group_y))
+  }
+  row_levels <- c(row_levels[row_levels %in% unique(as.character(cors$group_y))],
+                  setdiff(unique(as.character(cors$group_y)), row_levels))
   
   
   g <- ggplot2::ggplot(data = cors, ggplot2::aes(x = group_x, 
-                               y = base::factor(group_y, levels = base::rev(base::unique(group_y)[ComplexHeatmap::row_order(hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster"]])])), 
+                               y = base::factor(group_y, levels = base::rev(row_levels)), 
                                fill = pearson_corr)) + 
     ggplot2::geom_tile(color = "black")+
     ggplot2::scale_fill_gradientn(colours = grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 7, name = "BrBG")))(21), limits = c(-1,1))+
@@ -175,12 +182,19 @@ meta_correlation_cat <- function(meta, set, p_val = 0.05, padj = "BH"){
   
   vals["r"] <- base::round(vals["r"], digits = 2)
   
+  heatmap_info <- .hc_heatmap_cache_info(hcobject[["integrated_output"]][["cluster_calc"]])
+  row_levels <- heatmap_info$row_order
+  if (is.null(row_levels) || length(row_levels) == 0) {
+    row_levels <- unique(as.character(vals$group_y))
+  }
+  row_levels <- c(row_levels[row_levels %in% unique(as.character(vals$group_y))],
+                  setdiff(unique(as.character(vals$group_y)), row_levels))
   
   
   
   # plot
   g <- ggplot2::ggplot(data = vals, ggplot2::aes(x = group_x, 
-                          y = base::factor(group_y, levels = base::rev(base::unique(group_y)[ComplexHeatmap::row_order(hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster"]])])), 
+                          y = base::factor(group_y, levels = base::rev(row_levels)), 
                           fill = pearson_corr)) + 
     ggplot2::geom_tile(color = "black")+
     ggplot2::scale_fill_gradientn(colours = grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 7, name = "BrBG")))(21), limits = c(-1,1))+

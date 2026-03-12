@@ -32,7 +32,7 @@ Offers a user-defined enrichment analysis for the identified modules. There are 
 This file should be provided in .csv format where the column names represent the categories (a.k.a. "keys", e.g. cell types), and the columns contain genes representative of that key.
 The genes do not have to be exclusive with regard to the key they belong to and the columns are not required to be of the same length.
 If such a file is provided, the "from_file" parameter needs to be set to TRUE and the path parameter needs to be set to the path at which to find the file.
-2) Instead of providing an enrichment file, the user can also choose a database - so far Gene Ontology and KEGG are supported – and define a vector of keys as strings.
+2) Instead of providing an enrichment file, the user can also choose a database - so far Gene Ontology and KEGG are supported - and define a vector of keys as strings.
 The function then conducts an enrichment analysis using clusterProfiler functions (Guangchuang Yu, 2012) and filters the enrichment results for terms including the defined keys.
 In this case, the "from_file" parameter needs to be set to FALSE and the "enrichment_keys" parameter must be set to the vector of keys, the modules should be screened for.
 By setting the parameter 'db = "GO"' or 'db = "KEGG"', the GO or KEGG database is chosen accordingly.

@@ -7,7 +7,8 @@
 init_save_folder(name)
 }
 \arguments{
-\item{name}{The of the folder to be created.}
+\item{name}{The name of the folder to be created.
+Use \code{""} to write outputs directly into \code{dir_output} without creating a subfolder.}
 }
 \description{
 A folder with the given name is created in the output directory. All analysis outputs will be saved to this folder.

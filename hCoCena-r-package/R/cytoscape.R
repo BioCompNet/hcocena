@@ -21,6 +21,7 @@ export_to_local_folder <- function(file = base::paste0(hcobject[["working_direct
 #' Attention: Cytoscape Software must be open.
 #' Due to difficulties in the communication between R/RCy3 and Cytoscape, you need to manually stop the function in R as soon as the table of nodes and edges appears in Cytoscape.(by pressing the little stop sign above the console).
 #' @param name A string. The name given to the graph in Cytoscape. Default is "my igraph".
+#' @param docker_container Deprecated legacy flag kept for backward compatibility.
 #' @export
 
 export_to_cytoscape <- function(name = "my igraph", docker_container = FALSE){

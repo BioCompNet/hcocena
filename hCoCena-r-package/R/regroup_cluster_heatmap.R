@@ -1,21 +1,24 @@
 #' Change Grouping Parameter
 #' 
 #' The variable by which the samples are grouped and based on which the GFCs are calculated can be changed and the cluster heatmap will be replotted. 
-#'  This is particularly useful in cases where different variables are potential candidates for driving the genes’ expression changes in the data 
+#'  This is particularly useful in cases where different variables are potential candidates for driving the genes' expression changes in the data 
 #'  and an explorative approach is required to decide on the most suitable one.
 #'  Note that any previously generated column annotation will not be plotted, since the grouping will change.
 #'  If you eventually decide on another grouping variable, please run the analysis again entirely with the changed "voi" from the very beginning. 
 #' @param group_by A string giving the new grouping variable. This must be a name of a column present in all annotation files.
 #' @param col_order Defines the order in which the sample groups (conditions) appear in the heatmap. 
-#'  Accepts a vector of strings giving the conditions in their desired order, default is NULL (automatic order, determined by clustering).
-#'  If the parameter cluster_columns is not set to FALSE, this order will be overwritten.
+#'  Accepts a vector of strings giving the conditions in their desired order.
+#'  If `NULL` and `cluster_columns = FALSE`, the column order from the previous
+#'  main hCoCena heatmap is reused when available.
+#'  If `cluster_columns = TRUE`, this order is overwritten by clustering.
 #' @param row_order Like col_order but with cluster names.
-#' @param cluster_columns A Boolean, whether or not to cluster the columns of the heatmap. Default is TRUE, overwrites col_order.
+#' @param cluster_columns A Boolean, whether or not to cluster the columns of
+#'  the heatmap. Default is FALSE so the main hCoCena column order is preserved.
 #' @param cluster_rows Like cluster_columns but for rows.
 #' @export
 
 
-change_grouping_parameter <- function(group_by, col_order = NULL, cluster_columns = T, row_order = NULL, cluster_rows = T){
+change_grouping_parameter <- function(group_by, col_order = NULL, cluster_columns = FALSE, row_order = NULL, cluster_rows = T){
   
   # check if grouping variables are present:
   if(base::length(group_by) == 1){

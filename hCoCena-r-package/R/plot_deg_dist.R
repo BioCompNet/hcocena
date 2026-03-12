@@ -23,7 +23,7 @@ plot_deg_dist <- function(){
       ggplot2::labs(x = "log(degree)",
                     y = "log(Probs)",
                     title = hcobject[["layers_names"]][x],
-                    subtitle = base::paste0("Cut-off: ", hcobject[["cutoff_vec"]][x], "; R²: ", base::round(stats[1],3), "; no. edges: ",
+                   subtitle = base::paste0("Cut-off: ", hcobject[["cutoff_vec"]][x], "; R^2: ", base::round(stats[1],3), "; no. edges: ",
                                             stats[2], "; no. nodes: ", stats[3], "; no. networks: ", stats[4]) )
       ggplot2::theme(plot.title = ggplot2::element_text(size = 14), plot.subtitle = ggplot2::element_text(size = 10)) 
     

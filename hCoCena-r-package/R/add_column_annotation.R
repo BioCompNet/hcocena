@@ -13,6 +13,26 @@
 #' @export
 
 col_anno_categorical <- function(variables, variable_label = NULL, type = "abs"){
+  if (base::is.null(variables) || base::length(variables) == 0) {
+    annos <- hcobject[["satellite_outputs"]][["column_annos_categorical"]]
+    if (base::is.null(variable_label) || base::length(variable_label) == 0) {
+      hcobject[["satellite_outputs"]][["column_annos_categorical"]] <<- NULL
+      message("Removed all categorical heatmap column annotations.")
+    } else {
+      variable_label <- base::as.character(variable_label[[1]])
+      if (!base::is.null(annos) && variable_label %in% base::names(annos)) {
+        annos[[variable_label]] <- NULL
+        if (base::length(annos) == 0) {
+          annos <- NULL
+        }
+        hcobject[["satellite_outputs"]][["column_annos_categorical"]] <<- annos
+        message("Removed categorical heatmap column annotation '", variable_label, "'.")
+      } else {
+        message("No categorical heatmap column annotation named '", variable_label, "' was found.")
+      }
+    }
+    return(invisible(NULL))
+  }
 
   ml <- get_anno_matrix(variables = variables)
   m <- unify_mats(ml)
@@ -55,6 +75,27 @@ col_anno_categorical <- function(variables, variable_label = NULL, type = "abs")
 #' @export
 
 col_anno_numerical <- function(variables, variable_label){
+  if (base::is.null(variables) || base::length(variables) == 0) {
+    annos <- hcobject[["satellite_outputs"]][["column_annos_numerical"]]
+    if (base::is.null(variable_label) || base::length(variable_label) == 0) {
+      hcobject[["satellite_outputs"]][["column_annos_numerical"]] <<- NULL
+      message("Removed all numerical heatmap column annotations.")
+    } else {
+      variable_label <- base::as.character(variable_label[[1]])
+      if (!base::is.null(annos) && variable_label %in% base::names(annos)) {
+        annos[[variable_label]] <- NULL
+        if (base::length(annos) == 0) {
+          annos <- NULL
+        }
+        hcobject[["satellite_outputs"]][["column_annos_numerical"]] <<- annos
+        message("Removed numerical heatmap column annotation '", variable_label, "'.")
+      } else {
+        message("No numerical heatmap column annotation named '", variable_label, "' was found.")
+      }
+    }
+    return(invisible(NULL))
+  }
+
   vals <- list()
   for(i in 1:base::length(variables)){
     anno <- hcobject[["data"]][[base::paste0("set", i, "_anno")]]

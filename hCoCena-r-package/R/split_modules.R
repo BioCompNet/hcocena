@@ -1039,6 +1039,8 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
   hcobject[["integrated_output"]][["enrichments"]] <<- NULL
   hcobject[["integrated_output"]][["upstream_inference"]] <<- NULL
   hcobject[["integrated_output"]][["knowledge_network"]] <<- NULL
+  hcobject[["integrated_output"]][["cluster_calc"]][["labelled_network"]] <<- NULL
+  hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]] <<- NULL
 
   sat <- hcobject[["satellite_outputs"]]
   if (is.null(sat) || !is.list(sat)) {
@@ -1048,6 +1050,8 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
   sat[["enrichments"]] <- NULL
   sat[["upstream_inference"]] <- NULL
   sat[["knowledge_network"]] <- NULL
+  sat[["labelled_network"]] <- NULL
+  sat[["network_col_by_module"]] <- NULL
 
   sat_names <- names(sat)
   if (!is.null(sat_names) && length(sat_names) > 0) {

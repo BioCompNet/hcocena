@@ -17,7 +17,7 @@ enriched_keys <- function(file = F, path, enrichment_keys = NULL,
         genes <- dplyr::filter(cluster_info, color == c)%>%
           dplyr::pull(., "gene_n")%>%
           base::strsplit(., split = ",")%>%
-          BiocGenerics::unlist(.)
+          base::unlist(.)
         
         if(db == "GO"){
           if(global_settings$organism %in% c("human", "Human")){
@@ -102,7 +102,7 @@ enriched_keys <- function(file = F, path, enrichment_keys = NULL,
       }
       output[["enrichlist"]] <- enriched_list
     }else{
-      f <- read.csv(path)
+      f <- utils::read.csv(path)
       enrichment_keys <- colnames(f)
       categories_per_cluster <- NULL
 
@@ -111,7 +111,7 @@ enriched_keys <- function(file = F, path, enrichment_keys = NULL,
         genes <- dplyr::filter(cluster_info, color == c)%>%
           dplyr::pull(., "gene_n")%>%
           base::strsplit(., split = ",")%>%
-          BiocGenerics::unlist(.)
+          base::unlist(.)
         
         cell_enrich <- list(counts = list(), genes = list())
         hits <- 0

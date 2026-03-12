@@ -3,12 +3,23 @@
 #' Plots one PCA for each dataset.
 #' @param which One of "all" (uses all genes), "topvar" (uses top most variant genes, cannot be used before running "Data processing part I" in the main markdown), 
 #' 	or "network" (uses the genes present in network, cannot be run before finishing "Data processing part II" in the main markdown).
-#' @param color_by Default is "none" (coloring all dots black), alternatively, set this to a vector of column names (c("name of col in annotation 1", "name of col in annotation 2", ...)), containing the groups by which you want to color.
+#' @param color_by `NULL` (default) auto-uses the global `variable_of_interest` (e.g. `"merged"`).
+#'  Set `"none"` to draw ungrouped points. Alternatively, set this to a vector of
+#'  column names (`c("name of col in annotation 1", "name of col in annotation 2", ...)`)
+#'  containing the groups by which you want to color.
 #' @param ellipses A Boolean. Whether or not to add ellipses to the PCA plot. For details see documentation on factoextra::fviz_pca_ind. Default is FALSE.
+#' @param cols Optional color palette passed to `factoextra::fviz_pca_ind()`.
 #' @export
 
 
-PCA <- function(which = "all", color_by = "none", ellipses = F, cols = NULL){
+PCA <- function(which = "all", color_by = NULL, ellipses = F, cols = NULL){
+
+  default_color_by <- hcobject[["global_settings"]][["voi"]]
+  if (is.null(default_color_by) || length(default_color_by) == 0 || is.na(default_color_by[[1]])) {
+    default_color_by <- "none"
+  } else {
+    default_color_by <- as.character(default_color_by[[1]])
+  }
 
   
   out <- base::lapply(1:base::length(hcobject[["layers"]]), function(x){
@@ -26,14 +37,44 @@ PCA <- function(which = "all", color_by = "none", ellipses = F, cols = NULL){
       message("Invalid parameter setting: which = ", which, " is not recognized.")
     }
     
-    if(length(color_by) == 1){
-      if(color_by == "none"){
-        groups <- "none"
+    this_anno <- hcobject[["data"]][[base::paste0("set", x, "_anno")]]
+    this_color_by <- color_by
+    if (is.null(this_color_by) || (length(this_color_by) == 1 && is.na(this_color_by[[1]]))) {
+      this_color_by <- default_color_by
+    }
+
+    if(length(this_color_by) == 1){
+      this_color_by <- as.character(this_color_by[[1]])
+      if(this_color_by %in% c("auto", "default", "voi")){
+        this_color_by <- default_color_by
+      }
+
+      if(this_color_by == "none"){
+        groups <- base::rep("all", base::nrow(this_anno))
+      }else if(this_color_by %in% base::colnames(this_anno)){
+        groups <- dplyr::pull(this_anno, this_color_by)
       }else{
-        groups <- dplyr::pull(hcobject[["data"]][[base::paste0("set", x, "_anno")]], color_by)
+        warning(
+          "PCA: color_by column '", this_color_by,
+          "' not found in annotation for layer ", hcobject[["layers_names"]][x],
+          ". Falling back to ungrouped points.",
+          call. = FALSE
+        )
+        groups <- base::rep("all", base::nrow(this_anno))
       }
     }else{
-      groups <- dplyr::pull(hcobject[["data"]][[base::paste0("set", x, "_anno")]], color_by[x])
+      this_color_by <- as.character(this_color_by[[x]])
+      if(this_color_by %in% base::colnames(this_anno)){
+        groups <- dplyr::pull(this_anno, this_color_by)
+      }else{
+        warning(
+          "PCA: color_by column '", this_color_by,
+          "' not found in annotation for layer ", hcobject[["layers_names"]][x],
+          ". Falling back to ungrouped points.",
+          call. = FALSE
+        )
+        groups <- base::rep("all", base::nrow(this_anno))
+      }
     }
     
     if(is.null(cols)){

@@ -7,10 +7,10 @@
 plot_cluster_heatmap(
   col_order = NULL,
   row_order = NULL,
-  cluster_columns = T,
+  cluster_columns = FALSE,
   cluster_rows = T,
   k = 0,
-  return_HM = T,
+  return_HM = FALSE,
   cat_as_bp = NULL,
   file_name = "Heatmap_modules.pdf",
   module_label_mode = "prefix",
@@ -28,29 +28,53 @@ plot_cluster_heatmap(
   gene_count_renderer = "pch",
   gene_count_pt_size = NULL,
   gfc_colors = NULL,
-  overall_plot_scale = 1
+  gfc_scale_limits = NULL,
+  gfc_legend_side = "right",
+  pdf_width = 50,
+  pdf_height = 30,
+  pdf_pointsize = 11,
+  pdf_dpi = 300,
+  overall_plot_scale = 1,
+  include_dynamic_enrichment_slots = FALSE,
+  celltype_bar_top_n = 3,
+  celltype_bar_include_other = TRUE,
+  celltype_bar_other_label = "Other",
+  celltype_bar_show_dominant = TRUE,
+  celltype_bar_dominant_width_cm = 2.8,
+  celltype_bar_mode = "bar_and_text",
+  include_module_significance = FALSE,
+  module_significance_slot = "module_condition_significance",
+  module_significance_method = "auto",
+  module_significance_show_qvalue = FALSE,
+  module_significance_width_cm = 1.6,
+  module_significance_p_cutoffs = c(0.001, 0.01, 0.05),
+  module_significance_annotation_name = "sig"
 )
 }
 \arguments{
 \item{col_order}{Defines the order in which the sample groups (conditions) appear in the heatmap.
-Accepts a vector of strings giving the conditions in their desired order, default is NULL (automatic order, determined by clustering).
-If the parameter cluster_columns is not set to FALSE, this order will be overwritten.}
+Accepts a vector of strings giving the conditions in their desired order.
+If \code{NULL} and \code{cluster_columns = FALSE}, the column order from the previous
+main hCoCena heatmap is reused when available.
+If \code{cluster_columns = TRUE}, this order is overwritten by clustering.}
 
 \item{row_order}{Like col_order but with cluster names.}
 
-\item{cluster_columns}{A Boolean, whether or not to cluster the columns of the heatmap. Default is TRUE, overwrites col_order.}
+\item{cluster_columns}{A Boolean, whether or not to cluster the columns of
+the heatmap. Default is FALSE so the main hCoCena column order is preserved.}
 
 \item{cluster_rows}{Like cluster_columns but for rows.}
 
 \item{k}{The resulting cluster_columns tree is cut into k groups. Default is 0 (no cutting).}
 
-\item{return_HM}{A Boolean whether of not to return the ComplexHeatmap object to hcobject$integrated_output$cluster_calc$heatmap_cluster in addition to plotting it. Default is TRUE.}
+\item{return_HM}{A Boolean whether of not to return the ComplexHeatmap object to hcobject$integrated_output$cluster_calc$heatmap_cluster in addition to plotting it. Default is FALSE.}
 
 \item{cat_as_bp}{A vector of Booleans which length is equivalent to the number of categorical meta data annotations created with the satellite functions.
 Each Boolean states whether or not the categorical variable should be annotated as a bar plot (TRUE) or as a line plot (FALSE).
 If you did not perform any meta data annotation, ignore this parameter.}
 
-\item{file_name}{A string giving the name of the file (with .pdf ending) to which the heatmap should be written. Default is "Heatmap_modules.pdf".}
+\item{file_name}{A string giving the name of the file (with .pdf ending) to which the heatmap should be written.
+Use \code{NULL} or \code{FALSE} to skip PDF export. Default is \code{"Heatmap_modules.pdf"} in the legacy API.}
 
 \item{module_label_mode}{Controls labels in module color boxes. One of "legacy", "prefix", "color", "none".
 "legacy" keeps the current behavior. "prefix" writes indexed labels like "M1", "M2", ...
@@ -59,8 +83,10 @@ Default is "prefix".}
 \item{module_prefix}{Prefix used when \code{module_label_mode = "prefix"}. Default is "M".}
 
 \item{module_label_numbering}{Controls when prefix labels are numbered.
-One of "before_clustering" or "after_clustering". With "after_clustering",
-modules are numbered along the clustered row order (M1, M2, ...).}
+One of "before_clustering", "after_clustering", or "preserve_existing".
+With "after_clustering", modules are numbered along the clustered row order (M1, M2, ...).
+With "preserve_existing", existing labels from \code{module_label_map} are reused
+(useful after module splitting, e.g. M1.1, M1.2, ...).}
 
 \item{show_module_color_names}{A Boolean. If FALSE, row names with legacy module color names are hidden.}
 
@@ -93,13 +119,83 @@ Default is "pch".}
 Uses \code{snpc} units. If NULL, it follows the module-label glyph size.}
 
 \item{gfc_colors}{Optional character vector of colors for the GFC color scale.
-If NULL, uses the legacy default \code{rev(RColorBrewer::brewer.pal(11, "RdBu"))}.}
+If NULL, uses the hCoCena default GFC palette (RdBu-based with darker extremes).}
+
+\item{gfc_scale_limits}{Optional numeric vector controlling the module-heatmap
+color scale limits. Provide either one positive number (\code{x} -> \code{c(-x, x)}) or
+two numbers (\code{c(min, max)}). If NULL, uses stored limits from the previous
+main heatmap run, otherwise falls back to \code{c(-range_GFC, range_GFC)}.}
+
+\item{gfc_legend_side}{Side of the GFC heatmap legend. One of \code{"left"},
+\code{"right"}, or \code{"bottom"}. Default is \code{"right"}.}
+
+\item{pdf_width}{Numeric PDF width in inches for saved heatmap output.
+Default is 50.}
+
+\item{pdf_height}{Numeric PDF height in inches for saved heatmap output.
+Default is 30.}
+
+\item{pdf_pointsize}{Numeric base pointsize for saved heatmap PDF.
+Default is 11.}
+
+\item{pdf_dpi}{Numeric raster DPI passed to the Cairo PDF backend.
+Default is 300.}
 
 \item{overall_plot_scale}{Numeric scaling factor for the overall heatmap output.
 Values > 1 enlarge the plot, values < 1 shrink it. Default is 1.}
+
+\item{include_dynamic_enrichment_slots}{Logical. If \code{TRUE}, also include
+dynamically named enrichment slots (e.g. \verb{enriched_per_cluster_<db>}).
+Default is \code{FALSE} to keep the standard heatmap behavior unchanged.}
+
+\item{celltype_bar_top_n}{Integer. Keep only the globally top-N cell types
+(by summed annotation weights) in stacked row barplots; optionally collapse
+the rest into \code{celltype_bar_other_label}. Set \code{NULL} to keep all.
+Default is \code{3}.}
+
+\item{celltype_bar_include_other}{Logical. If \code{TRUE}, collapsed categories
+are shown as one additional segment (\code{celltype_bar_other_label}).}
+
+\item{celltype_bar_other_label}{Label used for the collapsed segment.}
+
+\item{celltype_bar_show_dominant}{Logical. If \code{TRUE}, add a text column next
+to each stacked bar with the dominant cell type per module.}
+
+\item{celltype_bar_dominant_width_cm}{Width in cm of the dominant cell-type
+text column.}
+
+\item{celltype_bar_mode}{Controls display of dynamic cell-type annotations.
+One of \code{"bar_and_text"}, \code{"bar"}, or \code{"text"}.
+Default is \code{"bar_and_text"}.}
+
+\item{include_module_significance}{Logical. If \code{TRUE}, add a right-side row
+annotation with module-significance labels from
+\code{satellite_outputs[[module_significance_slot]]}.}
+
+\item{module_significance_slot}{Character scalar naming the satellite slot
+produced by \code{module_condition_significance()}. Default is
+\code{"module_condition_significance"}.}
+
+\item{module_significance_method}{Which method to visualize. One of
+\code{"auto"}, \code{"wilcox"}, \code{"limma"}, \code{"lmm"}. \code{"auto"} prefers \code{wilcox},
+then \code{limma}, then \code{lmm}, then summary fallback columns.}
+
+\item{module_significance_show_qvalue}{Logical. If \code{TRUE}, print q-values
+next to significance stars.}
+
+\item{module_significance_width_cm}{Width (cm) of the significance
+annotation column.}
+
+\item{module_significance_p_cutoffs}{Numeric length-3 vector used for star
+labels (\verb{***}, \verb{**}, \code{*}).}
+
+\item{module_significance_annotation_name}{Column name displayed above the
+significance annotation.}
 }
 \description{
 Plots a heatmap with sample groups as columns and gene clusters as rows. The cells are coloured according to the mean GFC of a given cluster in the respective sample group.
 If categorical or numerical metadata annotations or user-defined enrichments have been created with satellite functions, they will be incorporated into the heatmap as column/row annotations.
+A \code{Module_Gene_List.xlsx} export (columns: \code{genes}, \code{module}) is written to the save folder
+based on the currently displayed module labels (including split-module labels, if present).
 For the available options check out the satellite functions.
 }

@@ -8,6 +8,8 @@ export_to_cytoscape(name = "my igraph", docker_container = FALSE)
 }
 \arguments{
 \item{name}{A string. The name given to the graph in Cytoscape. Default is "my igraph".}
+
+\item{docker_container}{Deprecated legacy flag kept for backward compatibility.}
 }
 \description{
 Attention: Cytoscape Software must be open.

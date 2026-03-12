@@ -27,6 +27,13 @@
 #'   heatmap color scale limits. Provide one positive number (`x` -> `c(-x, x)`)
 #'   or two numbers (`c(min, max)`). If NULL, uses upstream inference settings
 #'   first (if available), then main heatmap settings, then `c(-range_GFC, range_GFC)`.
+#' @param heatmap_col_order Optional character vector overriding the hCoCena
+#'   heatmap column order for this knowledge-network plot only. If `NULL`
+#'   (default), the column order from the main module heatmap is reused when
+#'   available.
+#' @param heatmap_cluster_columns Logical. If `FALSE` (default), reuse the
+#'   column order from the main hCoCena heatmap when available. If `TRUE`,
+#'   cluster the columns for this knowledge-network plot instead.
 #' @param pdf_width Optional numeric width (inches) for network PDFs.
 #'   If NULL (default), width is auto-estimated from content.
 #' @param pdf_height Optional numeric height (inches) for network PDFs.
@@ -47,6 +54,8 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
                                              save_pdf = TRUE,
                                              pdf_name = "Module_Knowledge_Network.pdf",
                                              gfc_scale_limits = NULL,
+                                             heatmap_col_order = NULL,
+                                             heatmap_cluster_columns = FALSE,
                                              pdf_width = NULL,
                                              pdf_height = NULL,
                                              pdf_pointsize = 11,
@@ -95,6 +104,14 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     stop("`overall_plot_scale` must be a positive numeric scalar.")
   }
   overall_plot_scale <- base::max(0.5, base::min(3, overall_plot_scale))
+  if (!base::is.null(heatmap_col_order)) {
+    heatmap_col_order <- base::as.character(heatmap_col_order)
+  }
+  if (!base::is.logical(heatmap_cluster_columns) ||
+      base::length(heatmap_cluster_columns) != 1 ||
+      base::is.na(heatmap_cluster_columns)) {
+    stop("`heatmap_cluster_columns` must be TRUE or FALSE.")
+  }
 
   normalize_scale_limits <- function(x) {
     if (base::is.null(x)) {
@@ -174,24 +191,15 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
   }
 
   cluster_calc <- hcobject[["integrated_output"]][["cluster_calc"]]
-  stored_hm <- cluster_calc[["heatmap_cluster"]]
+  heatmap_info <- .hc_heatmap_cache_info(cluster_calc)
+  stored_hm <- heatmap_info$heatmap_obj
+  main_heatmap_col_order <- heatmap_info$col_order
 
   cluster_order <- all_clusters
-  if (!base::is.null(stored_hm)) {
-    row_order <- tryCatch(ComplexHeatmap::row_order(stored_hm), error = function(e) NULL)
-    if (base::is.list(row_order) && base::length(row_order) > 0) {
-      row_order <- row_order[[1]]
-    }
-    hm_rows <- tryCatch(base::rownames(stored_hm@ht_list[[1]]@matrix), error = function(e) NULL)
-    if (!base::is.null(hm_rows)) {
-      if (base::is.numeric(row_order) && base::length(row_order) == base::length(hm_rows)) {
-        cluster_order <- hm_rows[row_order]
-      } else if (base::is.character(row_order)) {
-        cluster_order <- row_order
-      }
-      cluster_order <- cluster_order[cluster_order %in% all_clusters]
-      cluster_order <- base::c(cluster_order, base::setdiff(all_clusters, cluster_order))
-    }
+  if (!base::is.null(heatmap_info$row_order) && base::length(heatmap_info$row_order) > 0) {
+    cluster_order <- heatmap_info$row_order
+    cluster_order <- cluster_order[cluster_order %in% all_clusters]
+    cluster_order <- base::c(cluster_order, base::setdiff(all_clusters, cluster_order))
   }
   cluster_order <- cluster_order[cluster_order %in% clusters]
   if (base::length(cluster_order) == 0) {
@@ -1076,6 +1084,9 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
                                     module_label_map,
                                     cluster_info,
                                     stored_hm,
+                                    main_heatmap_col_order = NULL,
+                                    heatmap_col_order = NULL,
+                                    heatmap_cluster_columns = FALSE,
                                     override_mat = NULL,
                                     override_col_order = base::character(0),
                                     value_name = "GFC",
@@ -1138,38 +1149,15 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
       return(NULL)
     }
 
-    if (base::length(override_col_order) > 0) {
-      hm_cols <- base::colnames(heatmap_mat)
-      ordered_cols <- base::as.character(override_col_order)
-      ordered_cols <- ordered_cols[ordered_cols %in% hm_cols]
-      ordered_cols <- base::c(ordered_cols, base::setdiff(hm_cols, ordered_cols))
-      if (base::length(ordered_cols) > 0) {
-        heatmap_mat <- heatmap_mat[, ordered_cols, drop = FALSE]
-      }
-    } else if (!base::is.null(stored_hm) && base::ncol(heatmap_mat) > 0) {
-      hm_cols <- base::colnames(heatmap_mat)
-      col_order_ref <- tryCatch(ComplexHeatmap::column_order(stored_hm), error = function(e) NULL)
-      if (base::is.list(col_order_ref) && base::length(col_order_ref) > 0) {
-        col_order_ref <- col_order_ref[[1]]
-      }
-      ordered_cols <- NULL
-      if (base::is.numeric(col_order_ref) && base::length(col_order_ref) == base::length(hm_cols)) {
-        ordered_cols <- hm_cols[col_order_ref]
-      } else if (base::is.character(col_order_ref) && base::length(col_order_ref) > 0) {
-        ordered_cols <- col_order_ref
-      } else {
-        stored_cols <- tryCatch(base::colnames(stored_hm@ht_list[[1]]@matrix), error = function(e) NULL)
-        if (!base::is.null(stored_cols) && base::length(stored_cols) > 0) {
-          ordered_cols <- stored_cols
-        }
-      }
-      if (!base::is.null(ordered_cols)) {
-        ordered_cols <- base::as.character(ordered_cols)
-        ordered_cols <- ordered_cols[ordered_cols %in% hm_cols]
-        ordered_cols <- base::c(ordered_cols, base::setdiff(hm_cols, ordered_cols))
-        heatmap_mat <- heatmap_mat[, ordered_cols, drop = FALSE]
-      }
-    }
+    prepared_cols <- .hc_prepare_plot_heatmap_columns(
+      mat = heatmap_mat,
+      cluster_columns = heatmap_cluster_columns,
+      plot_order = heatmap_col_order,
+      main_order = main_heatmap_col_order,
+      fallback_order = override_col_order,
+      context = "knowledge network heatmap"
+    )
+    heatmap_mat <- prepared_cols$mat
 
     keep_clusters <- cluster_order[cluster_order %in% base::rownames(heatmap_mat)]
     if (base::length(keep_clusters) == 0) {
@@ -1219,7 +1207,7 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
       stored_gfc_colors <- base::as.character(stored_gfc_colors)
     }
     if (base::is.null(stored_gfc_colors)) {
-      stored_gfc_colors <- base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))
+      stored_gfc_colors <- .hc_default_gfc_colors()
     }
 
     list(
@@ -1354,6 +1342,9 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     module_label_map = module_label_map,
     cluster_info = cluster_info,
     stored_hm = stored_hm,
+    main_heatmap_col_order = main_heatmap_col_order,
+    heatmap_col_order = heatmap_col_order,
+    heatmap_cluster_columns = heatmap_cluster_columns,
     override_mat = upstream_module_heatmap_mat,
     override_col_order = upstream_module_heatmap_col_order,
     value_name = upstream_module_heatmap_name,
@@ -1941,7 +1932,6 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
       max_upstream_per_module = max_upstream_per_module
     )
   )
-  hcobject[["integrated_output"]][["knowledge_network"]] <<- output
   hcobject[["satellite_outputs"]][["knowledge_network"]] <<- output
   output
 }

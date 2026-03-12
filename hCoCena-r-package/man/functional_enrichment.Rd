@@ -6,6 +6,7 @@
 \usage{
 functional_enrichment(
   gene_sets = "Hallmark",
+  custom_gmt_files = NULL,
   top = 5,
   clusters = c("all"),
   padj = "BH",
@@ -15,6 +16,7 @@ functional_enrichment(
   heatmap_cluster_columns = FALSE,
   heatmap_show_row_dend = FALSE,
   heatmap_show_column_dend = FALSE,
+  heatmap_col_order = NULL,
   heatmap_order = NULL,
   heatmap_module_label_mode = "same",
   heatmap_show_gene_counts = FALSE,
@@ -22,14 +24,31 @@ functional_enrichment(
   enrichment_row_height_scale = 0.9,
   enrichment_column_spacing_scale = 1,
   enrichment_line_width_scale = 1,
+  heatmap_column_label_fontsize = NULL,
+  heatmap_module_label_fontsize = NULL,
+  legend_fontsize = NULL,
+  enrichment_label_fontsize = NULL,
+  enrichment_db_header_fontsize = NULL,
+  enrichment_label_wrap = FALSE,
+  enrichment_label_wrap_width = 30,
   gfc_colors = NULL,
-  overall_plot_scale = 1
+  gfc_scale_limits = NULL,
+  pdf_width = NULL,
+  pdf_height = NULL,
+  pdf_pointsize = 11,
+  overall_plot_scale = 1,
+  store_panel_objects = c("auto", "always", "never")
 )
 }
 \arguments{
 \item{gene_sets}{A vector. The names of databases enrichment should be performed for. Choose one or multiple of "Go", "Kegg", "Hallmark", and/or "Reactome".
 Available databases depend on supplement files previously set
 Default is "Hallmark".}
+
+\item{custom_gmt_files}{Optional custom GMT file(s) to include directly in
+enrichment. Accepts a character vector or named list of file paths.
+Unnamed entries are auto-labeled (\code{CustomEnrichment1}, ...). Paths can be
+absolute/relative or file names inside \code{dir_reference_files}.}
 
 \item{top}{Integer. The number of most strongly enriched terms to return per cluster. Default is 5.}
 
@@ -49,6 +68,10 @@ Choose one of "left" (default) or "right".}
 \item{heatmap_show_row_dend}{A Boolean whether to show the row dendrogram when \code{heatmap_cluster_rows = TRUE}.}
 
 \item{heatmap_show_column_dend}{A Boolean whether to show the column dendrogram when \code{heatmap_cluster_columns = TRUE}.}
+
+\item{heatmap_col_order}{Optional character vector overriding the hCoCena
+heatmap column order for this enrichment plot only. If \code{NULL} (default),
+the column order from the main module heatmap is reused when available.}
 
 \item{heatmap_order}{Optional character vector specifying module order in the hCoCena heatmap.
 Entries can be module colors (e.g. "turquoise") or module labels from the main heatmap
@@ -76,13 +99,55 @@ panel narrower; values > 1 increase spacing. Default is 1.}
 enrichment panel (module guide lines and vertical helper lines). Values < 1 make
 lines thinner; values > 1 make lines thicker. Default is 1.}
 
+\item{heatmap_column_label_fontsize}{Optional numeric font size for hCoCena
+heatmap column labels in enrichment plots. If NULL (default), uses automatic sizing.}
+
+\item{heatmap_module_label_fontsize}{Optional numeric font size for module labels
+inside module color boxes (\code{M1}, \code{M2}, ...). If NULL (default), uses automatic sizing.}
+
+\item{legend_fontsize}{Optional numeric base font size for enrichment-related legends
+(GFC legend and enrichment significance legend). If NULL (default), uses automatic sizing.}
+
+\item{enrichment_label_fontsize}{Optional numeric font size for enrichment term labels.
+If NULL (default), uses automatic sizing.}
+
+\item{enrichment_db_header_fontsize}{Optional numeric font size for database
+headers in combined all-DB enrichment plots (e.g. "Go", "Kegg", "Hallmark").
+If NULL (default), uses automatic sizing.}
+
+\item{enrichment_label_wrap}{Logical. If TRUE, wraps enrichment term labels using
+\code{enrichment_label_wrap_width}. Default is FALSE.}
+
+\item{enrichment_label_wrap_width}{Integer wrap width used when
+\code{enrichment_label_wrap = TRUE}. Default is 30.}
+
 \item{gfc_colors}{Optional character vector of colors for the hCoCena heatmap
-GFC scale. If NULL, uses the legacy default
-\code{rev(RColorBrewer::brewer.pal(11, "RdBu"))}.}
+GFC scale. If NULL, uses the hCoCena default GFC palette
+(RdBu-based with darker extremes).}
+
+\item{gfc_scale_limits}{Optional numeric vector controlling the module-heatmap
+color scale limits used in enrichment plots. Provide one positive number
+(\code{x} -> \code{c(-x, x)}) or two numbers (\code{c(min, max)}). If NULL, uses stored
+limits from the latest main module heatmap when available, otherwise
+falls back to \code{c(-range_GFC, range_GFC)}.}
+
+\item{pdf_width}{Optional numeric width (inches) for enrichment PDFs.
+If NULL (default), width is auto-estimated from content.}
+
+\item{pdf_height}{Optional numeric height (inches) for enrichment PDFs.
+If NULL (default), height is auto-estimated from content.}
+
+\item{pdf_pointsize}{Numeric base pointsize used for PDF devices.
+Default is 11.}
 
 \item{overall_plot_scale}{Numeric scaling factor for the entire combined output
 (hCoCena heatmap + enrichment panel + title/labels/legend). Values > 1 enlarge
 the full plot, values < 1 make it smaller. Default is 1.}
+
+\item{store_panel_objects}{One of \code{"auto"} (default), \code{"always"}, or \code{"never"}.
+Controls whether heavy heatmap/panel objects are stored inside \code{hc} for later
+redraw with \code{hc_plot_enrichment_panels()}. \code{"auto"} stores them only for a
+single selected database; multi-database runs keep only tables to save memory.}
 }
 \description{
 Returns a cluster-wise Gene Ontology Database enrichment.

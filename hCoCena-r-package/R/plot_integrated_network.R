@@ -6,8 +6,13 @@
 #'   If `NULL` (default), the algorithm from `set_global_settings()` is used.
 #'   Supported values are `"layout_with_fr"`, `"layout_with_stress"`,
 #'   `"layout_with_sparse_stress"`, `"layout_with_drl"`, `"layout_with_kk"` and `"cytoscape"`.
+#'   If a stress-based layout is selected but `graphlayouts` is unavailable,
+#'   plotting falls back to `"layout_with_fr"` with a warning.
 #' @param gene_labels A vector of character strings containing the names of genes to be labelled. Labels will be placed with an offset, which can be adjusted using the label_offset parameter.
 #' @param save A Boolean stating whether of not to save the network to a PDF. Default is TRUE.
+#' @param store_plot A Boolean whether to persist the plotted network object(s)
+#'   in `satellite_outputs`. Default is FALSE to avoid storing large plot caches
+#'   unless explicitly requested.
 #' @param label_offset The offset of provided gene labels to the network center. Default is 50, depends on network size.
 #' @export
 
@@ -15,15 +20,20 @@ plot_integrated_network <- function(layout = NULL,
                                     layout_algorithm = NULL,
 									gene_labels = NULL, 
 									save = T, 
+									store_plot = FALSE,
 									label_offset = 50){
 
   network <- hcobject[["integrated_output"]][["merged_net"]]
+  sat <- hcobject[["satellite_outputs"]]
+  if (base::is.null(sat) || !base::is.list(sat)) {
+    sat <- list()
+  }
   if (!base::is.null(layout_algorithm)) {
     layout_algorithm <- .hc_normalize_layout_algorithm(layout_algorithm)
   } else {
     layout_algorithm <- hcobject[["global_settings"]][["layout_algorithm"]]
     if (base::is.null(layout_algorithm) || base::length(layout_algorithm) == 0 || base::is.na(layout_algorithm)) {
-      layout_algorithm <- "layout_with_fr"
+      layout_algorithm <- "layout_with_stress"
     } else {
       layout_algorithm <- base::as.character(layout_algorithm[[1]])
     }
@@ -31,11 +41,11 @@ plot_integrated_network <- function(layout = NULL,
       .hc_normalize_layout_algorithm(layout_algorithm),
       error = function(e) {
         warning(
-          "Invalid global `layout_algorithm` in settings. Falling back to `layout_with_fr`.\n",
+          "Invalid global `layout_algorithm` in settings. Falling back to `layout_with_stress`.\n",
           "Details: ", conditionMessage(e),
           call. = FALSE
         )
-        "layout_with_fr"
+        "layout_with_stress"
       }
     )
   }
@@ -84,27 +94,33 @@ plot_integrated_network <- function(layout = NULL,
         "layout_with_kk" = igraph::layout_with_kk(network),
         "layout_with_stress" = {
           if (!requireNamespace("graphlayouts", quietly = TRUE)) {
-            stop(
+            warning(
               "layout_with_stress requires the optional package `graphlayouts`.\n",
-              "Install it via: install.packages('graphlayouts')"
+              "Falling back to `layout_with_fr`. Install via: install.packages('graphlayouts')",
+              call. = FALSE
             )
+            igraph::layout_with_fr(network)
+          } else {
+            graphlayouts::layout_with_stress(network)
           }
-          graphlayouts::layout_with_stress(network)
         },
         "layout_with_sparse_stress" = {
           if (!requireNamespace("graphlayouts", quietly = TRUE)) {
-            stop(
+            warning(
               "layout_with_sparse_stress requires the optional package `graphlayouts`.\n",
-              "Install it via: install.packages('graphlayouts')"
+              "Falling back to `layout_with_fr`. Install via: install.packages('graphlayouts')",
+              call. = FALSE
             )
-          }
-          n_nodes <- igraph::vcount(network)
-          if (n_nodes < 3) {
             igraph::layout_with_fr(network)
           } else {
-            pivots <- as.integer(max(10, min(100, floor(sqrt(n_nodes)))))
-            pivots <- as.integer(min(pivots, n_nodes - 1L))
-            graphlayouts::layout_with_sparse_stress(network, pivots = pivots)
+            n_nodes <- igraph::vcount(network)
+            if (n_nodes < 3) {
+              igraph::layout_with_fr(network)
+            } else {
+              pivots <- as.integer(max(10, min(100, floor(sqrt(n_nodes)))))
+              pivots <- as.integer(min(pivots, n_nodes - 1L))
+              graphlayouts::layout_with_sparse_stress(network, pivots = pivots)
+            }
           }
         },
         {
@@ -226,8 +242,16 @@ plot_integrated_network <- function(layout = NULL,
                         edge.color = new_edge_color, vertex.label.color = new_label_color,
                         vertex.frame.color = new_frame_color)
     
-    hcobject[["integrated_output"]][["cluster_calc"]][["labelled_network"]] <<- network2
-    hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]] <<- network
+    if (isTRUE(store_plot)) {
+      sat[["labelled_network"]] <- network2
+      sat[["network_col_by_module"]] <- network
+    } else {
+      sat[["labelled_network"]] <- NULL
+      sat[["network_col_by_module"]] <- NULL
+    }
+    hcobject[["satellite_outputs"]] <<- sat
+    hcobject[["integrated_output"]][["cluster_calc"]][["labelled_network"]] <<- NULL
+    hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]] <<- NULL
   }else{
     
     if(save == T){
@@ -244,8 +268,15 @@ plot_integrated_network <- function(layout = NULL,
     igraph::plot.igraph(network, vertex.label = NA, vertex.size = 3, 
                         layout = l, main = "Co-expression network coloured by module")
     
-    hcobject[["integrated_output"]][["cluster_calc"]][["labelled_network"]] <<- list()
-    hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]] <<- network
+    sat[["labelled_network"]] <- NULL
+    if (isTRUE(store_plot)) {
+      sat[["network_col_by_module"]] <- network
+    } else {
+      sat[["network_col_by_module"]] <- NULL
+    }
+    hcobject[["satellite_outputs"]] <<- sat
+    hcobject[["integrated_output"]][["cluster_calc"]][["labelled_network"]] <<- NULL
+    hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]] <<- NULL
   }
   
   

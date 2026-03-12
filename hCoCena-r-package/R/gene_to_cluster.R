@@ -1,6 +1,8 @@
 #' Gene To Cluster Dictionary
 #' 
 #' The function maps the gene names to their corresponding cluster.
+#' @param cluster_information Cluster table, typically
+#'   `hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]]`.
 #' @return A data frame with two columns, the first containing gene names as strings, the second containing cluster colours as strings.
 #' @export
 

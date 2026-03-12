@@ -5,14 +5,14 @@
 \title{Define Global Settings}
 \usage{
 set_global_settings(
-  organism,
-  control_keyword,
-  variable_of_interest,
-  min_nodes_number_for_network = 15,
-  min_nodes_number_for_cluster = 15,
+  organism = "human",
+  control_keyword = "none",
+  variable_of_interest = "merged",
+  min_nodes_number_for_network = 50,
+  min_nodes_number_for_cluster = 50,
   range_GFC = 2,
-  layout_algorithm = "layout_with_fr",
-  data_in_log
+  layout_algorithm = "layout_with_stress",
+  data_in_log = TRUE
 )
 }
 \arguments{
@@ -23,14 +23,14 @@ The string must only be contained in the descriptor, e.g. "healthy" would work f
 
 \item{variable_of_interest}{The name of the column that mus be rpesent in all annotation files and which will be used for grouping samples, e.g., "condition"".}
 
-\item{min_nodes_number_for_network}{An integer. The minimum number of nodes in the subsequently created network that can define a graph component. Graph components with less nodes will be discarded. Default is 15.}
+\item{min_nodes_number_for_network}{An integer. The minimum number of nodes in the subsequently created network that can define a graph component. Graph components with less nodes will be discarded. Default is 50.}
 
-\item{min_nodes_number_for_cluster}{An integer. The minimum number of nodes that constitute a module/cluster when detecting community structures in the network. Default is 15.}
+\item{min_nodes_number_for_cluster}{An integer. The minimum number of nodes that constitute a module/cluster when detecting community structures in the network. Default is 50.}
 
 \item{range_GFC}{A float. Defines the maximum value the group fold changes (GFCs) can acquire, all values above this value or beneath its negative will be truncated. Default is 2.0.}
 
 \item{layout_algorithm}{Layout algorithm used for the network. Supported values are:
-\code{"layout_with_fr"} (default), \code{"layout_with_stress"}, \code{"layout_with_sparse_stress"},
+\code{"layout_with_stress"} (default), \code{"layout_with_sparse_stress"}, \code{"layout_with_fr"},
 \code{"layout_with_drl"}, \code{"layout_with_kk"} and \code{"cytoscape"}.
 The stress-based layouts require the optional \code{graphlayouts} package and are typically
 more stable/readable than Fruchterman-Reingold for medium/large graphs.

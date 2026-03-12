@@ -153,7 +153,7 @@
   out <- S4Vectors::SimpleList()
   for (nm in base::names(layer_specific_outputs)) {
     x <- layer_specific_outputs[[nm]]
-    out[[nm]] <- new(
+    out[[nm]] <- methods::new(
       "HCoCenaLayerResult",
       part1 = S4Vectors::SimpleList(x[["part1"]] %||% list()),
       part2 = S4Vectors::SimpleList(x[["part2"]] %||% list())
@@ -242,14 +242,14 @@ as_hcocena <- function(hcobject) {
   paths_df <- .hc_to_data_frame(hcobject[["working_directory"]])
   layer_df <- .hc_build_layer_config(hcobject)
 
-  cfg <- new("HCoCenaConfig", global = global_df, layer = layer_df, paths = paths_df)
-  refs <- new(
+  cfg <- methods::new("HCoCenaConfig", global = global_df, layer = layer_df, paths = paths_df)
+  refs <- methods::new(
     "HCoCenaReferences",
     registry = .hc_reference_registry(hcobject[["supplement"]]),
     data = S4Vectors::SimpleList(hcobject[["supplementary_data"]] %||% list())
   )
   layer_results <- .hc_build_layer_results(hcobject[["layer_specific_outputs"]])
-  integration <- new(
+  integration <- methods::new(
     "HCoCenaIntegration",
     combined_edgelist = .hc_to_data_frame(hcobject[["integrated_output"]][["combined_edgelist"]]),
     graph = hcobject[["integrated_output"]][["merged_net"]],
@@ -257,7 +257,7 @@ as_hcocena <- function(hcobject) {
     cluster = S4Vectors::SimpleList(hcobject[["integrated_output"]][["cluster_calc"]] %||% list())
   )
 
-  hc <- new(
+  hc <- methods::new(
     "HCoCenaExperiment",
     mae = .hc_build_mae(hcobject, layer_df),
     config = cfg,
@@ -278,10 +278,19 @@ as_hcocena <- function(hcobject) {
   if (base::nrow(df) == 0 || base::ncol(df) == 0) {
     return(list())
   }
-  out <- as.list(df[1, , drop = FALSE])
-  base::lapply(out, function(v) {
-    if (base::length(v) == 1) v[[1]] else v
-  })
+
+  cols <- base::colnames(df)
+  out <- stats::setNames(vector("list", base::length(cols)), cols)
+
+  for (nm in cols) {
+    v <- df[[nm]]
+    if (base::length(v) == 0) {
+      next
+    }
+    out[[nm]] <- if (base::length(v) == 1) v[[1]] else v
+  }
+
+  out
 }
 
 #' Convert `HCoCenaExperiment` to legacy `hcobject`

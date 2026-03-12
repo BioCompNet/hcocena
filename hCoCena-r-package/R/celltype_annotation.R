@@ -230,6 +230,8 @@ hc_list_celltype_databases <- function(pattern = NULL,
 #' tissue/cell-type databases.
 #'
 #' @param database Enrichr library name.
+#' @param pattern Backward-compatible alias for `tissue_pattern`.
+#' @param n Backward-compatible alias for `max_terms`.
 #' @param tissue_pattern Optional regular expression used to filter term names.
 #' @param max_terms Maximum number of terms to return. Default is 80.
 #' @param max_genes_per_term Maximum number of genes shown in `genes_preview`
@@ -239,12 +241,26 @@ hc_list_celltype_databases <- function(pattern = NULL,
 #' @return A data frame with terms and gene counts.
 #' @export
 hc_preview_celltype_database <- function(database,
+                                         pattern = NULL,
+                                         n = NULL,
                                          tissue_pattern = NULL,
                                          max_terms = 80,
                                          max_genes_per_term = 25,
                                          include_genes = TRUE) {
   if (!base::is.character(database) || base::length(database) != 1 || base::is.na(database) || !base::nzchar(database)) {
     stop("`database` must be a single non-empty character string.")
+  }
+  if (!base::is.null(pattern)) {
+    if (!base::is.null(tissue_pattern)) {
+      stop("Use either `pattern` or `tissue_pattern`, not both.")
+    }
+    tissue_pattern <- pattern
+  }
+  if (!base::is.null(n)) {
+    if (!base::is.null(max_terms) && !identical(max_terms, 80)) {
+      stop("Use either `n` or `max_terms`, not both.")
+    }
+    max_terms <- n
   }
   if (!base::is.numeric(max_terms) || base::length(max_terms) != 1 || base::is.na(max_terms) || max_terms < 1) {
     stop("`max_terms` must be a positive integer.")
@@ -1071,7 +1087,10 @@ celltype_annotation <- function(
       file_name = heatmap_file_name,
       gene_count_mode = "none",
       module_label_preset = "compact",
-      include_dynamic_enrichment_slots = TRUE
+      include_dynamic_enrichment_slots = TRUE,
+      celltype_bar_show_dominant = TRUE,
+      celltype_bar_top_n = top,
+      celltype_bar_include_other = TRUE
     )
 
     cluster_calc <- tryCatch(

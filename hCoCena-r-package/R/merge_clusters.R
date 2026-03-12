@@ -23,7 +23,11 @@ merge_clusters <- function(k = 1,
                            k_max = NULL,
                            auto_parsimony_penalty = 1e-04,
                            verbose = TRUE) {
-  m <- hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster"]]@ht_list[[1]]@matrix
+  heatmap_info <- .hc_heatmap_cache_info(hcobject[["integrated_output"]][["cluster_calc"]])
+  m <- heatmap_info$matrix
+  if (is.null(m)) {
+    stop("No module heatmap cache found. Run `plot_cluster_heatmap()` first.")
+  }
   m <- as.matrix(m)
   if (nrow(m) < 2) {
     stop("Need at least 2 modules to merge.")

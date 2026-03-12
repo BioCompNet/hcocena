@@ -36,6 +36,12 @@
 #'   `dir_reference_files`.
 #' @param heatmap_side Position of the hCoCena heatmap in the combined output.
 #'   Choose one of `"left"` (default) or `"right"`.
+#' @param heatmap_cluster_columns Logical. If `FALSE` (default), reuse the
+#'   column order from the main hCoCena heatmap when available. If `TRUE`,
+#'   cluster the columns for this upstream plot instead.
+#' @param heatmap_col_order Optional character vector overriding the hCoCena
+#'   heatmap column order for this upstream plot only. If `NULL` (default),
+#'   the column order from the main module heatmap is reused when available.
 #' @param gfc_scale_limits Optional numeric vector controlling the module-heatmap
 #'   color scale limits used in upstream combined heatmaps (left/right hCoCena
 #'   panel). Provide one positive number (`x` -> `c(-x, x)`) or two numbers
@@ -79,6 +85,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
                                fc_comparisons = NULL,
                                custom_pathway_gmt = NULL,
                                heatmap_side = "left",
+                               heatmap_cluster_columns = FALSE,
+                               heatmap_col_order = NULL,
                                gfc_scale_limits = NULL,
                                plot = TRUE,
                                save_pdf = TRUE,
@@ -176,6 +184,14 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     stop("`overall_plot_scale` must be a positive numeric scalar.")
   }
   overall_plot_scale <- base::max(0.5, base::min(3, overall_plot_scale))
+  if (!base::is.null(heatmap_col_order)) {
+    heatmap_col_order <- base::as.character(heatmap_col_order)
+  }
+  if (!base::is.logical(heatmap_cluster_columns) ||
+      base::length(heatmap_cluster_columns) != 1 ||
+      base::is.na(heatmap_cluster_columns)) {
+    stop("`heatmap_cluster_columns` must be TRUE or FALSE.")
+  }
   method <- base::tolower(base::as.character(method[[1]]))
   if (!method %in% "ulm") {
     stop("Only `method = 'ulm'` is currently supported.")
@@ -278,22 +294,13 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
 
   cluster_calc <- hcobject[["integrated_output"]][["cluster_calc"]]
   cluster_order <- all_clusters
-  stored_hm <- cluster_calc[["heatmap_cluster"]]
-  if (!base::is.null(stored_hm)) {
-    row_order <- tryCatch(ComplexHeatmap::row_order(stored_hm), error = function(e) NULL)
-    if (base::is.list(row_order) && base::length(row_order) > 0) {
-      row_order <- row_order[[1]]
-    }
-    hm_rows <- tryCatch(base::rownames(stored_hm@ht_list[[1]]@matrix), error = function(e) NULL)
-    if (!base::is.null(hm_rows)) {
-      if (base::is.numeric(row_order) && base::length(row_order) == base::length(hm_rows)) {
-        cluster_order <- hm_rows[row_order]
-      } else if (base::is.character(row_order)) {
-        cluster_order <- row_order
-      }
-      cluster_order <- cluster_order[cluster_order %in% all_clusters]
-      cluster_order <- base::c(cluster_order, base::setdiff(all_clusters, cluster_order))
-    }
+  heatmap_info <- .hc_heatmap_cache_info(cluster_calc)
+  stored_hm <- heatmap_info$heatmap_obj
+  main_heatmap_col_order <- heatmap_info$col_order
+  if (!base::is.null(heatmap_info$row_order) && base::length(heatmap_info$row_order) > 0) {
+    cluster_order <- heatmap_info$row_order
+    cluster_order <- cluster_order[cluster_order %in% all_clusters]
+    cluster_order <- base::c(cluster_order, base::setdiff(all_clusters, cluster_order))
   }
   cluster_order <- cluster_order[cluster_order %in% clusters]
   if (base::length(cluster_order) == 0) {
@@ -1247,6 +1254,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     cluster_info = cluster_info,
     gfc_all = gfc_all,
     stored_hm = stored_hm,
+    main_heatmap_col_order = main_heatmap_col_order,
+    heatmap_cluster_columns = heatmap_cluster_columns,
+    heatmap_col_order = heatmap_col_order,
     module_heatmap_mat = module_heatmap_mat,
     module_heatmap_col_order = module_heatmap_col_order,
     module_heatmap_name = module_heatmap_name,
@@ -1270,6 +1280,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     cluster_info = cluster_info,
     gfc_all = gfc_all,
     stored_hm = stored_hm,
+    main_heatmap_col_order = main_heatmap_col_order,
+    heatmap_cluster_columns = heatmap_cluster_columns,
+    heatmap_col_order = heatmap_col_order,
     module_heatmap_mat = module_heatmap_mat,
     module_heatmap_col_order = module_heatmap_col_order,
     module_heatmap_name = module_heatmap_name,
@@ -1289,6 +1302,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     cluster_info = cluster_info,
     gfc_all = gfc_all,
     stored_hm = stored_hm,
+    main_heatmap_col_order = main_heatmap_col_order,
+    heatmap_cluster_columns = heatmap_cluster_columns,
+    heatmap_col_order = heatmap_col_order,
     module_heatmap_mat = module_heatmap_mat,
     module_heatmap_col_order = module_heatmap_col_order,
     module_heatmap_name = module_heatmap_name,
@@ -1349,6 +1365,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
         cluster_info = cluster_info,
         gfc_all = gfc_all,
         stored_hm = stored_hm,
+        main_heatmap_col_order = main_heatmap_col_order,
+        heatmap_cluster_columns = heatmap_cluster_columns,
+        heatmap_col_order = heatmap_col_order,
         module_heatmap_mat = condition_module_mat,
         module_heatmap_col_order = condition_module_col_order,
         module_heatmap_name = module_heatmap_name,
@@ -1487,7 +1506,6 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
       pdf = if (isTRUE(save_pdf)) pdf_path else NULL
     )
   )
-  hcobject[["integrated_output"]][["upstream_inference"]] <<- output
   hcobject[["satellite_outputs"]][["upstream_inference"]] <<- output
   output
 }
@@ -1908,6 +1926,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
                                                    cluster_info,
                                                    gfc_all,
                                                    stored_hm = NULL,
+                                                   main_heatmap_col_order = NULL,
+                                                   heatmap_cluster_columns = FALSE,
+                                                   heatmap_col_order = NULL,
                                                    module_heatmap_mat = NULL,
                                                    module_heatmap_col_order = NULL,
                                                    module_heatmap_name = "GFC",
@@ -2027,39 +2048,16 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     return(NULL)
   }
 
-  if (!base::is.null(module_heatmap_col_order) && base::length(module_heatmap_col_order) > 0) {
-    ordered_cols <- base::as.character(module_heatmap_col_order)
-    ordered_cols <- ordered_cols[ordered_cols %in% base::colnames(heatmap_mat)]
-    ordered_cols <- base::c(ordered_cols, base::setdiff(base::colnames(heatmap_mat), ordered_cols))
-    if (base::length(ordered_cols) > 0) {
-      heatmap_mat <- heatmap_mat[, ordered_cols, drop = FALSE]
-    }
-  } else if (!base::is.null(stored_hm) && base::ncol(heatmap_mat) > 0) {
-    hm_cols <- base::colnames(heatmap_mat)
-    col_order_ref <- tryCatch(ComplexHeatmap::column_order(stored_hm), error = function(e) NULL)
-    if (base::is.list(col_order_ref) && base::length(col_order_ref) > 0) {
-      col_order_ref <- col_order_ref[[1]]
-    }
-    ordered_cols <- NULL
-    if (base::is.numeric(col_order_ref) && base::length(col_order_ref) == base::length(hm_cols)) {
-      ordered_cols <- hm_cols[col_order_ref]
-    } else if (base::is.character(col_order_ref) && base::length(col_order_ref) > 0) {
-      ordered_cols <- col_order_ref
-    } else {
-      stored_cols <- tryCatch(base::colnames(stored_hm@ht_list[[1]]@matrix), error = function(e) NULL)
-      if (!base::is.null(stored_cols) && base::length(stored_cols) > 0) {
-        ordered_cols <- stored_cols
-      }
-    }
-    if (!base::is.null(ordered_cols)) {
-      ordered_cols <- base::as.character(ordered_cols)
-      ordered_cols <- ordered_cols[ordered_cols %in% hm_cols]
-      ordered_cols <- base::c(ordered_cols, base::setdiff(hm_cols, ordered_cols))
-      if (base::length(ordered_cols) > 0) {
-        heatmap_mat <- heatmap_mat[, ordered_cols, drop = FALSE]
-      }
-    }
-  }
+  prepared_cols <- .hc_prepare_plot_heatmap_columns(
+    mat = heatmap_mat,
+    cluster_columns = heatmap_cluster_columns,
+    plot_order = heatmap_col_order,
+    main_order = main_heatmap_col_order,
+    fallback_order = module_heatmap_col_order,
+    context = "upstream inference heatmap"
+  )
+  heatmap_mat <- prepared_cols$mat
+  hc_col_dend <- prepared_cols$col_dend
 
   keep_clusters <- cluster_order[cluster_order %in% base::rownames(heatmap_mat)]
   if (base::length(keep_clusters) == 0) {
@@ -2176,7 +2174,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
   gfc_colors <- if (!base::is.null(stored_gfc_colors)) {
     stored_gfc_colors
   } else {
-    base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))
+    .hc_default_gfc_colors()
   }
 
   n_hc_rows <- base::nrow(heatmap_mat)
@@ -2248,9 +2246,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     right_annotation = right_anno,
     col = gfc_col_fun,
     cluster_rows = FALSE,
-    cluster_columns = FALSE,
+    cluster_columns = if (base::is.null(hc_col_dend)) FALSE else hc_col_dend,
     show_row_names = FALSE,
-    show_column_dend = FALSE,
+    show_column_dend = !base::is.null(hc_col_dend),
     show_row_dend = FALSE,
     column_names_rot = 90,
     column_names_gp = grid::gpar(fontsize = font_axis),

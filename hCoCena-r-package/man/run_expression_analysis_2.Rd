@@ -19,8 +19,8 @@ run_expression_analysis_2(
 
 \item{method}{The method used for clustering the heatmap in the pheatmap function. Default is "complete".}
 
-\item{additional_anno}{A list, with one slot per data set. A slot contains a vector of column names from that data set’s annotation file that you wish to annotate with.
-If for some of the data sets you don’t wish any further annotation, you can set the corresponding list slot to NULL. Default is NULL.}
+\item{additional_anno}{A list, with one slot per data set. A slot contains a vector of column names from that data set's annotation file that you wish to annotate with.
+If for some of the data sets you don't wish any further annotation, you can set the corresponding list slot to NULL. Default is NULL.}
 
 \item{cols}{A named list of color vectors. The list names need to match the chosen annotation column names. Default is NULL which uses implemented colors.}
 }

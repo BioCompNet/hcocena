@@ -5,17 +5,33 @@ Paper: https://doi.org/10.1093/bioinformatics/btac589
 hCoCena is an R package for network-based transcriptomics analysis.  
 It supports both:
 - multi-layer integration (e.g. RNA-seq + array), and
-- single-layer analyses (seq-only workflows).
+- single-layer analyses configured through the same S4 workflow.
+
+It provides a module-centric analysis workflow for transcriptomics data, from
+correlation-based network construction and clustering to hCoCena heatmaps,
+functional enrichment, upstream inference, cell-type annotation, longitudinal
+module analysis, and optional LLM-assisted module interpretation. The repository
+includes two ready-to-use entry workflows: `hcocena_main.Rmd` for the core
+pipeline and `hcocena_satellite.Rmd` for downstream and optional analyses.
+
+The S4 workflow is built around a `HCoCenaExperiment` container with
+`MultiAssayExperiment` / `SummarizedExperiment` support for multi-layer and
+single-layer data handling. It also includes dedicated support for cutoff
+selection and clustering resolution selection.
+
+Development is led by Thomas Ulas, with contributions from Kilian Dahm and
+Chiara Jäger.
 
 The repository is maintained at: https://github.com/BioCompNet/hcocena
 
 ## Current Version
-This repository currently tracks **hcocena v1.28**.
+This repository currently tracks **hcocena v1.9**.
 
-![hCoCena overview v1.28](assets/hCocena_updated_1.27.png)
+![hCoCena overview v1.9](assets/hCocena_updated_1.27.png)
 
-## What hCoCena Can Do (v1.28)
+## What hCoCena Can Do (v1.9)
 - S4-first workflow (`HCoCenaExperiment`) with `hc_*` API wrappers.
+- Official Bioconductor-style container support via `SummarizedExperiment` and `MultiAssayExperiment`.
 - Backward compatibility with legacy workflows.
 - Correlation cutoff tuning with tiered selection (`hc_tune_cutoff` / `hc_auto_tune_cutoff_tiered`).
 - Automatic cutoff application via `hc_set_cutoff(auto = TRUE, fallback_cutoff = ...)`.
@@ -39,10 +55,7 @@ This repository currently tracks **hcocena v1.28**.
 ## Repository Layout
 - `hCoCena-r-package/`: R package source.
 - `hcocena_main.Rmd`: main multi-layer workflow.
-- `hcocena_main_seq_only.Rmd`: main single-layer workflow.
 - `hcocena_satellite.Rmd`: optional analyses and extended utilities.
-- `legacy_rmd/`: archived legacy script variants.
-- `STAR_protocol/`: STAR protocol-oriented materials.
 - `reference_files/`: reference GMT/TF files for enrichment workflows.
 - `scripts/`: maintenance/helpers (e.g. reinstall helpers).
 
@@ -82,7 +95,6 @@ hc <- hc_functional_enrichment(hc, gene_sets = c("Hallmark", "Kegg", "Go"))
 
 For end-to-end examples, use:
 - `hcocena_main.Rmd`
-- `hcocena_main_seq_only.Rmd`
 - `hcocena_satellite.Rmd`
 
 ## Legacy Workflow

@@ -86,10 +86,10 @@ setClass(
   ),
   prototype = prototype(
     mae = .hc_empty_mae(),
-    config = new("HCoCenaConfig"),
-    references = new("HCoCenaReferences"),
+    config = methods::new("HCoCenaConfig"),
+    references = methods::new("HCoCenaReferences"),
     layer_results = S4Vectors::SimpleList(),
-    integration = new("HCoCenaIntegration"),
+    integration = methods::new("HCoCenaIntegration"),
     satellite = S4Vectors::SimpleList(),
     provenance = S4Vectors::DataFrame()
   )

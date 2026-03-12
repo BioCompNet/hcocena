@@ -7,7 +7,7 @@
 #' 	Next, a set of statistics will be calculated for the set range of cut-off values that aim to facilitate the cut-off choice. 
 #' 	This includes determining the number of graph components resulting from creating a network when cutting the data with the respective cut-off, 
 #' 	as well as the number of nodes and edges this network comprises. 
-#' 	The last parameter that is evaluated is the R²-value of the data to a linear regression through the logged degree distribution for the given network.
+#' 	The last parameter that is evaluated is the R^2-value of the data to a linear regression through the logged degree distribution for the given network.
 #' @param padj A String. Defines the method to be used for p-value adjustment. Valid values are "none" (default) or values for "method" in stats::p.adjust.
 #' @param export A Boolean. If TRUE, correlation values and p-values will be exported. 
 #' 	This can save time if you plan on re-running the analysis since computing pari-wise correlations is a bottleneck of the analysis. Default is FALSE.
@@ -18,10 +18,10 @@
 #'  The first line has to be gene names, there must be no row names, since the first line will be used for column names and row names. 
 #'  Also, you must provide a matrix with correlation values AND a matrix with corresponding p-values, where cells in the matrices correspond to each other (only a correlation matrix will not be sufficient).
 #'  Default is NULL.
-#' @param bayes Sánchez-Taltavull et al. (2016) suggest superiority of Bayesian correlation analysis to Pearson correlation in some cases. 
-#' 	Therefore, the Pearson correlation values can be weighted with Bayesian correlation values. To do so, set the “bayes”-parameter to TRUE. Default is FALSE, using only Pearson correlations.
+#' @param bayes Sanchez-Taltavull et al. (2016) suggest superiority of Bayesian correlation analysis to Pearson correlation in some cases. 
+#' 	Therefore, the Pearson correlation values can be weighted with Bayesian correlation values. To do so, set the "bayes"-parameter to TRUE. Default is FALSE, using only Pearson correlations.
 #' @param alpha A numeric value from 0 to 1. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.
-#' @param prior An integer, either 2 or 3, using prior 2 or 3 for the Bayes weighting as described in "Bayesian correlation analysis for sequence count data" by Sánchez-Taltavull et al. (2016).
+#' @param prior An integer, either 2 or 3, using prior 2 or 3 for the Bayes weighting as described in "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016).
 #' @param corr_method Default is "pearson", but can alternatively be set to "spearman" or "rho" in case of single-cell data (according to Skinnider et al., https://www.nature.com/articles/s41592-019-0372-4).
 #' @export
 

@@ -16,6 +16,8 @@ highlight_geneset(
 \arguments{
 \item{gene_set}{A vector of gene symbols (as strings) to be highlighted in the network.}
 
+\item{name}{Optional legacy label argument retained for backward compatibility.}
+
 \item{col}{A string specifying the color with which the nodes of the genes are framed to highlight them. Default is "black".}
 
 \item{label_offset}{A numeric specifying the distance between the labeled genes and the network. Default is 3.}

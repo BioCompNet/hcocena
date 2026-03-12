@@ -4,15 +4,20 @@
 \alias{PCA}
 \title{Run And Plot PCA}
 \usage{
-PCA(which = "all", color_by = "none", ellipses = F, cols = NULL)
+PCA(which = "all", color_by = NULL, ellipses = F, cols = NULL)
 }
 \arguments{
 \item{which}{One of "all" (uses all genes), "topvar" (uses top most variant genes, cannot be used before running "Data processing part I" in the main markdown),
 or "network" (uses the genes present in network, cannot be run before finishing "Data processing part II" in the main markdown).}
 
-\item{color_by}{Default is "none" (coloring all dots black), alternatively, set this to a vector of column names (c("name of col in annotation 1", "name of col in annotation 2", ...)), containing the groups by which you want to color.}
+\item{color_by}{\code{NULL} (default) auto-uses the global \code{variable_of_interest} (e.g. \code{"merged"}).
+Set \code{"none"} to draw ungrouped points. Alternatively, set this to a vector of
+column names (\code{c("name of col in annotation 1", "name of col in annotation 2", ...)})
+containing the groups by which you want to color.}
 
 \item{ellipses}{A Boolean. Whether or not to add ellipses to the PCA plot. For details see documentation on factoextra::fviz_pca_ind. Default is FALSE.}
+
+\item{cols}{Optional color palette passed to \code{factoextra::fviz_pca_ind()}.}
 }
 \description{
 Plots one PCA for each dataset.

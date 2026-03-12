@@ -6,6 +6,9 @@
 \usage{
 init_object(envo = .GlobalEnv)
 }
+\arguments{
+\item{envo}{Environment where \code{hcobject} should be created. Defaults to \code{.GlobalEnv}.}
+}
 \description{
 Creates an object called 'hcobject' in the global envirentment that will be used by hCoCena throughout the analysis.
 }

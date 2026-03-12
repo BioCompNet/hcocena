@@ -7,6 +7,8 @@ Rplots.pdf
 # Build/temp folders
 output/
 .tmp_kn2/
+*.Rcheck/
+*.tar.gz
 
 # IDE/editor
 .Rproj.user/
@@ -16,4 +18,3 @@ output/
 *.zip
 *.7z
 *.tmp
-

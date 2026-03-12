@@ -12,6 +12,42 @@ get_cluster_colours <- function(){
   
 }
 
+.hc_resolve_heatmap_col_order <- function(mat_cols,
+                                          requested_order = NULL,
+                                          context = "heatmap") {
+  mat_cols <- base::as.character(mat_cols)
+  if (base::is.null(requested_order) || base::length(requested_order) == 0) {
+    return(mat_cols)
+  }
+
+  requested_order <- base::as.character(requested_order)
+  requested_order <- requested_order[!base::is.na(requested_order) & base::nzchar(base::trimws(requested_order))]
+  if (base::length(requested_order) == 0) {
+    return(mat_cols)
+  }
+
+  keep <- requested_order[requested_order %in% mat_cols]
+  dropped <- base::setdiff(base::unique(requested_order), mat_cols)
+  if (base::length(dropped) > 0) {
+    preview <- base::paste(utils::head(dropped, 8L), collapse = ", ")
+    if (base::length(dropped) > 8L) {
+      preview <- base::paste0(preview, ", ...")
+    }
+    warning(
+      "Ignoring ", base::length(dropped),
+      " `col_order` entries not present in the current ", context, ": ",
+      preview,
+      call. = FALSE
+    )
+  }
+
+  if (base::length(keep) == 0) {
+    return(mat_cols)
+  }
+
+  base::c(keep, base::setdiff(mat_cols, keep))
+}
+
 
 #' Leiden Clustering
 #' 
@@ -259,10 +295,10 @@ read_anno <- function(file, rown = T, sep = "\t", sample_col){
 #'  This can save time if you plan on re-running the analysis since computing pari-wise correlations is a bottleneck of the analysis. Default is FALSE.
 #' @param import A list. Each slot represents a dataset and contains a vector of two file names, the first is the name of the correlation file of that dataset exported in previous runs.
 #'  The second is the name of the p-value file exported in a previous run. For details, see the information file found in the repository. Default is NULL.
-#' @param bayes Sánchez-Taltavull et al. (2016) suggest superiority of Bayesian correlation analysis to Pearson correlation in some cases. 
-#'  Therefore, the Pearson correlation values can be weighted with Bayesian correlation values. To do so, set the “bayes”-parameter to TRUE. Default is FALSE, using only Pearson correlations.
-#' @param alpha A numeric value from [0,1]. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.
-#' @param prior An integer, either 2 or 3, using prior 2 or 3 for the Bayes weighting as described in "Bayesian correlation analysis for sequence count data" by Sánchez-Taltavull et al. (2016).
+#' @param bayes Sanchez-Taltavull et al. (2016) suggest superiority of Bayesian correlation analysis to Pearson correlation in some cases. 
+#'  Therefore, the Pearson correlation values can be weighted with Bayesian correlation values. To do so, set the "bayes"-parameter to TRUE. Default is FALSE, using only Pearson correlations.
+#' @param alpha A numeric value in `[0,1]`. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.
+#' @param prior An integer, either 2 or 3, using prior 2 or 3 for the Bayes weighting as described in "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016).
 #' @param corr_method Method for the correlation calculation if bayes is FALSE. Either 'pearson', 'spearman' or 'rho'(single-cell).
 #' @noRd
 
@@ -373,10 +409,10 @@ calc_pval <- function(x, mu, sigma, n){
 #'  This can save time if you plan on re-running the analysis since computing pari-wise correlations is a bottleneck of the analysis. Default is FALSE.
 #' @param import A list. Each slot represents a dataset and contains a vector of two file names, the first is the name of the correlation file of that dataset exported in previous runs.
 #'  The second is the name of the p-value file exported in a previous run. For details, see the information file found in the repository. Default is NULL.
-#' @param bayes Sánchez-Taltavull et al. (2016) suggest superiority of Bayesian correlation analysis to Pearson correlation in some cases. 
-#'  Therefore, the Pearson correlation values can be weighted with Bayesian correlation values. To do so, set the “bayes”-parameter to TRUE. Default is FALSE, using only Pearson correlations.
-#' @param alpha A numeric value from [0,1]. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.
-#' @param prior An integer, either 2 or 3, using prior 2 or 3 for the Bayes weighting as described in "Bayesian correlation analysis for sequence count data" by Sánchez-Taltavull et al. (2016).
+#' @param bayes Sanchez-Taltavull et al. (2016) suggest superiority of Bayesian correlation analysis to Pearson correlation in some cases. 
+#'  Therefore, the Pearson correlation values can be weighted with Bayesian correlation values. To do so, set the "bayes"-parameter to TRUE. Default is FALSE, using only Pearson correlations.
+#' @param alpha A numeric value in `[0,1]`. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.
+#' @param prior An integer, either 2 or 3, using prior 2 or 3 for the Bayes weighting as described in "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016).
 #' @param layer_set The layer specific settings for this layer.
 #' @param layer An Integer indicating the currently processed dataset.
 #' @noRd
@@ -403,8 +439,8 @@ pwcorr <- function(dd2,
       # import matrix
       message("...importing correlation matrix from file...")
       correlation_matrix <- list()
-      correlation_matrix[["r"]] <- readr::read_table2(import[[layer]][1]) %>% base::as.matrix()
-      correlation_matrix[["P"]] <- readr::read_table2(import[[layer]][2]) %>% base::as.matrix()
+      correlation_matrix[["r"]] <- utils::read.table(import[[layer]][1], header = TRUE, check.names = FALSE) %>% base::as.matrix()
+      correlation_matrix[["P"]] <- utils::read.table(import[[layer]][2], header = TRUE, check.names = FALSE) %>% base::as.matrix()
       base::rownames(correlation_matrix[["r"]]) <- base::colnames(correlation_matrix[["r"]])
       base::rownames(correlation_matrix[["P"]]) <- base::colnames(correlation_matrix[["P"]])
     }else{
@@ -413,11 +449,15 @@ pwcorr <- function(dd2,
           stop("Package `propr` is required for `corr_method = 'rho'`. Install it or choose another method.")
         }
         correlation_matrix <- list()
-        correlation_matrix[["r"]] <- propr::perb(counts = base::as.matrix(dd2), select = colnames(dd2))@matrix
+        correlation_matrix[["r"]] <- propr::propr(
+          counts = base::as.matrix(dd2),
+          metric = "rho",
+          select = colnames(dd2)
+        )@matrix
         pmat <- lapply(as.vector(correlation_matrix[["r"]]), 
                        calc_pval, 
-                       mu = mean(correlation_matrix[["r"]]),
-                       sigma = sd(correlation_matrix[["r"]]), 
+                       mu = base::mean(correlation_matrix[["r"]]),
+                       sigma = stats::sd(correlation_matrix[["r"]]), 
                        n = ncol(correlation_matrix[["r"]])*nrow(correlation_matrix[["r"]])) %>% 
           unlist() %>% 
           matrix(., nrow = nrow(correlation_matrix[["r"]]), byrow = FALSE)
@@ -432,8 +472,8 @@ pwcorr <- function(dd2,
     # import matrix
     message("...importing correlation matrix from file...")
     correlation_matrix <- list()
-    correlation_matrix[["r"]] <- readr::read_table2(import[[layer]][1]) %>% base::as.matrix()
-    correlation_matrix[["P"]] <- readr::read_table2(import[[layer]][2]) %>% base::as.matrix()
+    correlation_matrix[["r"]] <- utils::read.table(import[[layer]][1], header = TRUE, check.names = FALSE) %>% base::as.matrix()
+    correlation_matrix[["P"]] <- utils::read.table(import[[layer]][2], header = TRUE, check.names = FALSE) %>% base::as.matrix()
     base::rownames(correlation_matrix[["r"]]) <- base::colnames(correlation_matrix[["r"]])
     base::rownames(correlation_matrix[["P"]]) <- base::colnames(correlation_matrix[["P"]])
   }else{
@@ -442,11 +482,15 @@ pwcorr <- function(dd2,
         stop("Package `propr` is required for `corr_method = 'rho'`. Install it or choose another method.")
       }
       correlation_matrix <- list()
-      correlation_matrix[["r"]] <- propr::perb(counts = base::as.matrix(dd2), select = colnames(dd2))@matrix
+      correlation_matrix[["r"]] <- propr::propr(
+        counts = base::as.matrix(dd2),
+        metric = "rho",
+        select = colnames(dd2)
+      )@matrix
       pmat <- lapply(as.vector(correlation_matrix[["r"]]), 
                      calc_pval, 
-                     mu = mean(correlation_matrix[["r"]]),
-                     sigma = sd(correlation_matrix[["r"]]), 
+                     mu = base::mean(correlation_matrix[["r"]]),
+                     sigma = stats::sd(correlation_matrix[["r"]]), 
                      n = ncol(correlation_matrix[["r"]])*nrow(correlation_matrix[["r"]])) %>% 
         unlist() %>% 
         matrix(., nrow = nrow(correlation_matrix[["r"]]), byrow = FALSE)
@@ -515,8 +559,8 @@ pwcorr <- function(dd2,
 #' Function That Weights Given Pearson Correlation Coefficients With Bayes Correlation Values
 #' 
 #' @param dd2 Transposed gene expression matrix.
-#' @param alpha A numeric value from [0,1]. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.
-#' @param prior An integer, either 2 or 3, using prior 2 or 3 for the Bayes weighting as described in "Bayesian correlation analysis for sequence count data" by Sánchez-Taltavull et al. (2016).
+#' @param alpha A numeric value in `[0,1]`. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.
+#' @param prior An integer, either 2 or 3, using prior 2 or 3 for the Bayes weighting as described in "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016).
 #' @param pearson_rval A vector of Pearson Correlation Coefficients that are to be weighted.
 #' @noRd
 
@@ -524,12 +568,12 @@ bayes_weighting <- function(dd2,
               alpha, 
               prior, 
               pearson_rval){
-  # use prior 2 as described in "Bayesian correlation analysis for sequence count data" by Sánchez-Taltavull et al. (2016).
+  # use prior 2 as described in "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016).
   if(prior == 2){
     message("---weighting pearson with bayes using prior: 2---")
     # bayes:
     corr_b <- Bayes_Corr_Prior2(X = base::t(dd2))
-  # use prior 3 as described in "Bayesian correlation analysis for sequence count data" by Sánchez-Taltavull et al. (2016).
+  # use prior 3 as described in "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016).
   }else{
     message("---weighting pearson with bayes using prior: 3---")
     # bayes:
@@ -550,7 +594,7 @@ bayes_weighting <- function(dd2,
 
 #' Computing The Bayesian Correlations Assuming Second (Dirichlet-marginalized) Prior
 #' 
-#' This function has been taken from  "Bayesian correlation analysis for sequence count data" by Sánchez-Taltavull et al. (2016), https://doi.org/10.1371/journal.pone.0163595.s001
+#' This function has been taken from  "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016), https://doi.org/10.1371/journal.pone.0163595.s001
 #' @noRd
 
 Bayes_Corr_Prior2 <- function(X){
@@ -564,7 +608,7 @@ Bayes_Corr_Prior2 <- function(X){
 
 #' Computing The Bayesian Correlations Assuming Third (zero count-motivated) Prior
 #' 
-#' This function has been taken from  "Bayesian correlation analysis for sequence count data" by Sánchez-Taltavull et al. (2016), https://doi.org/10.1371/journal.pone.0163595.s001
+#' This function has been taken from  "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016), https://doi.org/10.1371/journal.pone.0163595.s001
 #' @noRd
 
 Bayes_Corr_Prior3 <- function(X){
@@ -578,7 +622,7 @@ Bayes_Corr_Prior3 <- function(X){
 
 #' Function To Compute Bayesian Correlation Coefficients
 #' 
-#' This function has been taken from  "Bayesian correlation analysis for sequence count data" by Sánchez-Taltavull et al. (2016), https://doi.org/10.1371/journal.pone.0163595.s001
+#' This function has been taken from  "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016), https://doi.org/10.1371/journal.pone.0163595.s001
 #' @noRd
 
 Bayes_Corr <- function(alpha0, beta0, X){
@@ -613,6 +657,150 @@ Bayes_Corr <- function(alpha0, beta0, X){
 #' @param x An Integer. Gives the dataset that is currently processed.
 #' @noRd
 
+.hc_union_find_components <- function(from_idx, to_idx, n_vertices) {
+  parent <- seq_len(n_vertices)
+  rank <- integer(n_vertices)
+
+  find_root <- function(i) {
+    while (parent[[i]] != i) {
+      parent[[i]] <<- parent[[parent[[i]]]]
+      i <- parent[[i]]
+    }
+    i
+  }
+
+  for (k in seq_along(from_idx)) {
+    root_from <- find_root(from_idx[[k]])
+    root_to <- find_root(to_idx[[k]])
+    if (root_from == root_to) {
+      next
+    }
+    if (rank[[root_from]] < rank[[root_to]]) {
+      parent[[root_from]] <- root_to
+    } else if (rank[[root_from]] > rank[[root_to]]) {
+      parent[[root_to]] <- root_from
+    } else {
+      parent[[root_to]] <- root_from
+      rank[[root_from]] <- rank[[root_from]] + 1L
+    }
+  }
+
+  roots <- integer(n_vertices)
+  for (i in seq_len(n_vertices)) {
+    roots[[i]] <- find_root(i)
+  }
+  comp_ids <- match(roots, unique(roots))
+  list(
+    membership = comp_ids,
+    csize = tabulate(comp_ids, nbins = max(comp_ids))
+  )
+}
+
+.hc_safe_deep_clone <- function(x,
+                                context = "object",
+                                max_bytes = NULL) {
+  if (base::is.null(x)) {
+    return(NULL)
+  }
+
+  max_bytes_num <- if (base::is.null(max_bytes) || base::length(max_bytes) == 0) {
+    NA_real_
+  } else {
+    suppressWarnings(base::as.numeric(max_bytes[[1]]))
+  }
+  if (base::length(max_bytes_num) == 1 && base::is.finite(max_bytes_num) && max_bytes_num > 0) {
+    est_size <- tryCatch(
+      as.numeric(utils::object.size(x)),
+      error = function(e) NA_real_
+    )
+    if (base::is.finite(est_size) && est_size > max_bytes_num) {
+      warning(
+        "Skipping deep clone of ", context, "; estimated size exceeds the safe clone threshold. ",
+        "Reusing the original object instead.",
+        call. = FALSE
+      )
+      return(x)
+    }
+  }
+
+  out <- tryCatch(
+    base::unserialize(base::serialize(x, NULL)),
+    error = function(e) e
+  )
+
+  if (inherits(out, "error")) {
+    warning(
+      "Could not deep-clone ", context, "; reusing the original object instead. ",
+      "Reason: ", conditionMessage(out),
+      call. = FALSE
+    )
+    return(x)
+  }
+
+  out
+}
+
+.hc_resolve_panel_storage_mode <- function(store_panel_objects = c("auto", "always", "never"),
+                                           n_databases = NA_integer_) {
+  mode <- base::match.arg(store_panel_objects)
+  if (!identical(mode, "auto")) {
+    return(mode)
+  }
+
+  n_databases <- suppressWarnings(base::as.integer(n_databases[[1]]))
+  if (!base::is.finite(n_databases) || n_databases <= 0L) {
+    return("never")
+  }
+  if (n_databases <= 1L) {
+    return("always")
+  }
+  "never"
+}
+
+.hc_cutoff_component_summary <- function(graph_df, min_nodes) {
+  v1 <- base::as.character(graph_df[["V1"]])
+  v2 <- base::as.character(graph_df[["V2"]])
+  vertices <- base::unique(base::c(v1, v2))
+  from_idx <- match(v1, vertices)
+  to_idx <- match(v2, vertices)
+  if (length(from_idx) > 2e6) {
+    components <- .hc_union_find_components(
+      from_idx = from_idx,
+      to_idx = to_idx,
+      n_vertices = length(vertices)
+    )
+  } else {
+    edge_matrix <- base::matrix(base::c(from_idx, to_idx), ncol = 2)
+    components <- tryCatch(
+      {
+        g <- igraph::graph_from_edgelist(edge_matrix, directed = FALSE)
+        igraph::components(g)
+      },
+      error = function(e) {
+        warning(
+          "Falling back to memory-saving cutoff statistics because igraph graph construction failed: ",
+          conditionMessage(e),
+          call. = FALSE
+        )
+        .hc_union_find_components(from_idx = from_idx, to_idx = to_idx, n_vertices = length(vertices))
+      }
+    )
+  }
+
+  keep_components <- components[["csize"]] >= min_nodes
+  keep_vertices <- keep_components[components[["membership"]]]
+  degrees_all <- tabulate(base::c(from_idx, to_idx), nbins = length(vertices))
+  keep_edges <- keep_vertices[from_idx] & keep_vertices[to_idx]
+
+  list(
+    keep_vertices = keep_vertices,
+    degrees = degrees_all[keep_vertices],
+    num_nodes = base::sum(keep_vertices),
+    num_edges = base::sum(keep_edges),
+    num_networks = base::sum(keep_components)
+  )
+}
+
 cutoff_prep <- function(cutoff, corrdf_r, print.all.plots, x, min_nodes = hcobject[["global_settings"]][["min_nodes_number_for_network"]]){
   
   
@@ -632,7 +820,7 @@ cutoff_prep <- function(cutoff, corrdf_r, print.all.plots, x, min_nodes = hcobje
   rownums <- base::ifelse(base::nrow(filteredmatrix)==0, "zero_rows", "gtzero")
   
   base::switch(rownums, zero_rows = {output},
-         gtzero={rsquaredfun(graph_df = filteredmatrix, cutoff = cutoff, print.all.plots = print.all.plots, min_nodes = min_nodes)})
+         gtzero={rsquaredfun(graph_df = filteredmatrix, cutoff = cutoff, print.all.plots = print.all.plots, min_nodes = min_nodes, x = x)})
   
 }
 
@@ -644,38 +832,24 @@ cutoff_prep <- function(cutoff, corrdf_r, print.all.plots, x, min_nodes = hcobje
 #' @noRd
 
 
-rsquaredfun <- function(graph_df, cutoff, print.all.plots, min_nodes = hcobject[["global_settings"]][["min_nodes_number_for_network"]]){
+rsquaredfun <- function(graph_df, cutoff, print.all.plots, min_nodes = hcobject[["global_settings"]][["min_nodes_number_for_network"]], x = NULL){
 
-  #igraph object
-  filt_igraph = igraph::graph_from_data_frame(graph_df, directed = F, vertices = NULL)
-
-  #number of components
-  graph_components <- igraph::components(filt_igraph)
-  num_networks = graph_components[["csize"]][graph_components[["csize"]] >= min_nodes] %>% 
-    base::length()
-
-  # remove nodes from too small components:
-  gene_to_comp <- base::data.frame(gene = base::names(graph_components[["membership"]]), component = graph_components[["membership"]])
-  comps_to_keep <- base::which(graph_components[["csize"]] >= min_nodes)
-  nodes_to_remove <- dplyr::filter(gene_to_comp, !component %in% comps_to_keep) %>% dplyr::pull(., "gene")
-  filt_igraph <- igraph::delete.vertices(filt_igraph, nodes_to_remove)
-
-  #number of nodes
-  num_nodes <- igraph::vcount(filt_igraph)
-  #number of edges
-  num_edges <- igraph::gsize(filt_igraph)
+  stats_summary <- .hc_cutoff_component_summary(graph_df = graph_df, min_nodes = min_nodes)
+  num_networks <- stats_summary[["num_networks"]]
+  num_nodes <- stats_summary[["num_nodes"]]
+  num_edges <- stats_summary[["num_edges"]]
+  kept_degrees <- stats_summary[["degrees"]]
 
   
   ##calculate stats
-  if(igraph::vcount(filt_igraph) == 0){
+  if(num_nodes == 0){
     R.square <- NA
     degree <- NA
     probability <- NA
   }else{
-    d <- igraph::degree(filt_igraph, mode = "all")
-    dd <- igraph::degree.distribution(filt_igraph, mode = "all", cumulative = FALSE)
-    degree <- 1:base::max(d)
-    probability <- dd[-1]
+    degree_counts <- tabulate(kept_degrees, nbins = base::max(kept_degrees))
+    degree <- seq_len(base::length(degree_counts))
+    probability <- degree_counts / base::sum(degree_counts)
     nonzero.position <- base::which(probability != 0)
     probability <- probability[nonzero.position]
     degree <- degree[nonzero.position]
@@ -753,6 +927,19 @@ rsquaredfun <- function(graph_df, cutoff, print.all.plots, min_nodes = hcobject[
   }
   base::rownames(out) <- base::rownames(mat)
   base::as.data.frame(out, check.names = FALSE)
+}
+
+# Default GFC palette used across heatmaps.
+# RdBu-based with slightly darker end points for stronger +/- range contrast.
+.hc_default_gfc_colors <- function() {
+  cols <- base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))
+  cols[[1]] <- "#000418"
+  cols[[2]] <- "#12386F"
+  cols[[3]] <- "#2E5E99"
+  cols[[base::length(cols) - 2L]] <- "#A53858"
+  cols[[base::length(cols) - 1L]] <- "#7A0F2E"
+  cols[[base::length(cols)]] <- "#1A0008"
+  cols
 }
 
 #' Weighted sum over normalized criteria
@@ -834,8 +1021,8 @@ reshape_cutoff_stats <- function(cutoff_stats){
 #' @param grouping_v A string giving a column name present in all annotation files, if this variable shall be used for grouping the samles isntead of the variable of interest. Default is NULL.
 #' @param plot_HM A Boolean. Whether or not to plot the heatmap (for networks with many genes this may be very demanding for your computer if you are running the analysis locally). Default is TRUE.
 #' @param method The method used for clustering the heatmap in the pheatmap function. Default is "complete".
-#' @param additional_anno A list, with one slot per data set. A slot contains a vector of column names from that data set’s annotation file that you wish to annotate with. 
-#'  If for some of the data sets you don’t wish any further annotation, you can set the corresponding list slot to NULL. Default is NULL.
+#' @param additional_anno A list, with one slot per data set. A slot contains a vector of column names from that data set's annotation file that you wish to annotate with. 
+#'  If for some of the data sets you don't wish any further annotation, you can set the corresponding list slot to NULL. Default is NULL.
 #' @param cols A named list of color vectors. The list names need to match the chosen annotation column names. Default is NULL which uses implemented colors.
 #' @noRd
 
@@ -1018,6 +1205,24 @@ GFC_calculation <- function(info_dataset, grouping_v, x) {
 
     info_dataset[["grpvar"]] = info_dataset[,1]
     
+  }
+
+  # Normalize grouping labels and remove missing/NA-like entries to avoid
+  # creating artificial "[NA]" groups in downstream heatmaps.
+  info_dataset[["grpvar"]] <- base::trimws(base::as.character(info_dataset[["grpvar"]]))
+  info_dataset[["grpvar"]][info_dataset[["grpvar"]] %in% c("", "NA", "<NA>", "[NA]", "[<NA>]")] <- NA_character_
+
+  missing_grp <- base::is.na(info_dataset[["grpvar"]]) | !base::nzchar(info_dataset[["grpvar"]])
+  if (base::any(missing_grp)) {
+    warning(
+      "Dropping ", base::sum(missing_grp),
+      " sample(s) with missing grouping labels before GFC calculation.",
+      call. = FALSE
+    )
+    info_dataset <- info_dataset[!missing_grp, , drop = FALSE]
+  }
+  if (base::nrow(info_dataset) == 0) {
+    stop("No samples with valid grouping labels available for GFC calculation.")
   }
   
   
@@ -1236,8 +1441,15 @@ merge_GFCs <- function(GFC_when_missing = -hcobject[["global_settings"]][["range
 #' @noRd
 
 fix_dir <- function(directory){
-  if(directory == FALSE){
-    return(directory)
+  if(base::isFALSE(directory) || base::identical(directory, FALSE)){
+    return(FALSE)
+  }
+  if(base::length(directory) != 1){
+    stop("`directory` must be a scalar path string or FALSE.")
+  }
+  directory <- base::as.character(directory[[1]])
+  if(base::is.na(directory) || !base::nzchar(directory)){
+    stop("`directory` must be a non-empty path string or FALSE.")
   }
   # check existance of path:
   if(!base::dir.exists(directory)){
@@ -1711,7 +1923,7 @@ plot_cutoffs_internal_interactive <- function(cutoff_stats,
   
   # plot R-squared value:
   p1 <- plotly::plot_ly(cutoff_stats, x = ~corr, y = ~R.squared, type = 'scatter', 
-                mode = 'lines+markers', name = "R²", line = list(color = "#374E55FF"), marker = list(color = "#374E55FF")) 
+                mode = 'lines+markers', name = "R^2", line = list(color = "#374E55FF"), marker = list(color = "#374E55FF")) 
   # plot number of edges:
   p2 <- plotly::plot_ly(cutoff_stats, x = ~corr, y = ~no_edges, type = 'scatter', 
                 mode = 'lines+markers', name = "no. edges", line = list(color = "#DF8F44FF"), marker = list(color = "#DF8F44FF"))
@@ -1766,7 +1978,7 @@ plot_cutoffs_internal_interactive <- function(cutoff_stats,
                                                  base::rep("#DF8F44FF", base::length(cutoff_stats[["corr"]])),
                                                  base::rep("#00A1D5FF", base::length(cutoff_stats[["corr"]])),
                                                  base::rep("#B24745FF", base::length(cutoff_stats[["corr"]])))), 
-                 label = base::paste0(base::as.character(cutoff_stats[["corr"]][i]), ", R²: ", 
+                 label = base::paste0(base::as.character(cutoff_stats[["corr"]][i]), ", R^2: ", 
                                 base::round(cutoff_stats[["R.squared"]][i], 3),
                                 "; no. edges: ", cutoff_stats[["no_edges"]][i], "; no. nodes: ", 
                                 cutoff_stats[["no_nodes"]][i], "; no. networks: ", cutoff_stats[["no_of_networks"]][i]), 
@@ -1905,13 +2117,220 @@ plot_cutoffs_internal_interactive <- function(cutoff_stats,
   return(p)
 }
 
+.hc_heatmap_extract_matrix <- function(heatmap_obj) {
+  if (inherits(heatmap_obj, "Heatmap")) {
+    return(tryCatch(heatmap_obj@matrix, error = function(e) NULL))
+  }
+  if (inherits(heatmap_obj, "HeatmapList")) {
+    return(tryCatch(heatmap_obj@ht_list[[1]]@matrix, error = function(e) NULL))
+  }
+  NULL
+}
+
+.hc_normalize_heatmap_axis_order <- function(order_value, axis_ids) {
+  if (is.null(axis_ids) || length(axis_ids) == 0) {
+    return(NULL)
+  }
+  if (is.list(order_value) && length(order_value) > 0) {
+    order_value <- order_value[[1]]
+  }
+
+  ord <- NULL
+  if (is.numeric(order_value) && length(order_value) == length(axis_ids)) {
+    idx <- as.integer(order_value)
+    idx <- idx[!is.na(idx) & idx >= 1L & idx <= length(axis_ids)]
+    ord <- axis_ids[idx]
+  } else if (is.character(order_value) && length(order_value) > 0) {
+    ord <- as.character(order_value)
+  }
+
+  if (is.null(ord)) {
+    return(as.character(axis_ids))
+  }
+
+  ord <- ord[!is.na(ord) & nzchar(ord) & ord %in% axis_ids]
+  ord <- unique(ord)
+  c(ord, setdiff(as.character(axis_ids), ord))
+}
+
+.hc_heatmap_cache_info <- function(cluster_calc) {
+  stored_raw <- tryCatch(cluster_calc[["heatmap_cluster_raw"]], error = function(e) NULL)
+  stored_hm <- tryCatch(cluster_calc[["heatmap_cluster"]], error = function(e) NULL)
+  mat <- tryCatch(cluster_calc[["heatmap_matrix"]], error = function(e) NULL)
+
+  if (is.data.frame(mat)) {
+    mat <- as.matrix(mat)
+  } else if (!is.null(mat) && !is.matrix(mat)) {
+    mat <- tryCatch(as.matrix(mat), error = function(e) NULL)
+  }
+
+  if (is.null(mat)) {
+    source_obj <- if (!is.null(stored_raw)) stored_raw else stored_hm
+    mat <- .hc_heatmap_extract_matrix(source_obj)
+  }
+
+  row_ids <- if (!is.null(mat)) rownames(mat) else NULL
+  col_ids <- if (!is.null(mat)) colnames(mat) else NULL
+
+  row_order <- tryCatch(cluster_calc[["heatmap_row_order"]], error = function(e) NULL)
+  col_order <- tryCatch(cluster_calc[["heatmap_column_order"]], error = function(e) NULL)
+
+  if (is.null(row_order) && !is.null(stored_hm)) {
+    row_order <- tryCatch(ComplexHeatmap::row_order(stored_hm), error = function(e) NULL)
+  }
+  if (is.null(col_order) && !is.null(stored_hm)) {
+    col_order <- tryCatch(ComplexHeatmap::column_order(stored_hm), error = function(e) NULL)
+  }
+
+  list(
+    matrix = mat,
+    row_order = .hc_normalize_heatmap_axis_order(row_order, row_ids),
+    col_order = .hc_normalize_heatmap_axis_order(col_order, col_ids),
+    heatmap_obj = stored_hm,
+    raw_heatmap_obj = stored_raw
+  )
+}
+
+.hc_select_heatmap_col_order <- function(available_cols,
+                                         plot_order = NULL,
+                                         main_order = NULL,
+                                         fallback_order = NULL,
+                                         context = "heatmap") {
+  available_cols <- as.character(available_cols)
+  if (length(available_cols) == 0) {
+    return(available_cols)
+  }
+
+  resolve_candidate <- function(candidate, warn = FALSE) {
+    if (is.null(candidate) || length(candidate) == 0) {
+      return(NULL)
+    }
+    candidate <- as.character(candidate)
+    candidate <- candidate[!is.na(candidate) & nzchar(candidate)]
+    if (length(candidate) == 0 || !any(candidate %in% available_cols)) {
+      return(NULL)
+    }
+    if (isTRUE(warn)) {
+      return(.hc_resolve_heatmap_col_order(
+        mat_cols = available_cols,
+        requested_order = candidate,
+        context = context
+      ))
+    }
+    suppressWarnings(.hc_resolve_heatmap_col_order(
+      mat_cols = available_cols,
+      requested_order = candidate,
+      context = context
+    ))
+  }
+
+  resolved <- resolve_candidate(plot_order, warn = TRUE)
+  if (!is.null(resolved)) {
+    return(resolved)
+  }
+
+  resolved <- resolve_candidate(main_order, warn = FALSE)
+  if (!is.null(resolved)) {
+    return(resolved)
+  }
+
+  resolved <- resolve_candidate(fallback_order, warn = FALSE)
+  if (!is.null(resolved)) {
+    return(resolved)
+  }
+
+  available_cols
+}
+
+.hc_prepare_plot_heatmap_columns <- function(mat,
+                                             cluster_columns = FALSE,
+                                             plot_order = NULL,
+                                             main_order = NULL,
+                                             fallback_order = NULL,
+                                             context = "heatmap") {
+  mat <- base::as.matrix(mat)
+  if (base::is.null(base::colnames(mat)) || base::ncol(mat) == 0) {
+    return(list(
+      mat = mat,
+      col_order = base::character(0),
+      col_dend = NULL,
+      clustered = FALSE
+    ))
+  }
+
+  if (!isTRUE(cluster_columns) || base::ncol(mat) <= 1) {
+    selected_col_order <- .hc_select_heatmap_col_order(
+      available_cols = base::colnames(mat),
+      plot_order = plot_order,
+      main_order = main_order,
+      fallback_order = fallback_order,
+      context = context
+    )
+    if (base::length(selected_col_order) > 0) {
+      mat <- mat[, selected_col_order, drop = FALSE]
+    }
+    return(list(
+      mat = mat,
+      col_order = base::colnames(mat),
+      col_dend = NULL,
+      clustered = FALSE
+    ))
+  }
+
+  mat_num <- mat
+  mode(mat_num) <- "numeric"
+  mat_num[!base::is.finite(mat_num)] <- 0
+
+  clustered <- tryCatch(
+    {
+      hc <- stats::hclust(stats::dist(base::t(mat_num)), method = "complete")
+      ord <- base::colnames(mat_num)[hc$order]
+      list(
+        mat = mat[, ord, drop = FALSE],
+        col_order = ord,
+        col_dend = stats::as.dendrogram(hc),
+        clustered = TRUE
+      )
+    },
+    error = function(e) NULL
+  )
+
+  if (!base::is.null(clustered)) {
+    return(clustered)
+  }
+
+  selected_col_order <- .hc_select_heatmap_col_order(
+    available_cols = base::colnames(mat),
+    plot_order = plot_order,
+    main_order = main_order,
+    fallback_order = fallback_order,
+    context = context
+  )
+  if (base::length(selected_col_order) > 0) {
+    mat <- mat[, selected_col_order, drop = FALSE]
+  }
+  warning(
+    "Could not cluster heatmap columns for ", context, ". Falling back to explicit/stored order.",
+    call. = FALSE
+  )
+  list(
+    mat = mat,
+    col_order = base::colnames(mat),
+    col_dend = NULL,
+    clustered = FALSE
+  )
+}
+
 #' Helper Function To Plot TF Enrichment
 #' @noRd
 
 plot_TF <- function(hubs_df){
   #get column order from module heatmap:
-  co <- ComplexHeatmap::column_order(hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster"]]) %>% base::unlist() %>% base::as.numeric()
-  co <- base::colnames(hcobject[["integrated_output"]][["GFC_all_layers"]][,-base::ncol(hcobject[["integrated_output"]][["GFC_all_layers"]])])[co]
+  heatmap_info <- .hc_heatmap_cache_info(hcobject[["integrated_output"]][["cluster_calc"]])
+  co <- heatmap_info$col_order
+  if (is.null(co) || length(co) == 0) {
+    co <- base::colnames(hcobject[["integrated_output"]][["GFC_all_layers"]][, -base::ncol(hcobject[["integrated_output"]][["GFC_all_layers"]]), drop = FALSE])
+  }
   
   final_colnames <- NULL
   hub_exp <- base::apply(hubs_df, 2, function(x){
@@ -1979,6 +2398,11 @@ boxplot_from_list <- function(data, log_2, bool_plot){
   plts <- list()
   
   for(x in 1:base::length(data)){
+    if (methods::is(data[[x]], "DataFrame")) {
+      data[[x]] <- base::as.data.frame(data[[x]])
+    } else if (base::is.matrix(data[[x]])) {
+      data[[x]] <- base::as.data.frame(data[[x]])
+    }
     
     if(!base::is.data.frame(data[[x]])){
       
@@ -2089,6 +2513,11 @@ freqdist_plot_from_list <- function(data, log_2, bool_plot){
   plts <- list()
   
   for(x in 1:base::length(data)){
+    if (methods::is(data[[x]], "DataFrame")) {
+      data[[x]] <- base::as.data.frame(data[[x]])
+    } else if (base::is.matrix(data[[x]])) {
+      data[[x]] <- base::as.data.frame(data[[x]])
+    }
     
     if(!base::is.data.frame(data[[x]])){
       
@@ -2114,9 +2543,7 @@ freqdist_plot_from_list <- function(data, log_2, bool_plot){
 freqdist_plot_from_df <- function(data, log_2, bool_plot, it = NULL){
   
   if(base::ncol(data) > 42){
-    
-    print("To avoid over-crowded plots, several plots will be created with up to 42 samples each.")
-    
+    print("A high number of samples was detected. Frequency distributions are saved per sample.")
   }
 
   if(log_2 == T){
@@ -2127,83 +2554,50 @@ freqdist_plot_from_df <- function(data, log_2, bool_plot, it = NULL){
     
   }
   
-  if(base::ncol(data) <= 42){
-    
-    plot_list <- list()
-    
-    for(x in base::c(1:base::ncol(data))){
-      
-      plot_list[[base::paste0("plot_", x)]] <- ggplot2::ggplot(data[,x,drop =F], ggplot2::aes(x = data[[x]])) + 
-        ggplot2::geom_density(ggplot2::aes(y = ..count..), fill = "lightgray") +
-        ggplot2::geom_vline(ggplot2::aes(xintercept = base::mean(data[[x]][stats::complete.cases(data[[x]])])), 
-                   linetype = "dashed", size = 0.6,
-                   color = "#FC4E07")+
-        ggplot2::xlab(base::colnames(data)[x])+
-        ggplot2::xlim(base::c(0, base::max(data[[x]])))+
-        ggplot2::theme_bw() + 
-        ggplot2::theme(text = ggplot2::element_text(size = 10)) +
-        ggplot2::ggtitle(base::ifelse(x==1, it, ""))
-      
-    }
-
-    p <- base::do.call(gridExtra::grid.arrange, plot_list) 
-
-    ggplot2::ggsave(filename = base::paste0("Sample_distribution_freq_", it,".pdf"), plot = p, device = cairo_pdf,
-           path = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]],"/"), width = 10, height = 8, units = "in")
-    
-    return(p)
-    
-  }else{
-    
-    n <- find_best_mod(nc = base::ncol(data), ref = 42)
-    
-    plts <- list()
-    
-    for (x in 1: ((base::ncol(data) %/% n) + 1) ){
-      
-      start = ((x - 1) * n) + 1
-      
-      end = x * n
-      
-      if(start > base::ncol(data)){
-        
-        break()
-        
-      }
-      
-      if(end > base::ncol(data)){
-        
-        end <- base::ncol(data)
-        
-      }
-      
-      plot_list <- list()
-      
-      for(y in start:end){
-        
-        plot_list[[base::paste0("plot_",y)]] <- ggplot2::ggplot(data, ggplot2::aes(x = data[,y])) + 
-          ggplot2::geom_density(ggplot2::aes(y = ..count..), fill = "lightgray") +
-          ggplot2::geom_vline(ggplot2::aes(xintercept = base::mean(data[,y][stats::complete.cases(data[,y])])), 
-                     linetype = "dashed", size = 0.6,
-                     color = "#FC4E07")+
-          ggplot2::xlab(base::colnames(data)[y])+
-          ggplot2::xlim(base::c(0, base::max(data[,y])))+
-          ggplot2::theme_bw() + 
-          ggplot2::theme(text = ggplot2::element_text(size = 10))+
-          ggplot2::ggtitle(base::ifelse(x==1, it, ""))
-        
-      }
-      
-      p <- base::do.call(gridExtra::grid.arrange, plot_list)
-      
-      ggplot2::ggsave(filename = base::paste0("Sample_distribution_freq_", it, "_", x, ".pdf"), plot = p, device = cairo_pdf,
-             path = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]],"/"), width = 17, height = 7.8,  units = "in")
-      
-      plts[[x]] <- p
+  plts <- list()
+  out_path <- base::paste0(
+    hcobject[["working_directory"]][["dir_output"]],
+    hcobject[["global_settings"]][["save_folder"]],
+    "/"
+  )
+  
+  for (x in base::seq_len(base::ncol(data))) {
+    sample_name <- base::colnames(data)[x]
+    vals <- data[[x]]
+    xmax <- suppressWarnings(base::max(vals, na.rm = TRUE))
+    if (!is.finite(xmax) || xmax <= 0) {
+      xmax <- 1
     }
     
-    return(plts)
+    p <- ggplot2::ggplot(data[, x, drop = FALSE], ggplot2::aes(x = data[[x]])) +
+      ggplot2::geom_density(ggplot2::aes(y = ggplot2::after_stat(count)), fill = "lightgray") +
+      ggplot2::geom_vline(
+        ggplot2::aes(xintercept = base::mean(data[[x]][stats::complete.cases(data[[x]])])),
+        linetype = "dashed",
+        linewidth = 0.6,
+        color = "#FC4E07"
+      ) +
+      ggplot2::xlab(sample_name) +
+      ggplot2::xlim(base::c(0, xmax)) +
+      ggplot2::theme_bw() +
+      ggplot2::theme(text = ggplot2::element_text(size = 10)) +
+      ggplot2::ggtitle(it)
+    
+    safe_sample <- gsub("[^A-Za-z0-9._-]+", "_", sample_name)
+    ggplot2::ggsave(
+      filename = base::paste0("Sample_distribution_freq_", it, "_", safe_sample, ".pdf"),
+      plot = p,
+      device = cairo_pdf,
+      path = out_path,
+      width = 7,
+      height = 5,
+      units = "in"
+    )
+    
+    plts[[sample_name]] <- p
   }
+  
+  return(plts)
 }
 
 
@@ -2222,8 +2616,17 @@ plot_list_of_plots <- function(plts){
       graphics::plot(tmp)
       
     }else{
-      
-      patchwork::wrap_plots(tmp)
+      if (base::is.list(tmp)) {
+        for (k in 1:base::length(tmp)) {
+          if (ggplot2::is.ggplot(tmp[[k]])) {
+            graphics::plot(tmp[[k]])
+          } else {
+            print(patchwork::wrap_plots(tmp[[k]]))
+          }
+        }
+      } else {
+        print(patchwork::wrap_plots(tmp))
+      }
       
     }
   }
@@ -3062,7 +3465,7 @@ unify_mats <- function(mat_list){
 
 replot_cluster_heatmap <- function(col_order = NULL, 
                                    row_order = NULL, 
-                                   cluster_columns = T,
+                                   cluster_columns = FALSE,
                                    cluster_rows = T, 
                                    k = 0, 
                                    return_HM = T, 
@@ -3152,10 +3555,21 @@ replot_cluster_heatmap <- function(col_order = NULL,
 
 
   base::colnames(mat_heatmap) <- base::colnames(GFCs)[1:(base::ncol(GFCs)-1)]
-
-  if(!base::is.null(col_order)){
-    mat_heatmap <- mat_heatmap %>% base::as.data.frame()
-    mat_heatmap <- mat_heatmap[, col_order] %>% base::as.matrix()
+  
+  existing_heatmap_col_order <- .hc_heatmap_cache_info(
+    hcobject[["integrated_output"]][["cluster_calc"]]
+  )$col_order
+  if (!isTRUE(cluster_columns)) {
+    selected_col_order <- .hc_select_heatmap_col_order(
+      available_cols = base::colnames(mat_heatmap),
+      plot_order = col_order,
+      main_order = existing_heatmap_col_order,
+      fallback_order = base::colnames(mat_heatmap),
+      context = "regrouped cluster heatmap"
+    )
+    if (base::length(selected_col_order) > 0) {
+      mat_heatmap <- mat_heatmap[, selected_col_order, drop = FALSE] %>% base::as.matrix()
+    }
   }
 
   enrich_mat1 <- list()
@@ -3403,7 +3817,7 @@ replot_cluster_heatmap <- function(col_order = NULL,
       
 
       lgd_list <- rlist::list.append(lgd_list, ComplexHeatmap::Legend(labels = colnames(column_anno_categorical[[a]]%>%as.matrix()), title = names(column_anno_categorical)[a],
-                                                                      legend_gp = gpar(col = tmp_colour),
+                                                                      legend_gp = grid::gpar(col = tmp_colour),
                                                                       type = "points", pch = 15))
     }
 
@@ -3504,7 +3918,7 @@ replot_cluster_heatmap <- function(col_order = NULL,
   gfc_scale_labels <- base::trimws(gfc_scale_labels)
   gfc_label_width <- base::max(base::nchar(gfc_scale_labels), na.rm = TRUE)
   gfc_scale_labels <- base::format(gfc_scale_labels, width = gfc_label_width, justify = "right")
-  gfc_palette <- grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(51)
+  gfc_palette <- grDevices::colorRampPalette(.hc_default_gfc_colors())(51)
   gfc_col_fun <- circlize::colorRamp2(
     seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = base::length(gfc_palette)),
     gfc_palette

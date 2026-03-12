@@ -24,6 +24,8 @@ a co-factor ("Co_factor"), a chromatin remodelling protein ("Chromatin_remodelle
 \item{Kegg}{A file name for a .gmt KEGG database file. You can find one in the reference file folder in the repository.}
 
 \item{Reactome}{A file name for a .gmt Reactomte database file. You can find one in the reference file folder in the repository.}
+
+\item{...}{Named additional supplementary files to register.}
 }
 \description{
 Receives the file names of the supplementary files

@@ -6,10 +6,13 @@
 #'  "cluster_infomap", "cluster_walktrap" and "auto" (in which case all are tested and the one with the highest modularity is chosen).
 #' @param no_of_iterations Some of the algorithms are iterative (e.g. Leiden Algorithm). Set here, how many iterations should be performed. 
 #'  For information on which other algorithms are iterative, please refer to their documentation in the igraph or leidenbase package. Default is 2.
-#'  @param max_cluster_count_per_gene The maximum number of different clusters a gene is allowed to be associated with during the different iterations before it is marked as indecisive and removed.
-#'  Default is 1.
+#' @param max_cluster_count_per_gene The maximum number of different clusters a
+#'  gene is allowed to be associated with during the different iterations
+#'  before it is marked as indecisive and removed. Default is 1.
 #' @param resolution The cluster resolution if the cluster algorithm is set to "cluster_leiden". Default is 0.1. Higher values result in more clusters and vice versa.
 #' @param partition_type Name of the partition type. Select from 'CPMVertexPartition', 'ModularityVertexPartition', 'RBConfigurationVertexPartition' and 'RBERVertexPartition'. Default is 'RBConfigurationVertexPartition'.
+#' @param return_result Logical. If `TRUE`, return the cluster table instead of
+#'  storing it in `hcobject`.
 
 #' @export 
 
@@ -25,6 +28,10 @@ cluster_calculation <- function(cluster_algo = "cluster_leiden",
   
   if(cluster_algo == "cluster_leiden"){
     hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]] <<- leiden_clustering(g = hcobject[["integrated_output"]][["merged_net"]], num_it = no_of_iterations, resolution = resolution, partition_type = partition_type)
+    hcobject[["integrated_output"]][["cluster_calc"]][["labelled_network"]] <<- NULL
+    hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]] <<- NULL
+    hcobject[["satellite_outputs"]][["labelled_network"]] <<- NULL
+    hcobject[["satellite_outputs"]][["network_col_by_module"]] <<- NULL
   }else{
     
     # count the number of graph components present in the network:
@@ -165,6 +172,10 @@ cluster_calculation <- function(cluster_algo = "cluster_leiden",
       return(dfk_allinfo)
     }else{
       hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]] <<- dfk_allinfo
+      hcobject[["integrated_output"]][["cluster_calc"]][["labelled_network"]] <<- NULL
+      hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]] <<- NULL
+      hcobject[["satellite_outputs"]][["labelled_network"]] <<- NULL
+      hcobject[["satellite_outputs"]][["network_col_by_module"]] <<- NULL
     }
   }
   

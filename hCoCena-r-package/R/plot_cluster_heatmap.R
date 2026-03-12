@@ -7,17 +7,21 @@
 #'  based on the currently displayed module labels (including split-module labels, if present).
 #'  For the available options check out the satellite functions.
 #' @param col_order Defines the order in which the sample groups (conditions) appear in the heatmap. 
-#'  Accepts a vector of strings giving the conditions in their desired order, default is NULL (automatic order, determined by clustering).
-#'  If the parameter cluster_columns is not set to FALSE, this order will be overwritten.
+#'  Accepts a vector of strings giving the conditions in their desired order.
+#'  If `NULL` and `cluster_columns = FALSE`, the column order from the previous
+#'  main hCoCena heatmap is reused when available.
+#'  If `cluster_columns = TRUE`, this order is overwritten by clustering.
 #' @param row_order Like col_order but with cluster names.
-#' @param cluster_columns A Boolean, whether or not to cluster the columns of the heatmap. Default is TRUE, overwrites col_order.
+#' @param cluster_columns A Boolean, whether or not to cluster the columns of
+#'  the heatmap. Default is FALSE so the main hCoCena column order is preserved.
 #' @param cluster_rows Like cluster_columns but for rows.
 #' @param k The resulting cluster_columns tree is cut into k groups. Default is 0 (no cutting).
-#' @param return_HM A Boolean whether of not to return the ComplexHeatmap object to hcobject$integrated_output$cluster_calc$heatmap_cluster in addition to plotting it. Default is TRUE.
+#' @param return_HM A Boolean whether of not to return the ComplexHeatmap object to hcobject$integrated_output$cluster_calc$heatmap_cluster in addition to plotting it. Default is FALSE.
 #' @param cat_as_bp  A vector of Booleans which length is equivalent to the number of categorical meta data annotations created with the satellite functions. 
 #'  Each Boolean states whether or not the categorical variable should be annotated as a bar plot (TRUE) or as a line plot (FALSE). 
 #'  If you did not perform any meta data annotation, ignore this parameter. 
-#' @param file_name A string giving the name of the file (with .pdf ending) to which the heatmap should be written. Default is "Heatmap_modules.pdf".
+#' @param file_name A string giving the name of the file (with .pdf ending) to which the heatmap should be written.
+#'  Use `NULL` or `FALSE` to skip PDF export. Default is `"Heatmap_modules.pdf"` in the legacy API.
 #' @param module_label_mode Controls labels in module color boxes. One of "legacy", "prefix", "color", "none".
 #'  "legacy" keeps the current behavior. "prefix" writes indexed labels like "M1", "M2", ...
 #'  Default is "prefix".
@@ -47,11 +51,13 @@
 #' @param gene_count_pt_size Optional numeric scale for gene-count glyph size when `gene_count_renderer = "pch"`.
 #'  Uses `snpc` units. If NULL, it follows the module-label glyph size.
 #' @param gfc_colors Optional character vector of colors for the GFC color scale.
-#'  If NULL, uses the legacy default `rev(RColorBrewer::brewer.pal(11, "RdBu"))`.
+#'  If NULL, uses the hCoCena default GFC palette (RdBu-based with darker extremes).
 #' @param gfc_scale_limits Optional numeric vector controlling the module-heatmap
 #'  color scale limits. Provide either one positive number (`x` -> `c(-x, x)`) or
 #'  two numbers (`c(min, max)`). If NULL, uses stored limits from the previous
 #'  main heatmap run, otherwise falls back to `c(-range_GFC, range_GFC)`.
+#' @param gfc_legend_side Side of the GFC heatmap legend. One of `"left"`,
+#'  `"right"`, or `"bottom"`. Default is `"right"`.
 #' @param pdf_width Numeric PDF width in inches for saved heatmap output.
 #'  Default is 50.
 #' @param pdf_height Numeric PDF height in inches for saved heatmap output.
@@ -65,16 +71,47 @@
 #' @param include_dynamic_enrichment_slots Logical. If `TRUE`, also include
 #'  dynamically named enrichment slots (e.g. `enriched_per_cluster_<db>`).
 #'  Default is `FALSE` to keep the standard heatmap behavior unchanged.
+#' @param celltype_bar_top_n Integer. Keep only the globally top-N cell types
+#'  (by summed annotation weights) in stacked row barplots; optionally collapse
+#'  the rest into `celltype_bar_other_label`. Set `NULL` to keep all.
+#'  Default is `3`.
+#' @param celltype_bar_include_other Logical. If `TRUE`, collapsed categories
+#'  are shown as one additional segment (`celltype_bar_other_label`).
+#' @param celltype_bar_other_label Label used for the collapsed segment.
+#' @param celltype_bar_show_dominant Logical. If `TRUE`, add a text column next
+#'  to each stacked bar with the dominant cell type per module.
+#' @param celltype_bar_dominant_width_cm Width in cm of the dominant cell-type
+#'  text column.
+#' @param celltype_bar_mode Controls display of dynamic cell-type annotations.
+#'  One of `"bar_and_text"`, `"bar"`, or `"text"`.
+#'  Default is `"bar_and_text"`.
+#' @param include_module_significance Logical. If `TRUE`, add a right-side row
+#'  annotation with module-significance labels from
+#'  `satellite_outputs[[module_significance_slot]]`.
+#' @param module_significance_slot Character scalar naming the satellite slot
+#'  produced by `module_condition_significance()`. Default is
+#'  `"module_condition_significance"`.
+#' @param module_significance_method Which method to visualize. One of
+#'  `"auto"`, `"wilcox"`, `"limma"`, `"lmm"`. `"auto"` prefers `wilcox`,
+#'  then `limma`, then `lmm`, then summary fallback columns.
+#' @param module_significance_show_qvalue Logical. If `TRUE`, print q-values
+#'  next to significance stars.
+#' @param module_significance_width_cm Width (cm) of the significance
+#'  annotation column.
+#' @param module_significance_p_cutoffs Numeric length-3 vector used for star
+#'  labels (`***`, `**`, `*`).
+#' @param module_significance_annotation_name Column name displayed above the
+#'  significance annotation.
 #' @export
 
 
 
 plot_cluster_heatmap <- function(col_order = NULL,
                                  row_order = NULL,
-                                 cluster_columns = T,
+                                 cluster_columns = FALSE,
                                  cluster_rows = T,
                                  k = 0,
-                                 return_HM = T,
+                                 return_HM = FALSE,
                                  cat_as_bp = NULL,
                                  file_name = "Heatmap_modules.pdf",
                                  module_label_mode = "prefix",
@@ -93,12 +130,26 @@ plot_cluster_heatmap <- function(col_order = NULL,
                                  gene_count_pt_size = NULL,
                                  gfc_colors = NULL,
                                  gfc_scale_limits = NULL,
+                                 gfc_legend_side = "right",
                                  pdf_width = 50,
                                  pdf_height = 30,
                                  pdf_pointsize = 11,
                                  pdf_dpi = 300,
                                  overall_plot_scale = 1,
-                                 include_dynamic_enrichment_slots = FALSE){
+                                 include_dynamic_enrichment_slots = FALSE,
+                                 celltype_bar_top_n = 3,
+                                 celltype_bar_include_other = TRUE,
+                                 celltype_bar_other_label = "Other",
+                                 celltype_bar_show_dominant = TRUE,
+                                 celltype_bar_dominant_width_cm = 2.8,
+                                 celltype_bar_mode = "bar_and_text",
+                                 include_module_significance = FALSE,
+                                 module_significance_slot = "module_condition_significance",
+                                 module_significance_method = "auto",
+                                 module_significance_show_qvalue = FALSE,
+                                 module_significance_width_cm = 1.6,
+                                 module_significance_p_cutoffs = c(0.001, 0.01, 0.05),
+                                 module_significance_annotation_name = "sig"){
 
   plot_cluster_heatmap_new(
     col_order = col_order,
@@ -125,22 +176,36 @@ plot_cluster_heatmap <- function(col_order = NULL,
     gene_count_pt_size = gene_count_pt_size,
     gfc_colors = gfc_colors,
     gfc_scale_limits = gfc_scale_limits,
+    gfc_legend_side = gfc_legend_side,
     pdf_width = pdf_width,
     pdf_height = pdf_height,
     pdf_pointsize = pdf_pointsize,
     pdf_dpi = pdf_dpi,
     overall_plot_scale = overall_plot_scale,
-    include_dynamic_enrichment_slots = include_dynamic_enrichment_slots
+    include_dynamic_enrichment_slots = include_dynamic_enrichment_slots,
+    celltype_bar_top_n = celltype_bar_top_n,
+    celltype_bar_include_other = celltype_bar_include_other,
+    celltype_bar_other_label = celltype_bar_other_label,
+    celltype_bar_show_dominant = celltype_bar_show_dominant,
+    celltype_bar_dominant_width_cm = celltype_bar_dominant_width_cm,
+    celltype_bar_mode = celltype_bar_mode,
+    include_module_significance = include_module_significance,
+    module_significance_slot = module_significance_slot,
+    module_significance_method = module_significance_method,
+    module_significance_show_qvalue = module_significance_show_qvalue,
+    module_significance_width_cm = module_significance_width_cm,
+    module_significance_p_cutoffs = module_significance_p_cutoffs,
+    module_significance_annotation_name = module_significance_annotation_name
   )
 }
 
 
 plot_cluster_heatmap_new <- function(col_order = NULL, 
                                  row_order = NULL, 
-                                 cluster_columns = T,
+                                 cluster_columns = FALSE,
                                  cluster_rows = T, 
                                  k = 0, 
-                                 return_HM = T, 
+                                 return_HM = FALSE, 
                                  cat_as_bp = NULL, 
                                  file_name = "Heatmap_modules.pdf",
                                  module_label_mode = "prefix",
@@ -159,12 +224,26 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                                  gene_count_pt_size = NULL,
                                  gfc_colors = NULL,
                                  gfc_scale_limits = NULL,
+                                 gfc_legend_side = "right",
                                  pdf_width = 50,
                                  pdf_height = 30,
                                  pdf_pointsize = 11,
                                  pdf_dpi = 300,
                                  overall_plot_scale = 1,
-                                 include_dynamic_enrichment_slots = FALSE){
+                                 include_dynamic_enrichment_slots = FALSE,
+                                 celltype_bar_top_n = 3,
+                                 celltype_bar_include_other = TRUE,
+                                 celltype_bar_other_label = "Other",
+                                 celltype_bar_show_dominant = TRUE,
+                                 celltype_bar_dominant_width_cm = 2.8,
+                                 celltype_bar_mode = "bar_and_text",
+                                 include_module_significance = FALSE,
+                                 module_significance_slot = "module_condition_significance",
+                                 module_significance_method = "auto",
+                                 module_significance_show_qvalue = FALSE,
+                                 module_significance_width_cm = 1.6,
+                                 module_significance_p_cutoffs = c(0.001, 0.01, 0.05),
+                                 module_significance_annotation_name = "sig"){
 
   module_label_mode <- base::match.arg(
     module_label_mode,
@@ -186,6 +265,44 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     gene_count_renderer,
     choices = c("pch", "text")
   )
+  module_significance_method <- base::match.arg(
+    module_significance_method,
+    choices = c("auto", "wilcox", "limma", "lmm")
+  )
+  gfc_legend_side <- base::match.arg(
+    gfc_legend_side,
+    choices = c("left", "right", "bottom")
+  )
+  celltype_bar_mode <- base::match.arg(
+    celltype_bar_mode,
+    choices = c("bar_and_text", "bar", "text")
+  )
+  show_celltype_bars <- celltype_bar_mode %in% c("bar_and_text", "bar")
+  show_celltype_text <- (celltype_bar_mode %in% c("bar_and_text", "text")) && isTRUE(celltype_bar_show_dominant)
+  if (!base::is.null(celltype_bar_top_n)) {
+    if (!base::is.numeric(celltype_bar_top_n) || base::length(celltype_bar_top_n) != 1 ||
+        base::is.na(celltype_bar_top_n) || celltype_bar_top_n < 1) {
+      stop("`celltype_bar_top_n` must be NULL or a single integer >= 1.")
+    }
+    celltype_bar_top_n <- base::as.integer(celltype_bar_top_n)
+  }
+  if (!base::is.logical(celltype_bar_include_other) || base::length(celltype_bar_include_other) != 1 ||
+      base::is.na(celltype_bar_include_other)) {
+    stop("`celltype_bar_include_other` must be TRUE or FALSE.")
+  }
+  if (!base::is.character(celltype_bar_other_label) || base::length(celltype_bar_other_label) != 1 ||
+      base::is.na(celltype_bar_other_label) || !base::nzchar(base::trimws(celltype_bar_other_label))) {
+    stop("`celltype_bar_other_label` must be a non-empty character scalar.")
+  }
+  celltype_bar_other_label <- base::trimws(celltype_bar_other_label)
+  if (!base::is.logical(celltype_bar_show_dominant) || base::length(celltype_bar_show_dominant) != 1 ||
+      base::is.na(celltype_bar_show_dominant)) {
+    stop("`celltype_bar_show_dominant` must be TRUE or FALSE.")
+  }
+  if (!base::is.numeric(celltype_bar_dominant_width_cm) || base::length(celltype_bar_dominant_width_cm) != 1 ||
+      base::is.na(celltype_bar_dominant_width_cm) || celltype_bar_dominant_width_cm <= 0) {
+    stop("`celltype_bar_dominant_width_cm` must be a single positive number.")
+  }
 
   user_set_module_label_fontsize <- !base::is.null(module_label_fontsize)
   user_set_module_label_pt_size <- !base::is.null(module_label_pt_size)
@@ -225,9 +342,54 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       overall_plot_scale <= 0) {
     stop("`overall_plot_scale` must be a positive numeric scalar.")
   }
+  write_pdf <- FALSE
+  if (base::is.null(file_name) || (base::is.logical(file_name) && base::identical(file_name, FALSE))) {
+    write_pdf <- FALSE
+  } else if (base::is.character(file_name) && base::length(file_name) == 1 && base::nzchar(file_name)) {
+    write_pdf <- TRUE
+  } else {
+    stop("`file_name` must be a non-empty string, NULL, or FALSE.")
+  }
+  if (!base::is.logical(include_module_significance) ||
+      base::length(include_module_significance) != 1 ||
+      base::is.na(include_module_significance)) {
+    stop("`include_module_significance` must be TRUE or FALSE.")
+  }
+  if (!base::is.character(module_significance_slot) ||
+      base::length(module_significance_slot) != 1 ||
+      !base::nzchar(module_significance_slot)) {
+    stop("`module_significance_slot` must be a non-empty string.")
+  }
+  if (!base::is.logical(module_significance_show_qvalue) ||
+      base::length(module_significance_show_qvalue) != 1 ||
+      base::is.na(module_significance_show_qvalue)) {
+    stop("`module_significance_show_qvalue` must be TRUE or FALSE.")
+  }
+  if (!base::is.numeric(module_significance_width_cm) ||
+      base::length(module_significance_width_cm) != 1 ||
+      base::is.na(module_significance_width_cm) ||
+      module_significance_width_cm <= 0) {
+    stop("`module_significance_width_cm` must be a positive number.")
+  }
+  module_significance_width_cm <- base::max(0.8, base::min(4.0, module_significance_width_cm))
+  module_significance_p_cutoffs <- suppressWarnings(base::as.numeric(module_significance_p_cutoffs))
+  if (base::length(module_significance_p_cutoffs) != 3 ||
+      base::any(!base::is.finite(module_significance_p_cutoffs))) {
+    stop("`module_significance_p_cutoffs` must be a numeric vector of length 3.")
+  }
+  module_significance_p_cutoffs <- base::sort(module_significance_p_cutoffs)
+  if (module_significance_p_cutoffs[[1]] <= 0 ||
+      module_significance_p_cutoffs[[3]] > 1) {
+    stop("`module_significance_p_cutoffs` must be within (0, 1].")
+  }
+  if (!base::is.character(module_significance_annotation_name) ||
+      base::length(module_significance_annotation_name) != 1 ||
+      !base::nzchar(module_significance_annotation_name)) {
+    stop("`module_significance_annotation_name` must be a non-empty string.")
+  }
   overall_plot_scale <- base::max(0.5, base::min(3, overall_plot_scale))
   if (base::is.null(gfc_colors)) {
-    gfc_colors <- base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))
+    gfc_colors <- .hc_default_gfc_colors()
   }
   if (!base::is.character(gfc_colors) || base::length(gfc_colors) < 2) {
     stop("`gfc_colors` must be NULL or a character vector with at least two colors.")
@@ -397,74 +559,132 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   }
   
   base::gc()
+
+  parse_gene_string <- function(x) {
+    if (base::is.null(x) || base::length(x) == 0 || base::all(base::is.na(x))) {
+      return(base::character(0))
+    }
+    genes <- base::trimws(
+      base::unlist(
+        base::strsplit(base::as.character(x), ",", fixed = TRUE),
+        use.names = FALSE
+      )
+    )
+    genes <- genes[!base::is.na(genes) & genes != ""]
+    base::unique(genes)
+  }
+
+  build_cluster_gene_map <- function(cluster_df, target_clusters) {
+    gene_strings <- base::split(base::as.character(cluster_df$gene_n), base::as.character(cluster_df$color))
+    out <- stats::setNames(base::vector("list", base::length(target_clusters)), target_clusters)
+    for (cl in target_clusters) {
+      out[[cl]] <- parse_gene_string(gene_strings[[cl]])
+    }
+    out
+  }
+
+  build_mat_heatmap_fast <- function(gfc_df, cluster_gene_map, target_clusters) {
+    if (!("Gene" %in% base::colnames(gfc_df))) {
+      stop("`GFC_all_layers` must contain a `Gene` column.")
+    }
+
+    gfc_cols <- base::seq_len(base::ncol(gfc_df) - 1)
+    gfc_mat <- base::as.matrix(gfc_df[, gfc_cols, drop = FALSE])
+    storage.mode(gfc_mat) <- "numeric"
+    gene_ids <- base::as.character(gfc_df$Gene)
+    valid_gene_ids <- !base::is.na(gene_ids) & base::nzchar(gene_ids)
+    gfc_mat <- gfc_mat[valid_gene_ids, , drop = FALSE]
+    gene_ids <- gene_ids[valid_gene_ids]
+    base::rownames(gfc_mat) <- gene_ids
+    gene_index <- base::split(base::seq_along(gene_ids), gene_ids)
+
+    out <- base::vapply(
+      target_clusters,
+      function(cl) {
+        genes <- cluster_gene_map[[cl]]
+        if (base::length(genes) == 0) {
+          return(base::rep(NA_real_, base::ncol(gfc_mat)))
+        }
+        idx <- base::unlist(gene_index[genes], use.names = FALSE)
+        if (base::length(idx) == 0) {
+          return(base::rep(NA_real_, base::ncol(gfc_mat)))
+        }
+        base::colMeans(gfc_mat[idx, , drop = FALSE], na.rm = TRUE)
+      },
+      FUN.VALUE = base::numeric(base::ncol(gfc_mat))
+    )
+
+    out <- base::t(out)
+    base::rownames(out) <- target_clusters
+    base::colnames(out) <- base::colnames(gfc_df)[gfc_cols]
+    out
+  }
   
   # Filter for included clusters (non-white)
   c_df <- dplyr::filter(hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]], cluster_included == "yes")
-  mat_heatmap <- NULL
   
   # --- 2. Build Heatmap Matrix (GFC Values) ---
+  target_clusters <- if(!base::is.null(row_order)) row_order else base::unique(c_df$color)
+  target_clusters <- base::as.character(target_clusters)
+  cluster_gene_map <- build_cluster_gene_map(c_df, target_clusters)
+  mat_heatmap <- build_mat_heatmap_fast(
+    gfc_df = hcobject[["integrated_output"]][["GFC_all_layers"]],
+    cluster_gene_map = cluster_gene_map,
+    target_clusters = target_clusters
+  )
   
-  if(!base::is.null(row_order)){
-    for (c in row_order){
-      # Get genes from the original cluster
-      genes <- c_df[c_df$color == c, ] %>%
-        dplyr::pull(., "gene_n") %>%
-        base::strsplit(., split = ",") %>%
-        base::unlist(.)
-      
-      # GFCs of new data set, where genes are found in original cluster
-      c_GFCs <- dplyr::filter(hcobject[["integrated_output"]][["GFC_all_layers"]], Gene %in% genes)
-      c_GFC_means <- base::apply(c_GFCs[, base::c(1:(base::ncol(c_GFCs)-1))], 2, base::mean)
-      
-      mat_heatmap <- base::rbind(mat_heatmap, c_GFC_means)
+  existing_heatmap_col_order <- .hc_heatmap_cache_info(
+    hcobject[["integrated_output"]][["cluster_calc"]]
+  )$col_order
+  if (!isTRUE(cluster_columns)) {
+    selected_col_order <- .hc_select_heatmap_col_order(
+      available_cols = base::colnames(mat_heatmap),
+      plot_order = col_order,
+      main_order = existing_heatmap_col_order,
+      fallback_order = base::colnames(mat_heatmap),
+      context = "cluster heatmap"
+    )
+    if (base::length(selected_col_order) > 0) {
+      mat_heatmap <- mat_heatmap[, selected_col_order, drop = FALSE] %>% base::as.matrix()
     }
-    base::rownames(mat_heatmap) <- row_order
-    
-  } else {
-    for (c in base::unique(c_df$color)){
-      # Get genes from the original cluster
-      genes <- c_df[c_df$color == c, ] %>%
-        dplyr::pull(., "gene_n") %>%
-        base::strsplit(., split = ",") %>%
-        base::unlist(.)
-      
-      # GFCs of new data set
-      c_GFCs <- dplyr::filter(hcobject[["integrated_output"]][["GFC_all_layers"]], Gene %in% genes)
-      
-      if(base::is.vector(c_GFCs)){
-        c_GFC_means <- cGFCs
-      } else {
-        c_GFC_means <- base::apply(c_GFCs[, base::c(1:(base::ncol(c_GFCs)-1))] %>% 
-                                     base::as.data.frame(), 2, base::mean)
-      }
-      mat_heatmap <- base::rbind(mat_heatmap, c_GFC_means)
-    }
-    base::rownames(mat_heatmap) <- c_df$color
-  }
-  
-  base::colnames(mat_heatmap) <- base::colnames(hcobject[["integrated_output"]][["GFC_all_layers"]])[1:(base::ncol(hcobject[["integrated_output"]][["GFC_all_layers"]])-1)]
-  
-  if(!base::is.null(col_order)){
-    mat_heatmap <- mat_heatmap %>% base::as.data.frame()
-    mat_heatmap <- mat_heatmap[, col_order] %>% base::as.matrix()
   }
   
   # --- 3. Prepare Enrichment Data ---
   
   enrichment_entries <- list()
-  
-  # Helper logic to extract enrichment data
-  if(!base::is.null(row_order)){
-    target_clusters <- row_order
-  } else {
-    target_clusters <- base::unique(c_df$color) 
+  .truncate_for_label <- function(x, max_chars = 34) {
+    x <- base::as.character(x)
+    x[base::is.na(x)] <- ""
+    need_cut <- base::nchar(x) > max_chars
+    x[need_cut] <- base::paste0(base::substr(x[need_cut], 1, max_chars - 3), "...")
+    x
+  }
+  .clean_celltype_label <- function(x) {
+    x <- base::as.character(x)
+    x[base::is.na(x)] <- ""
+    x <- base::trimws(x)
+    x <- gsub("^\\[[^\\]]+\\]\\s*", "", x, perl = TRUE)
+    x[x %in% c("", "NA", "N/A", "na", "n/a")] <- ""
+    x
   }
   
+  # Helper logic to extract enrichment data
   if (base::length(user_enrichment_slots) > 0) {
     base_palette <- ggsci::pal_d3(palette = "category20")(20)
     for (slot_idx in base::seq_along(user_enrichment_slots)) {
       slot_item <- user_enrichment_slots[[slot_idx]]
       slot_df <- slot_item$data
+      slot_df <- slot_df[
+        !base::is.na(slot_df$cluster) & base::nzchar(base::trimws(base::as.character(slot_df$cluster))) &
+          !base::is.na(slot_df$cell_type),
+        ,
+        drop = FALSE
+      ]
+      slot_df$cell_type <- .clean_celltype_label(slot_df$cell_type)
+      slot_df <- slot_df[base::nzchar(slot_df$cell_type), , drop = FALSE]
+      if (base::nrow(slot_df) == 0) {
+        next
+      }
       cell_types <- base::unique(base::as.character(slot_df$cell_type))
       if (base::length(cell_types) == 0) {
         next
@@ -505,15 +725,71 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
         next
       }
 
+      slot_mat_full <- slot_mat
+      if (!base::is.null(celltype_bar_top_n) && base::ncol(slot_mat) > celltype_bar_top_n) {
+        col_totals <- base::colSums(slot_mat, na.rm = TRUE)
+        keep_idx <- base::order(col_totals, decreasing = TRUE)
+        keep_idx <- keep_idx[base::seq_len(base::min(base::length(keep_idx), celltype_bar_top_n))]
+        slot_mat <- slot_mat[, keep_idx, drop = FALSE]
+        other_idx <- base::setdiff(base::seq_len(base::ncol(slot_mat_full)), keep_idx)
+        if (isTRUE(celltype_bar_include_other) && base::length(other_idx) > 0) {
+          other_vals <- base::rowSums(slot_mat_full[, other_idx, drop = FALSE], na.rm = TRUE)
+          if (celltype_bar_other_label %in% base::colnames(slot_mat)) {
+            slot_mat[, celltype_bar_other_label] <- slot_mat[, celltype_bar_other_label] + other_vals
+          } else {
+            slot_mat <- base::cbind(slot_mat, .other = other_vals)
+            base::colnames(slot_mat)[base::ncol(slot_mat)] <- celltype_bar_other_label
+          }
+        }
+      }
+
+      dominant_text <- stats::setNames(base::rep("", base::nrow(slot_mat_full)), base::rownames(slot_mat_full))
+      for (cl in base::rownames(slot_mat_full)) {
+        v <- slot_mat_full[cl, , drop = TRUE]
+        if (!base::any(base::is.finite(v) & v > 0)) {
+          dominant_text[[cl]] <- ""
+          next
+        }
+        ct <- .clean_celltype_label(base::colnames(slot_mat_full))
+        is_other_like <- base::tolower(ct) == base::tolower(celltype_bar_other_label)
+        idx_pool <- base::which(!is_other_like & base::is.finite(v) & v > 0)
+        if (base::length(idx_pool) == 0) {
+          idx_pool <- base::which(base::is.finite(v) & v > 0)
+        }
+        if (base::length(idx_pool) == 0) {
+          dominant_text[[cl]] <- ""
+          next
+        }
+        idx <- idx_pool[[base::which.max(v[idx_pool])]]
+        dom_ct <- .clean_celltype_label(base::colnames(slot_mat_full)[[idx]])
+        dom_pct <- suppressWarnings(base::as.numeric(v[[idx]]))
+        if (!base::nzchar(dom_ct) || !base::is.finite(dom_pct)) {
+          dominant_text[[cl]] <- ""
+        } else {
+          dominant_text[[cl]] <- base::paste0(dom_ct, " (", base::format(round(dom_pct, 1), trim = TRUE, nsmall = 0), "%)")
+        }
+      }
+      dominant_text <- .truncate_for_label(dominant_text, max_chars = 34)
+
       pal_offset <- ((slot_idx - 1) * 3) %% base::length(base_palette)
-      slot_cols <- base_palette[((base::seq_len(base::ncol(slot_mat)) + pal_offset - 1) %% base::length(base_palette)) + 1]
+      ct_names <- base::colnames(slot_mat)
+      is_other <- ct_names == celltype_bar_other_label
+      slot_cols <- base::character(base::length(ct_names))
+      n_main <- base::sum(!is_other)
+      if (n_main > 0) {
+        slot_cols[!is_other] <- base_palette[((base::seq_len(n_main) + pal_offset - 1) %% base::length(base_palette)) + 1]
+      }
+      if (base::any(is_other)) {
+        slot_cols[is_other] <- "#bdbdbd"
+      }
       enrichment_entries[[base::length(enrichment_entries) + 1]] <- list(
         slot = slot_item$slot,
         label = slot_item$label,
         mat = slot_mat,
         hits = slot_hits,
         cell_types = base::colnames(slot_mat),
-        colors = slot_cols
+        colors = slot_cols,
+        dominant_text = base::unname(dominant_text[base::as.character(target_clusters)])
       )
     }
   }
@@ -542,6 +818,167 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     cluster_colors <- base::factor(c_df$color)
     base::names(cluster_colors) <- c_df$color
     row_order <- base::unique(c_df$color)
+  }
+
+  # Optional module-significance labels from `module_condition_significance()`.
+  module_sig_labels <- NULL
+  module_sig_q <- NULL
+  module_sig_method_used <- NULL
+  module_sig_table <- NULL
+  if (isTRUE(include_module_significance)) {
+    sig_slot <- satellite_outputs[[module_significance_slot]]
+    if (!base::is.null(sig_slot) && base::is.list(sig_slot)) {
+      .sig_star_fun <- function(qvals, cuts) {
+        out <- base::rep("", base::length(qvals))
+        ok <- base::is.finite(qvals)
+        out[ok & qvals <= cuts[[1]]] <- "***"
+        out[ok & qvals > cuts[[1]] & qvals <= cuts[[2]]] <- "**"
+        out[ok & qvals > cuts[[2]] & qvals <= cuts[[3]]] <- "*"
+        out
+      }
+
+      candidate_names <- if (base::identical(module_significance_method, "auto")) {
+        base::c("wilcox", "limma_summary", "lmm")
+      } else if (base::identical(module_significance_method, "limma")) {
+        "limma_summary"
+      } else {
+        module_significance_method
+      }
+
+      for (nm in candidate_names) {
+        if (!(nm %in% base::names(sig_slot))) {
+          next
+        }
+        sig_df <- sig_slot[[nm]]
+        if (base::is.null(sig_df) || !base::is.data.frame(sig_df) || base::nrow(sig_df) == 0) {
+          next
+        }
+        if (!("cluster" %in% base::colnames(sig_df)) && "module" %in% base::colnames(sig_df)) {
+          sig_df$cluster <- sig_df$module
+        }
+        q_col <- base::intersect(
+          base::c("p_adj", "adj.P.Val", "qvalue", "q", "best_q"),
+          base::colnames(sig_df)
+        )
+        if (!("cluster" %in% base::colnames(sig_df)) || base::length(q_col) == 0) {
+          next
+        }
+        sig_df$cluster <- base::as.character(sig_df$cluster)
+        sig_df$q_tmp <- suppressWarnings(base::as.numeric(sig_df[[q_col[[1]]]]))
+        sig_df <- sig_df[!base::is.na(sig_df$cluster) & base::nzchar(sig_df$cluster), , drop = FALSE]
+        if (base::nrow(sig_df) == 0) {
+          next
+        }
+        split_sig <- base::split(sig_df, sig_df$cluster)
+        best_sig <- base::lapply(split_sig, function(x) {
+          qv <- suppressWarnings(base::as.numeric(x$q_tmp))
+          idx <- if (base::any(base::is.finite(qv))) {
+            base::which.min(base::ifelse(base::is.finite(qv), qv, Inf))
+          } else {
+            1
+          }
+          x[idx, , drop = FALSE]
+        })
+        best_sig <- base::do.call(base::rbind, best_sig)
+        hit <- base::match(row_order, best_sig$cluster)
+        module_sig_q <- best_sig$q_tmp[hit]
+        base::names(module_sig_q) <- row_order
+        stars <- .sig_star_fun(module_sig_q, module_significance_p_cutoffs)
+        module_sig_labels <- if (isTRUE(module_significance_show_qvalue)) {
+          base::ifelse(
+            base::is.finite(module_sig_q),
+            base::ifelse(
+              stars == "",
+              base::paste0("q=", base::formatC(module_sig_q, format = "fg", digits = 2)),
+              base::paste0(stars, " q=", base::formatC(module_sig_q, format = "fg", digits = 2))
+            ),
+            ""
+          )
+        } else {
+          stars
+        }
+        module_sig_method_used <- if (base::identical(nm, "limma_summary")) "limma" else nm
+        break
+      }
+
+      if (base::is.null(module_sig_labels) &&
+          "summary" %in% base::names(sig_slot) &&
+          base::is.data.frame(sig_slot[["summary"]]) &&
+          base::nrow(sig_slot[["summary"]]) > 0) {
+        sum_df <- sig_slot[["summary"]]
+        if (!("cluster" %in% base::colnames(sum_df)) && "module" %in% base::colnames(sum_df)) {
+          sum_df$cluster <- sum_df$module
+        }
+        if ("cluster" %in% base::colnames(sum_df)) {
+          sum_df$cluster <- base::as.character(sum_df$cluster)
+          hit <- base::match(row_order, sum_df$cluster)
+          q_cols <- if (base::identical(module_significance_method, "auto")) {
+            base::c("best_q", "wilcox_q", "limma_q", "lmm_q", "qvalue")
+          } else {
+            base::c(
+              base::paste0(module_significance_method, "_q"),
+              "best_q",
+              "qvalue"
+            )
+          }
+          sig_cols <- if (base::identical(module_significance_method, "auto")) {
+            base::c("best_sig", "wilcox_sig", "limma_sig", "lmm_sig", "significance")
+          } else {
+            base::c(
+              base::paste0(module_significance_method, "_sig"),
+              "best_sig",
+              "significance"
+            )
+          }
+          q_col <- base::intersect(q_cols, base::colnames(sum_df))
+          sig_col <- base::intersect(sig_cols, base::colnames(sum_df))
+          if (base::length(q_col) > 0) {
+            module_sig_q <- suppressWarnings(base::as.numeric(sum_df[[q_col[[1]]]]))[hit]
+            base::names(module_sig_q) <- row_order
+          }
+          if (base::length(sig_col) > 0) {
+            module_sig_labels <- base::as.character(sum_df[[sig_col[[1]]]])[hit]
+          } else if (!base::is.null(module_sig_q)) {
+            module_sig_labels <- .sig_star_fun(module_sig_q, module_significance_p_cutoffs)
+          }
+          if ("best_method" %in% base::colnames(sum_df)) {
+            method_vals <- base::as.character(sum_df$best_method)[hit]
+            method_vals <- method_vals[!base::is.na(method_vals) & base::nzchar(method_vals)]
+            if (base::length(method_vals) > 0) {
+              module_sig_method_used <- base::paste(base::unique(method_vals), collapse = ", ")
+            }
+          }
+        }
+      }
+    }
+
+    if (!base::is.null(module_sig_labels)) {
+      module_sig_labels <- base::as.character(module_sig_labels)
+      module_sig_labels[base::is.na(module_sig_labels)] <- ""
+      if (base::is.null(module_sig_q) || base::length(module_sig_q) != base::length(row_order)) {
+        module_sig_q <- base::rep(NA_real_, base::length(row_order))
+      }
+      module_sig_table <- base::data.frame(
+        cluster = row_order,
+        method = if (base::is.null(module_sig_method_used)) "unknown" else module_sig_method_used,
+        qvalue = suppressWarnings(base::as.numeric(module_sig_q)),
+        significance = module_sig_labels,
+        stringsAsFactors = FALSE
+      )
+      hcobject[["satellite_outputs"]][["module_significance_last_heatmap"]] <<- module_sig_table
+      message(
+        "Module-significance summary table (method: ",
+        if (base::is.null(module_sig_method_used)) "unknown" else module_sig_method_used,
+        "):"
+      )
+      print(module_sig_table, row.names = FALSE)
+    } else {
+      warning(
+        "No module-significance labels could be drawn. Run `hc_module_condition_significance()` first ",
+        "and check slot `", module_significance_slot, "`.",
+        call. = FALSE
+      )
+    }
   }
 
   has_enrichment <- base::length(enrichment_entries) > 0
@@ -701,10 +1138,28 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     module_labels <- base::as.character(row_order)
   }
 
-  max_chars <- if (base::is.null(module_labels)) {
+  module_sig_integrated <- (
+    isTRUE(include_module_significance) &&
+      !base::is.null(module_sig_labels) &&
+      !isTRUE(module_significance_show_qvalue) &&
+      !base::is.null(module_labels) &&
+      base::identical(module_label_mode, "prefix")
+  )
+  module_labels_display <- if (isTRUE(module_sig_integrated)) {
+    sig_suffix <- base::ifelse(
+      base::is.na(module_sig_labels) | !base::nzchar(module_sig_labels),
+      "",
+      base::as.character(module_sig_labels)
+    )
+    base::paste0(module_labels, sig_suffix)
+  } else {
+    module_labels
+  }
+
+  max_chars <- if (base::is.null(module_labels_display)) {
     1
   } else {
-    base::max(base::nchar(module_labels), na.rm = TRUE)
+    base::max(base::nchar(module_labels_display), na.rm = TRUE)
   }
 
   n_rows <- base::nrow(c_df)
@@ -725,7 +1180,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                             auto = 1.0)
 
   if (!user_set_module_label_fontsize) {
-    if (base::is.null(module_labels)) {
+    if (base::is.null(module_labels_display)) {
       base_font <- 8
     } else if (user_set_module_box_width_cm) {
       # Respect user-defined box width and fit text into it.
@@ -756,7 +1211,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   }
 
   if (!user_set_module_box_width_cm) {
-    if (base::is.null(module_labels) || module_label_mode == "legacy") {
+    if (base::is.null(module_labels_display) || module_label_mode == "legacy") {
       base_width <- 0.5
     } else {
       # Approximate text width in cm; expand with longer labels automatically.
@@ -809,7 +1264,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   module_box_anno <- ComplexHeatmap::anno_simple(
     row_order,
     col = cluster_colors,
-    pch = module_labels,
+    pch = module_labels_display,
     pt_gp = grid::gpar(col = module_label_color, fontsize = module_label_fontsize, fontface = "bold"),
     pt_size = grid::unit(module_label_pt_size, "snpc"),
     simple_anno_size = grid::unit(module_box_width_cm, "cm"),
@@ -848,15 +1303,71 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     ComplexHeatmap::anno_empty(width = grid::unit(0, "mm"), which = "row", border = FALSE)
   }
 
+  show_module_sig <- isTRUE(include_module_significance) &&
+    !base::is.null(module_sig_labels) &&
+    !isTRUE(module_sig_integrated)
+  module_sig_width_cm_use <- if (isTRUE(show_module_sig)) {
+    if (isTRUE(module_significance_show_qvalue)) {
+      base::max(2.4, module_significance_width_cm)
+    } else {
+      base::max(1.8, module_significance_width_cm)
+    }
+  } else {
+    module_significance_width_cm
+  }
+  module_sig_anno <- if (isTRUE(show_module_sig)) {
+    sig_cols <- if (!base::is.null(module_sig_q) && base::length(module_sig_q) == base::length(module_sig_labels)) {
+      base::ifelse(
+        base::is.finite(module_sig_q) & module_sig_q <= module_significance_p_cutoffs[[3]],
+        "black",
+        "#8a8a8a"
+      )
+    } else {
+      base::ifelse(base::nzchar(module_sig_labels), "black", "#8a8a8a")
+    }
+    if (isTRUE(module_significance_show_qvalue)) {
+      ComplexHeatmap::anno_text(
+        module_sig_labels,
+        width = grid::unit(module_sig_width_cm_use, "cm"),
+        just = "center",
+        gp = grid::gpar(
+          col = sig_cols,
+          fontsize = base::max(9.5, gene_count_fontsize),
+          fontface = "bold"
+        ),
+        which = "row"
+      )
+    } else {
+      ComplexHeatmap::anno_simple(
+        x = base::rep("sig_bg", base::length(module_sig_labels)),
+        col = c(sig_bg = "#f5f5f5"),
+        pch = module_sig_labels,
+        pt_gp = grid::gpar(
+          col = sig_cols,
+          fontsize = base::max(11, gene_count_fontsize + 1),
+          fontface = "bold"
+        ),
+        pt_size = grid::unit(0.9, "snpc"),
+        simple_anno_size = grid::unit(module_sig_width_cm_use, "cm"),
+        gp = grid::gpar(col = "#d0d0d0"),
+        which = "row"
+      )
+    }
+  } else {
+    ComplexHeatmap::anno_empty(width = grid::unit(0, "mm"), which = "row", border = FALSE)
+  }
+
   base_row_width_cm <- module_box_width_cm +
     if (show_gene_text) 1.2 else 0 +
     if (show_gene_bar) 2.5 else 0 +
+    if (show_module_sig) module_sig_width_cm_use else 0 +
     0.8
-  enrichment_slot_bar_width_cm <- 2.2
+  enrichment_slot_bar_width_cm <- if (show_celltype_bars) 2.2 else 0
+  enrichment_slot_text_width_cm <- if (show_celltype_text) celltype_bar_dominant_width_cm else 0
   enrichment_slot_gap_cm <- 0.15
   n_enrichment_slots <- base::length(enrichment_entries)
   enrichment_total_width_cm <- if (n_enrichment_slots > 0) {
-    (n_enrichment_slots * enrichment_slot_bar_width_cm) +
+    (n_enrichment_slots * (enrichment_slot_bar_width_cm + enrichment_slot_text_width_cm)) +
       ((n_enrichment_slots - 1) * enrichment_slot_gap_cm)
   } else {
     0
@@ -871,24 +1382,75 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     `# genes` = gene_text_anno,
     genes = gene_bar_anno
   )
+  if (isTRUE(show_module_sig)) {
+    sig_anno_name <- module_significance_annotation_name
+    if (sig_anno_name %in% base::names(ha_annos)) {
+      sig_anno_name <- base::paste0(sig_anno_name, "_sig")
+    }
+    ha_annos[[sig_anno_name]] <- module_sig_anno
+  }
   if (n_enrichment_slots > 0) {
     for (i in base::seq_along(enrichment_entries)) {
       entry <- enrichment_entries[[i]]
       anno_name <- entry$label
-      ha_annos[[anno_name]] <- ComplexHeatmap::anno_barplot(
-        entry$mat,
-        width = grid::unit(enrichment_slot_bar_width_cm, "cm"),
-        gp = grid::gpar(fill = entry$colors, col = entry$colors),
-        baseline = 0,
-        which = "row"
-      )
-      lgd_list[[base::length(lgd_list) + 1]] <- ComplexHeatmap::Legend(
-        labels = entry$cell_types,
-        title = anno_name,
-        legend_gp = grid::gpar(col = entry$colors),
-        type = "points",
-        pch = 15
-      )
+      if (show_celltype_bars) {
+        ha_annos[[anno_name]] <- ComplexHeatmap::anno_barplot(
+          entry$mat,
+          width = grid::unit(enrichment_slot_bar_width_cm, "cm"),
+          gp = grid::gpar(fill = entry$colors, col = entry$colors),
+          baseline = 0,
+          which = "row"
+        )
+      }
+      if (show_celltype_text) {
+        dominant_name <- base::paste0(anno_name, "_dominant")
+        dom_mat <- entry$mat
+        dom_labels <- base::character(base::nrow(dom_mat))
+        for (ri in base::seq_len(base::nrow(dom_mat))) {
+          vv <- suppressWarnings(base::as.numeric(dom_mat[ri, , drop = TRUE]))
+          if (!base::any(base::is.finite(vv) & vv > 0)) {
+            dom_labels[[ri]] <- ""
+            next
+          }
+          ctn <- .clean_celltype_label(base::colnames(dom_mat))
+          is_other_like <- base::tolower(ctn) == base::tolower(celltype_bar_other_label)
+          idx_pool <- base::which(!is_other_like & base::is.finite(vv) & vv > 0)
+          if (base::length(idx_pool) == 0) {
+            idx_pool <- base::which(base::is.finite(vv) & vv > 0)
+          }
+          if (base::length(idx_pool) == 0) {
+            dom_labels[[ri]] <- ""
+            next
+          }
+          j <- idx_pool[[base::which.max(vv[idx_pool])]]
+          ct_lab <- ctn[[j]]
+          ct_val <- vv[[j]]
+          if (!base::nzchar(ct_lab) || !base::is.finite(ct_val)) {
+            dom_labels[[ri]] <- ""
+          } else {
+            dom_labels[[ri]] <- base::paste0(ct_lab, " (", base::format(round(ct_val, 1), trim = TRUE, nsmall = 0), "%)")
+          }
+        }
+        dominant_labels <- .truncate_for_label(dom_labels, max_chars = 34)
+        dominant_labels[base::is.na(dominant_labels)] <- ""
+        ha_annos[[dominant_name]] <- ComplexHeatmap::anno_text(
+          dominant_labels,
+          which = "row",
+          just = "left",
+          location = 0,
+          width = grid::unit(celltype_bar_dominant_width_cm, "cm"),
+          gp = grid::gpar(fontsize = 7.2, col = "#333333")
+        )
+      }
+      if (show_celltype_bars) {
+        lgd_list[[base::length(lgd_list) + 1]] <- ComplexHeatmap::Legend(
+          labels = .clean_celltype_label(entry$cell_types),
+          title = if (n_enrichment_slots == 1) "Cell type" else anno_name,
+          legend_gp = grid::gpar(col = entry$colors),
+          type = "points",
+          pch = 15
+        )
+      }
     }
   }
   ha <- base::do.call(
@@ -995,14 +1557,6 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   
   # --- 7. Plotting and Output ---
   
-  Cairo::Cairo(file = paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", file_name),
-               width = pdf_width,
-               height = pdf_height,
-               pointsize = pdf_pointsize,
-               dpi = pdf_dpi,
-               type = "pdf",
-               units = "in")
-
   # Keep module-expression tiles square-like for publication consistency.
   n_heat_rows <- base::nrow(mat_heatmap)
   n_heat_cols <- base::ncol(mat_heatmap)
@@ -1040,6 +1594,129 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = base::length(gfc_palette)),
     gfc_palette
   )
+
+  # ComplexHeatmap/grid objects can keep draw-time viewport state.
+  # Clone objects before repeated draws (PDF + current device) and retry safely.
+  deep_clone <- function(x) {
+    .hc_safe_deep_clone(x, context = "cluster heatmap object")
+  }
+
+  safe_draw <- function(ht_obj,
+                        legend_obj = NULL,
+                        padding_obj = NULL,
+                        heatmap_legend_side = "right",
+                        annotation_legend_side = "right",
+                        context = "cluster heatmap") {
+    draw_once <- function(obj,
+                          lgd,
+                          show_ann_legend = TRUE,
+                          show_heat_legend = TRUE,
+                          use_padding = TRUE) {
+      args <- list(
+        object = obj,
+        newpage = TRUE,
+        merge_legends = if (isTRUE(show_ann_legend)) TRUE else FALSE,
+        show_heatmap_legend = show_heat_legend,
+        show_annotation_legend = show_ann_legend,
+        heatmap_legend_side = heatmap_legend_side,
+        annotation_legend_side = annotation_legend_side
+      )
+      if (!base::is.null(lgd) && base::length(lgd) > 0) {
+        args$annotation_legend_list <- lgd
+      }
+      if (isTRUE(use_padding) && !base::is.null(padding_obj)) {
+        args$padding <- padding_obj
+      }
+      base::do.call(ComplexHeatmap::draw, args)
+    }
+
+    first <- try(draw_once(ht_obj, legend_obj, show_ann_legend = TRUE), silent = TRUE)
+    if (!inherits(first, "try-error")) {
+      return(first)
+    }
+
+    try(grid::grid.newpage(), silent = TRUE)
+    second <- try(
+      draw_once(
+        deep_clone(ht_obj),
+        deep_clone(legend_obj),
+        show_ann_legend = TRUE
+      ),
+      silent = TRUE
+    )
+    if (!inherits(second, "try-error")) {
+      warning(
+        "Recovered from a transient grid viewport error while drawing ",
+        context,
+        ".",
+        call. = FALSE
+      )
+      return(second)
+    }
+
+    try(grid::grid.newpage(), silent = TRUE)
+    third <- try(
+      draw_once(
+        deep_clone(ht_obj),
+        NULL,
+        show_ann_legend = FALSE
+      ),
+      silent = TRUE
+    )
+    if (!inherits(third, "try-error")) {
+      warning(
+        "Draw fallback for ",
+        context,
+        ": annotation legends were disabled after viewport errors.",
+        call. = FALSE
+      )
+      return(third)
+    }
+
+    try(grid::grid.newpage(), silent = TRUE)
+    fourth <- try(
+      draw_once(
+        deep_clone(ht_obj),
+        NULL,
+        show_ann_legend = FALSE,
+        show_heat_legend = TRUE,
+        use_padding = FALSE
+      ),
+      silent = TRUE
+    )
+    if (!inherits(fourth, "try-error")) {
+      warning(
+        "Draw fallback for ",
+        context,
+        ": legends/padding were simplified after viewport errors.",
+        call. = FALSE
+      )
+      return(fourth)
+    }
+
+    try(grid::grid.newpage(), silent = TRUE)
+    fifth <- try(
+      draw_once(
+        deep_clone(ht_obj),
+        NULL,
+        show_ann_legend = FALSE,
+        show_heat_legend = FALSE,
+        use_padding = FALSE
+      ),
+      silent = TRUE
+    )
+    if (!inherits(fifth, "try-error")) {
+      warning(
+        "Draw fallback for ",
+        context,
+        ": all legends were disabled after viewport errors.",
+        call. = FALSE
+      )
+      return(fifth)
+    }
+
+    stop(fifth)
+  }
   
   build_hm <- function(row_dend_mm,
                        col_dend_mm,
@@ -1047,10 +1724,22 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                        fixed_size = TRUE,
                        body_width_mm = NULL,
                        body_height_mm = NULL) {
+    heat_legend_param <- list(
+      title = "GFC",
+      at = gfc_scale_breaks,
+      labels = gfc_scale_labels,
+      labels_gp = grid::gpar(fontfamily = "mono")
+    )
+    if (identical(heatmap_legend_side_mode, "bottom")) {
+      heat_legend_param$direction <- "horizontal"
+      heat_legend_param$legend_width <- grid::unit(38 * overall_plot_scale, "mm")
+      heat_legend_param$title_position <- "leftcenter"
+    }
+
     hm_args <- list(
       mat_heatmap,
       name = "GFC",
-      right_annotation = ha,
+      right_annotation = deep_clone(ha),
       col = gfc_col_fun,
       clustering_distance_rows = "euclidean",
       clustering_distance_columns = "euclidean",
@@ -1069,12 +1758,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       column_names_gp = grid::gpar(fontsize = 10 * overall_plot_scale),
       rect_gp = grid::gpar(col = "black"),
       show_heatmap_legend = TRUE,
-      heatmap_legend_param = list(
-        title = "GFC",
-        at = gfc_scale_breaks,
-        labels = gfc_scale_labels,
-        labels_gp = grid::gpar(fontfamily = "mono")
-      ),
+      heatmap_legend_param = heat_legend_param,
       column_km = k
     )
     if (isTRUE(fixed_size)) {
@@ -1089,34 +1773,61 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     do.call(ComplexHeatmap::Heatmap, hm_args)
   }
 
-  hm_pdf <- build_hm(
-    row_dend_mm = row_dend_width_mm,
-    col_dend_mm = column_dend_height_mm,
-    column_name_max_cm = 22,
-    fixed_size = TRUE,
-    body_width_mm = base::as.numeric(hm_width),
-    body_height_mm = base::as.numeric(hm_height)
-  )
+  hm_pdf_drawn <- NULL
+  heatmap_legend_side_mode <- gfc_legend_side
+  annotation_legend_side_mode <- "right"
+  if (isTRUE(write_pdf)) {
+    Cairo::Cairo(file = paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", file_name),
+                 width = pdf_width,
+                 height = pdf_height,
+                 pointsize = pdf_pointsize,
+                 dpi = pdf_dpi,
+                 type = "pdf",
+                 units = "in")
 
-  anno_list_pdf <- if (base::is.null(anno_list)) {
-    hm_pdf
-  } else {
-    ComplexHeatmap::add_heatmap(hm_pdf, anno_list, direction = c("vertical"))
+    hm_pdf <- build_hm(
+      row_dend_mm = row_dend_width_mm,
+      col_dend_mm = column_dend_height_mm,
+      column_name_max_cm = 22,
+      fixed_size = TRUE,
+      body_width_mm = base::as.numeric(hm_width),
+      body_height_mm = base::as.numeric(hm_height)
+    )
+
+    anno_list_pdf_src <- deep_clone(anno_list)
+    lgd_list_pdf <- deep_clone(lgd_list)
+    anno_list_pdf <- if (base::is.null(anno_list_pdf_src)) {
+      hm_pdf
+    } else {
+      ComplexHeatmap::add_heatmap(hm_pdf, anno_list_pdf_src, direction = c("vertical"))
+    }
+
+    right_pad_pdf_mm <- if (show_celltype_text && show_celltype_bars && base::length(lgd_list_pdf) > 0) 52 else 36
+    bottom_pad_pdf_mm <- if (heatmap_legend_side_mode == "bottom") 52 else 34
+    draw_padding_pdf_mm <- c(26, 18, bottom_pad_pdf_mm, right_pad_pdf_mm) * overall_plot_scale
+    draw_padding <- grid::unit(draw_padding_pdf_mm, "mm")
+
+    hm_pdf_drawn <- tryCatch(
+      safe_draw(
+        ht_obj = anno_list_pdf,
+        legend_obj = lgd_list_pdf,
+        padding_obj = draw_padding,
+        heatmap_legend_side = heatmap_legend_side_mode,
+        annotation_legend_side = annotation_legend_side_mode,
+        context = "cluster heatmap PDF"
+      ),
+      error = function(e) {
+        warning(
+          "Could not fully draw cluster heatmap on PDF device: ",
+          base::conditionMessage(e),
+          call. = FALSE
+        )
+        NULL
+      }
+    )
+
+    grDevices::dev.off()
   }
-
-  draw_padding_pdf_mm <- c(26, 18, 34, 36) * overall_plot_scale
-  draw_padding <- grid::unit(draw_padding_pdf_mm, "mm")
-
-  hm_pdf_drawn <- ComplexHeatmap::draw(
-    anno_list_pdf,
-    merge_legends = TRUE,
-    annotation_legend_list = lgd_list,
-    show_heatmap_legend = TRUE,
-    show_annotation_legend = TRUE,
-    padding = draw_padding
-  )
-
-  grDevices::dev.off()
 
   # For knitr/RStudio chunk devices keep layout compact to avoid clipping.
   dev_in <- tryCatch(grDevices::dev.size("in"), error = function(e) c(8, 6))
@@ -1152,10 +1863,23 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     if (small_device) 12 else 16,
     base::min(34, col_label_max_cm_screen * 3.0)
   )
-  draw_padding_screen_mm <- if (small_device) {
-    c(8, 10, bottom_pad_mm, 12) * overall_plot_scale
+  right_pad_screen_mm <- if (show_celltype_text && show_celltype_bars && base::length(lgd_list) > 0) {
+    if (small_device) 28 else 36
   } else {
-    c(12, 12, bottom_pad_mm, 16) * overall_plot_scale
+    if (small_device) 12 else 16
+  }
+  if (show_celltype_text && !show_celltype_bars) {
+    right_pad_screen_mm <- if (small_device) 20 else 26
+  }
+  extra_bottom_for_legend_mm <- if (heatmap_legend_side_mode == "bottom") {
+    if (small_device) 34 else 40
+  } else {
+    0
+  }
+  draw_padding_screen_mm <- if (small_device) {
+    c(8, 10, bottom_pad_mm + extra_bottom_for_legend_mm, right_pad_screen_mm) * overall_plot_scale
+  } else {
+    c(12, 12, bottom_pad_mm + extra_bottom_for_legend_mm, right_pad_screen_mm) * overall_plot_scale
   }
   draw_padding_screen <- grid::unit(draw_padding_screen_mm, "mm")
   # Keep square tiles on knitr/RStudio devices while using more of the available area.
@@ -1163,7 +1887,15 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   base_body_w_cap_mm <- if (small_device) dev_mm[1] * 0.78 else dev_mm[1] * 0.82
   base_body_h_cap_mm <- if (small_device) dev_mm[2] * 0.80 else dev_mm[2] * 0.84
   row_anno_width_cm <- row_annotation_total_width_cm
-  legend_reserve_mm <- if (base::length(lgd_list) == 0) 28 else 40
+  legend_reserve_mm <- if (heatmap_legend_side_mode == "bottom") {
+    20
+  } else if (base::length(lgd_list) == 0) {
+    28
+  } else if (show_celltype_text && show_celltype_bars) {
+    72
+  } else {
+    40
+  }
   available_body_w_mm <- dev_mm[1] -
     (row_anno_width_cm * 10) -
     row_dend_screen_mm -
@@ -1208,19 +1940,46 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     body_height_mm = hm_screen_h_mm
   )
 
-  anno_list_screen <- if (base::is.null(anno_list)) {
+  anno_list_screen_src <- deep_clone(anno_list)
+  lgd_list_screen <- deep_clone(lgd_list)
+  anno_list_screen <- if (base::is.null(anno_list_screen_src)) {
     hm_screen
   } else {
-    ComplexHeatmap::add_heatmap(hm_screen, anno_list, direction = c("vertical"))
+    ComplexHeatmap::add_heatmap(hm_screen, anno_list_screen_src, direction = c("vertical"))
   }
 
-  hm_w_lgd <- ComplexHeatmap::draw(
-    anno_list_screen,
-    merge_legends = TRUE,
-    annotation_legend_list = lgd_list,
-    show_heatmap_legend = TRUE,
-    show_annotation_legend = TRUE,
-    padding = draw_padding_screen
+  hm_w_lgd <- tryCatch(
+    safe_draw(
+      ht_obj = anno_list_screen,
+      legend_obj = lgd_list_screen,
+      padding_obj = draw_padding_screen,
+      heatmap_legend_side = heatmap_legend_side_mode,
+      annotation_legend_side = annotation_legend_side_mode,
+      context = "cluster heatmap current device"
+    ),
+    error = function(e) {
+      warning(
+        "Could not draw cluster heatmap on current device: ",
+        base::conditionMessage(e),
+        call. = FALSE
+      )
+      fallback <- try(
+        ComplexHeatmap::draw(
+          deep_clone(anno_list_screen),
+          newpage = TRUE,
+          merge_legends = FALSE,
+          show_heatmap_legend = TRUE,
+          show_annotation_legend = FALSE,
+          heatmap_legend_side = heatmap_legend_side_mode,
+          annotation_legend_side = annotation_legend_side_mode
+        ),
+        silent = TRUE
+      )
+      if (!inherits(fallback, "try-error")) {
+        return(fallback)
+      }
+      hm_pdf_drawn
+    }
   )
   module_label_map <- NULL
   if (!base::is.null(module_labels)) {
@@ -1236,23 +1995,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   }
   module_export_map <- stats::setNames(module_export_labels, base::as.character(row_order))
   module_gene_rows <- base::lapply(base::as.character(row_order), function(cl) {
-    idx <- base::which(base::as.character(c_df$color) == cl)
-    if (base::length(idx) == 0) {
-      return(NULL)
-    }
-    gene_n_value <- c_df$gene_n[[idx[[1]]]]
-    if (base::is.null(gene_n_value) ||
-        base::length(gene_n_value) == 0 ||
-        base::all(base::is.na(gene_n_value))) {
-      return(NULL)
-    }
-    genes <- base::trimws(
-      base::unlist(
-        base::strsplit(base::as.character(gene_n_value), ",", fixed = TRUE),
-        use.names = FALSE
-      )
-    )
-    genes <- genes[genes != "" & !base::is.na(genes)]
+    genes <- cluster_gene_map[[cl]]
     if (base::length(genes) == 0) {
       return(NULL)
     }
@@ -1296,7 +2039,6 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     }
   )
   hcobject[["integrated_output"]][["cluster_calc"]][["module_label_map"]] <<- module_label_map
-  hcobject[["integrated_output"]][["cluster_calc"]][["module_gene_list"]] <<- module_gene_list_tbl
   hcobject[["satellite_outputs"]][["module_gene_list"]] <<- module_gene_list_tbl
   hcobject[["integrated_output"]][["cluster_calc"]][["module_label_mode"]] <<- module_label_mode
   hcobject[["integrated_output"]][["cluster_calc"]][["module_label_numbering"]] <<- module_label_numbering
@@ -1315,6 +2057,23 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   hcobject[["integrated_output"]][["cluster_calc"]][["gfc_colors"]] <<- gfc_colors
   hcobject[["integrated_output"]][["cluster_calc"]][["gfc_scale_limits"]] <<- gfc_scale_limits
   hcobject[["integrated_output"]][["cluster_calc"]][["overall_plot_scale"]] <<- overall_plot_scale
+  final_row_order <- .hc_normalize_heatmap_axis_order(
+    tryCatch(ComplexHeatmap::row_order(hm_w_lgd), error = function(e) NULL),
+    base::rownames(mat_heatmap)
+  )
+  if (base::is.null(final_row_order) || base::length(final_row_order) == 0) {
+    final_row_order <- .hc_normalize_heatmap_axis_order(displayed_row_order, base::rownames(mat_heatmap))
+  }
+  final_col_order <- .hc_normalize_heatmap_axis_order(
+    tryCatch(ComplexHeatmap::column_order(hm_w_lgd), error = function(e) NULL),
+    base::colnames(mat_heatmap)
+  )
+  if (base::is.null(final_col_order) || base::length(final_col_order) == 0) {
+    final_col_order <- .hc_normalize_heatmap_axis_order(base::colnames(mat_heatmap), base::colnames(mat_heatmap))
+  }
+  hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_matrix"]] <<- mat_heatmap
+  hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_row_order"]] <<- final_row_order
+  hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_column_order"]] <<- final_col_order
   if (module_label_mode == "prefix") {
     hcobject[["integrated_output"]][["cluster_calc"]][["module_prefix"]] <<- module_prefix
   } else {
@@ -1322,6 +2081,10 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   }
 
   if(return_HM){
+    hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster_raw"]] <<- deep_clone(anno_list_screen)
     hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster"]] <<- hm_w_lgd
+  } else {
+    hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster_raw"]] <<- NULL
+    hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster"]] <<- NULL
   }
 }

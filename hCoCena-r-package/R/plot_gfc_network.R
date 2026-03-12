@@ -9,7 +9,20 @@
 plot_GFC_network <- function(){
 
   GFCs <- hcobject[["integrated_output"]][["GFC_all_layers"]]
-  network <- hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]]
+  sat <- hcobject[["satellite_outputs"]]
+  network <- NULL
+  if (!base::is.null(sat) && base::is.list(sat)) {
+    network <- sat[["network_col_by_module"]]
+  }
+  if (base::is.null(network)) {
+    network <- hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]]
+  }
+  if (base::is.null(network)) {
+    network <- hcobject[["integrated_output"]][["merged_net"]]
+  }
+  if (base::is.null(network) || !inherits(network, "igraph")) {
+    stop("No integrated network available for GFC plotting.")
+  }
 
   GFCs_wog <- GFCs[, base::colnames(GFCs)[!base::colnames(GFCs) == "Gene"]]
   if(base::is.vector(GFCs_wog)){
@@ -17,7 +30,7 @@ plot_GFC_network <- function(){
   }
   colors <- base::apply(GFCs_wog,2, function(x){
     y <- ((base::round(x, digits = 1) +2) *10)+1
-    grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(base::length(base::seq(-2, 2, by = .1)))[y] 
+    grDevices::colorRampPalette(.hc_default_gfc_colors())(base::length(base::seq(-2, 2, by = .1)))[y] 
   }) %>% base::as.data.frame() 
   colors$name <- GFCs$Gene
   colors[] <- base::lapply(colors, as.character)
@@ -56,7 +69,7 @@ plot_GFC_network <- function(){
       igraph::plot.igraph(network, vertex.label = NA, vertex.size = 3,
                           layout = l,
                           main = x)
-      dev.off()
+      grDevices::dev.off()
       igraph::plot.igraph(network, vertex.label = NA, vertex.size = 3,
                           layout = l, 
                           main = x)

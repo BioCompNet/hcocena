@@ -39,16 +39,21 @@ RUN R -q -e "install.packages(c('remotes','BiocManager'), repos='https://cloud.r
     R -q -e "remotes::install_local('/opt/hcocena/hCoCena-r-package', dependencies=TRUE, upgrade='never')" && \
     R -q -e "packageVersion('hcocena')"
 
-# Provide ready-to-use workflow material directly in rstudio home so folders
-# are immediately visible in the RStudio Files pane after login.
-RUN cp /opt/hcocena/hcocena_main.Rmd /home/rstudio/ && \
-    cp /opt/hcocena/hcocena_main_seq_only.Rmd /home/rstudio/ && \
-    cp /opt/hcocena/hcocena_satellite.Rmd /home/rstudio/ && \
-    cp -r /opt/hcocena/reference_files /home/rstudio/reference_files && \
-    cp -r /opt/hcocena/scripts /home/rstudio/scripts && \
+# Provide a ready-to-use workspace that opens directly in RStudio and shows
+# the two workflow files at the top level without browsing through subfolders.
+RUN mkdir -p /home/rstudio/hcocena && \
+    cp /opt/hcocena/hcocena_main.Rmd /home/rstudio/hcocena/ && \
+    cp /opt/hcocena/hcocena_satellite.Rmd /home/rstudio/hcocena/ && \
+    cp /opt/hcocena/README.md /home/rstudio/hcocena/ && \
+    cp /opt/hcocena/install_hcocena.R /home/rstudio/hcocena/ && \
+    cp /opt/hcocena/install_versioned_dependencies.R /home/rstudio/hcocena/ && \
+    mkdir -p /home/rstudio/hcocena/count_data /home/rstudio/hcocena/annotation_data /home/rstudio/hcocena/output && \
+    cp -r /opt/hcocena/reference_files /home/rstudio/hcocena/reference_files && \
+    cp -r /opt/hcocena/scripts /home/rstudio/hcocena/scripts && \
+    ln -s /opt/hcocena/hCoCena-r-package /home/rstudio/hcocena/hCoCena-r-package && \
     chown -R rstudio:rstudio /home/rstudio
 
-WORKDIR /home/rstudio
+WORKDIR /home/rstudio/hcocena
 
 EXPOSE 8787
 CMD ["/init"]

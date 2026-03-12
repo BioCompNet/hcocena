@@ -4,7 +4,10 @@
 \alias{check_dirs}
 \title{Fixes Directories}
 \usage{
-check_dirs()
+check_dirs(create_output_dir = FALSE)
+}
+\arguments{
+\item{create_output_dir}{Boolean. If TRUE and \code{dir_output} does not exist, it will be created.}
 }
 \description{
 Iteratively calls fix_dir() on the provided working directory paths to fix them if necessary or throw an error if they are invalid.

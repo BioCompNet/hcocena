@@ -1,21 +1,14 @@
 .git
 .github
-.tmp_kn2
-output
-hCoCena-r-package.Rcheck
 hcocena.Rcheck
 *.Rcheck
+hcocena.BiocCheck
+*.BiocCheck
 *.tar.gz
 *.zip
 *.7z
 *.tmp
-assets
-wiki images
 .Rhistory
 Rplots.pdf
-*.rds
 *.RData
 *.html
-legacy_rmd
-STAR_protocol
-Docker build hCoCenaRStudioGuide.pdf

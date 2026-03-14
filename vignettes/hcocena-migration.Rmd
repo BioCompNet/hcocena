@@ -1,0 +1,72 @@
+---
+title: "hcocena: Migrating from legacy hcobject workflows"
+package: hcocena
+output:
+  BiocStyle::html_document:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{hcocena: Migrating from legacy hcobject workflows}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+## Overview
+
+`hcocena` keeps the historical list-based `hcobject` workflow available while
+providing an S4 container for new analyses. The conversion helpers allow
+incremental migration without rewriting all downstream code at once.
+
+```{r libraries}
+library(hcocena)
+```
+
+## Round-trip conversion
+
+The conversion helpers support a lightweight round trip.
+
+```{r roundtrip-conversion}
+hc <- hc_init()
+legacy <- as_hcobject(hc)
+hc_roundtrip <- as_hcocena(legacy)
+
+class(legacy)
+sort(names(legacy))[1:8]
+methods::is(hc_roundtrip, "HCoCenaExperiment")
+slotNames(hc_roundtrip)
+```
+
+## Converting an existing workspace
+
+For a previously saved analysis workspace, the migration is a one-line
+conversion plus the new object-based API.
+
+```{r workspace-example, eval=FALSE}
+# load a workspace that contains a legacy `hcobject`
+load("legacy_workspace_with_hcobject.RData")
+
+hc <- as_hcocena(hcobject)
+
+# use object-based API
+hc <- hc_set_paths(
+  hc,
+  dir_count_data = FALSE,
+  dir_annotation = FALSE,
+  dir_reference_files = tempdir(),
+  dir_output = tempdir()
+)
+
+# if needed: convert back for legacy custom scripts
+hcobject <- as_hcobject(hc)
+```
+
+Legacy functions remain available and now emit a migration warning by default.
+
+## Session information
+
+```{r session-info}
+sessionInfo()
+```

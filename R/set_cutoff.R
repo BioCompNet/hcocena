@@ -1,0 +1,15 @@
+#' Set Cutoff
+#' 
+#' Set the correlation cutoffs for the different layers.
+#' @param cutoff_vector A vector of cutoff values. The vector's length must be equal to the number of datasets. The order in which the cutoffs are set must correspond to the order in which the layers were declared in define_layers().
+#' @export
+
+set_cutoff <- function(cutoff_vector = base::c()){
+  .hc_legacy_warning("set_cutoff")
+  invisible(.hc_run_modern_from_legacy(
+    hc_set_cutoff,
+    cutoff_vector = cutoff_vector,
+    auto = FALSE,
+    verbose = TRUE
+  ))
+}

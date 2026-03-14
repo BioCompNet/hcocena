@@ -1,0 +1,10 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^README\.Rmd$
+^\.github$
+^\.dockerignore$
+^docker$
+^\.\.Rcheck$
+^.*\.Rcheck$
+^.*\.BiocCheck$
+^hcocena_.*\.tar\.gz$

@@ -1,13 +1,11 @@
 # hcocena
 
-[![bioc-check](https://github.com/BioCompNet/hcocena/actions/workflows/bioc-check.yaml/badge.svg)](https://github.com/BioCompNet/hcocena/actions/workflows/bioc-check.yaml)
-
 `hcocena` is an R package for horizontal integration and downstream analysis of
 transcriptomics datasets. It combines a modern S4 workflow built around
 `HCoCenaExperiment` with compatibility for the historical `hcobject` workflow,
 so new analyses and older projects can live in the same package.
 
-![hcocena overview](.github/assets/hcocena-overview.png)
+![hcocena overview](man/figures/hcocena-overview.png)
 
 The package supports both multi-layer integration, such as RNA-seq plus array
 data, and single-layer analyses using the same API. The focus is a
@@ -28,15 +26,15 @@ LLM-assisted module interpretation.
 - Upstream inference with DoRothEA and PROGENy via `decoupleR`
 - Cell-type annotation helpers and reference-data preview utilities
 - Longitudinal module and endotype analyses
-- A Docker workflow with bundled `reference_files` for a ready-to-run setup
 
-## Repository structure
+## Repository layout
 
 - Package source is at the repository root and follows a Bioconductor-style
   layout
-- Docker support lives in [`docker/`](docker), including bundled
-  `reference_files`
-- CI for package checks is defined in [`.github/workflows/bioc-check.yaml`](.github/workflows/bioc-check.yaml)
+- The default branch is kept package-only for Bioconductor submission
+- Extended repository tooling such as Docker files and GitHub Actions is kept on
+  the [`full-repo`](https://github.com/BioCompNet/hcocena/tree/full-repo)
+  branch
 
 ## Contributors
 
@@ -59,25 +57,6 @@ For local development or pre-submission testing from a checkout:
 install.packages("remotes")
 remotes::install_local(".", dependencies = TRUE, upgrade = "never")
 ```
-
-## Docker
-
-To build a ready-to-use RStudio image from this repository:
-
-```bash
-docker build -f docker/Dockerfile -t hcocena .
-docker run --rm -p 8787:8787 -e PASSWORD=hcocena hcocena
-```
-
-The container prepares a workspace at `/home/rstudio/hcocena` and includes:
-
-- the local `hcocena` installation
-- bundled `reference_files/`
-- preinstalled optional packages for common workflows, including
-  `CALIBERrfimpute`, `RCy3`, `SpatialExperiment`, and `GSVA`
-- empty `count_data`, `annotation_data`, and `output` directories
-
-See [`docker/README.md`](docker/README.md) for the Docker-specific notes.
 
 ## Minimal S4 workflow
 

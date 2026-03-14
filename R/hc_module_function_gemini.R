@@ -69,32 +69,16 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' res <- hc_module_function_llm(
-#'   genes = c("STAT1", "IRF7", "CXCL10", "GBP1", "IFI44L"),
-#'   context = "Interferon-driven blood module in acute viral infection",
-#'   llm = "openai",
-#'   api_key = Sys.getenv("OPENAI_API_KEY"),
-#'   save_to_hc = FALSE
-#' )
-#'
-#' hc <- hc_module_function_llm(
-#'   hc,
-#'   module = "all",
-#'   llm = "gemini",
-#'   api_key = Sys.getenv("GEMINI_API_KEY")
-#' )
-#'
-#' hc <- hc_module_function_llm(
-#'   hc,
-#'   module = "all",
-#'   biological_context = "maturation of monocytes in preterm infants over the first year of life",
-#'   llm = "vllm",
-#'   vllm_model = "Qwen/Qwen2.5-VL-32B-Instruct",
-#'   vllm_base_url = "http://localhost:8000/v1"
-#' )
-#'
-#' hc@satellite$llm_module_function_summary
+#' \donttest{
+#' if (nzchar(Sys.getenv("OPENAI_API_KEY"))) {
+#'   res <- hc_module_function_llm(
+#'     genes = c("STAT1", "IRF7", "CXCL10", "GBP1", "IFI44L"),
+#'     context = "Interferon-driven blood module in acute viral infection",
+#'     llm = "openai",
+#'     api_key = Sys.getenv("OPENAI_API_KEY"),
+#'     save_to_hc = FALSE
+#'   )
+#' }
 #' }
 hc_module_function_llm <- function(hc = NULL,
                                    module = NULL,

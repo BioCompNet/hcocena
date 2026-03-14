@@ -37,8 +37,20 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' p <- hc_plot_module_function_llm(hc)
+#' \donttest{
+#' hc <- hc_init()
+#' methods::slot(hc, "satellite")[["llm_module_function"]] <- list(
+#'   module_1 = list(status = "ok")
+#' )
+#' methods::slot(hc, "satellite")[["llm_module_function_summary"]] <- data.frame(
+#'   module = "module_1",
+#'   module_color = "steelblue",
+#'   general_processes = "Interferon signaling",
+#'   contextual_state = "Acute antiviral activation",
+#'   key_regulators = "STAT1, IRF7",
+#'   stringsAsFactors = FALSE
+#' )
+#' p <- hc_plot_module_function_llm(hc, with_heatmap = FALSE)
 #' print(p)
 #' }
 hc_plot_module_function_llm <- function(hc,

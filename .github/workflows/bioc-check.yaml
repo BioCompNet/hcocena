@@ -30,6 +30,7 @@ jobs:
             bioc::BiocStyle
             any::knitr
             any::rmarkdown
+            any::testthat
             any::BiocManager
             any::rcmdcheck
 

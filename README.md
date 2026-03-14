@@ -38,6 +38,10 @@ LLM-assisted module interpretation.
   `reference_files`
 - CI for package checks is defined in [`.github/workflows/bioc-check.yaml`](.github/workflows/bioc-check.yaml)
 
+## Contributors
+
+- [Waqar Hanif](https://github.com/waqarhanif-biocode)
+
 ## Installation
 
 After Bioconductor acceptance:

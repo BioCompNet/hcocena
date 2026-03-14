@@ -28,7 +28,9 @@ jobs:
           extra-packages: |
             bioc::BiocCheck
             bioc::BiocStyle
+            any::CALIBERrfimpute
             any::knitr
+            any::mice
             any::rmarkdown
             any::testthat
             any::BiocManager

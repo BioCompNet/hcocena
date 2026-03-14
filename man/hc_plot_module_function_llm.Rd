@@ -75,7 +75,7 @@ right.
 \examples{
 exists("hc_plot_module_function_llm", mode = "function")
 
-\donttest{
+\dontrun{
 p <- hc_plot_module_function_llm(hc)
 print(p)
 }

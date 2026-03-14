@@ -130,7 +130,7 @@ Gemini, OpenAI-compatible APIs, and local vLLM servers via \code{llm}.
 \examples{
 exists("hc_module_function_llm", mode = "function")
 
-\donttest{
+\dontrun{
 res <- hc_module_function_llm(
   genes = c("STAT1", "IRF7", "CXCL10", "GBP1", "IFI44L"),
   context = "Interferon-driven blood module in acute viral infection",

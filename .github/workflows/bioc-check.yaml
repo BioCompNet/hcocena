@@ -27,7 +27,7 @@ jobs:
       - name: Install Bioconductor build dependencies
         working-directory: .
         run: |
-          Rscript -e "BiocManager::install(c('BiocCheck','MultiAssayExperiment','SummarizedExperiment','S4Vectors','ExperimentHub'), ask=FALSE, update=FALSE)"
+          Rscript -e "BiocManager::install(c('BiocCheck','BiocStyle','knitr','rmarkdown','MultiAssayExperiment','SummarizedExperiment','S4Vectors','ExperimentHub'), ask=FALSE, update=FALSE)"
 
       - name: R CMD check
         uses: r-lib/actions/check-r-package@v2

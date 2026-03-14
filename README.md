@@ -1,112 +1,75 @@
-# hCoCena
-Horizontal integration and analysis of transcriptomics datasets  
-Paper: https://doi.org/10.1093/bioinformatics/btac589
+# hcocena
 
-hCoCena is an R package for network-based transcriptomics analysis.  
-It supports both:
-- multi-layer integration (e.g. RNA-seq + array), and
-- single-layer analyses configured through the same S4 workflow.
-
-It provides a module-centric analysis workflow for transcriptomics data, from
-correlation-based network construction and clustering to hCoCena heatmaps,
-functional enrichment, upstream inference, cell-type annotation, longitudinal
-module analysis, and optional LLM-assisted module interpretation. The repository
-includes two ready-to-use entry workflows: `hcocena_main.Rmd` for the core
-pipeline and `hcocena_satellite.Rmd` for downstream and optional analyses.
-
-The S4 workflow is built around a `HCoCenaExperiment` container with
-`MultiAssayExperiment` / `SummarizedExperiment` support for multi-layer and
-single-layer data handling. It also includes dedicated support for cutoff
-selection and clustering resolution selection.
-
-Development is led by Thomas Ulas, with contributions from Kilian Dahm and
-Chiara Jäger.
-
-The repository is maintained at: https://github.com/BioCompNet/hcocena
-
-## Current Version
-This repository currently tracks **hcocena v1.9**.
-
-![hCoCena overview v1.9](assets/hCocena_updated_1.27.png)
-
-## What hCoCena Can Do (v1.9)
-- S4-first workflow (`HCoCenaExperiment`) with `hc_*` API wrappers.
-- Official Bioconductor-style container support via `SummarizedExperiment` and `MultiAssayExperiment`.
-- Backward compatibility with legacy workflows.
-- Correlation cutoff tuning with tiered selection (`hc_tune_cutoff` / `hc_auto_tune_cutoff_tiered`).
-- Automatic cutoff application via `hc_set_cutoff(auto = TRUE, fallback_cutoff = ...)`.
-- Resolution tuning for clustering (`hc_tune_resolution` / `hc_auto_tune`).
-- Leiden default partition set to `RBConfigurationVertexPartition`.
-- Module splitting and undo (`hc_split_modules`, `hc_unsplit_modules`) including resolution testing.
-- Advanced functional enrichment:
-  - per DB plots,
-  - mixed/combined DB plots,
-  - selected terms and all-significant exports,
-  - merged Excel outputs across DBs.
-- Upstream inference (DoRothEA TF + PROGENy pathway via decoupleR):
-  - `activity_input = "gfc"` or `"fc"` (with user-defined comparisons),
-  - per-comparison plotting,
-  - consistent-term mode for comparability.
-- Module knowledge network plot combining enrichment + upstream results.
-- Automatic module cell-type annotation with Enrichr DBs (`hc_celltype_annotation`), plus DB discovery/preview helpers:
-  - `hc_list_celltype_databases`
-  - `hc_preview_celltype_database`
-
-## Repository Layout
-- `hCoCena-r-package/`: R package source.
-- `hcocena_main.Rmd`: main multi-layer workflow.
-- `hcocena_satellite.Rmd`: optional analyses and extended utilities.
-- `reference_files/`: reference GMT/TF files for enrichment workflows.
-- `scripts/`: maintenance/helpers (e.g. reinstall helpers).
+`hcocena` is a Bioconductor-oriented software package for horizontal
+integration and downstream analysis of transcriptomics datasets. It provides an
+S4 workflow centered on `HCoCenaExperiment`, with support for
+`MultiAssayExperiment` / `SummarizedExperiment`, while keeping compatibility
+with the historical `hcobject` workflow.
 
 ## Installation
 
-### Option A: Reproducible install using provided scripts
-Run, in order:
-1. `install_versioned_dependencies.R`
-2. `install_hcocena.R`
+After Bioconductor acceptance:
 
-### Option B: Direct install from GitHub
 ```r
-install.packages("remotes")
-remotes::install_github("BioCompNet/hcocena", subdir = "hCoCena-r-package", dependencies = TRUE)
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+BiocManager::install("hcocena")
 ```
 
-### Option C: Install from local checkout
+For local development or pre-submission testing from a checkout:
+
 ```r
 install.packages("remotes")
-remotes::install_local("hCoCena-r-package", dependencies = TRUE, upgrade = "never")
+remotes::install_local(".", dependencies = TRUE, upgrade = "never")
 ```
 
-## Minimal S4 Workflow
+## Docker
+
+To build a ready-to-use RStudio image from this repository:
+
+```bash
+docker build -f docker/Dockerfile -t hcocena .
+```
+
+The container workspace is prepared at `/home/rstudio/hcocena` and includes
+`reference_files/` so users can start without downloading those files
+separately.
+
+## Minimal workflow
+
 ```r
 library(hcocena)
 
 hc <- hc_init()
-# ... set paths/layers/settings/import ...
-hc <- hc_run_expression_analysis_1(hc, corr_method = "pearson")
-hc <- hc_set_cutoff(hc, auto = TRUE, fallback_cutoff = 0.982)
-hc <- hc_run_expression_analysis_2(hc)
-hc <- hc_build_integrated_network(hc, mode = "u", multi_edges = "min")
-hc <- hc_cluster_calculation(hc, cluster_algo = "cluster_leiden")
-hc <- hc_plot_cluster_heatmap(hc)
-hc <- hc_functional_enrichment(hc, gene_sets = c("Hallmark", "Kegg", "Go"))
+hc <- hc_set_paths(
+  hc,
+  dir_count_data = "/path/to/counts/",
+  dir_annotation = "/path/to/annotation/",
+  dir_reference_files = "/path/to/reference/",
+  dir_output = tempdir()
+)
+hc <- hc_define_layers(
+  hc,
+  data_sets = list(
+    Layer1 = c("counts.tsv", "anno.tsv")
+  )
+)
+hc <- hc_read_data(
+  hc,
+  gene_symbol_col = "SYMBOL",
+  sample_col = "SampleID",
+  count_has_rn = FALSE,
+  anno_has_rn = FALSE
+)
 ```
 
-For end-to-end examples, use:
-- `hcocena_main.Rmd`
-- `hcocena_satellite.Rmd`
-
-## Legacy Workflow
-Legacy behavior is still available.  
-If needed, use conversion helpers:
-- `as_hcocena()` (legacy -> S4)
-- `as_hcobject()` (S4 -> legacy)
+See the package vignettes for a reproducible example based on the bundled toy
+data.
 
 ## Citation
-Marie Oestreich, Lisa Holsten, Shobhit Agrawal, Kilian Dahm, Philipp Koch, Han Jin, Matthias Becker, Thomas Ulas,  
-**hCoCena: horizontal integration and analysis of transcriptomics datasets**, Bioinformatics, 38(20), 2022, 4727-4734.  
-https://doi.org/10.1093/bioinformatics/btac589
 
-STAR Protocol reference:  
-https://star-protocols.cell.com/protocols/3341
+Marie Oestreich, Lisa Holsten, Shobhit Agrawal, Kilian Dahm, Philipp Koch,
+Han Jin, Matthias Becker, Thomas Ulas (2022). "hCoCena: horizontal integration
+and analysis of transcriptomics datasets." *Bioinformatics* 38(20):4727-4734.
+doi:10.1093/bioinformatics/btac589

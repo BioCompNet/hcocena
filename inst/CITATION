@@ -1,0 +1,28 @@
+citHeader("To cite package 'hcocena' use:")
+
+citEntry(
+  entry = "Article",
+  title = "hCoCena: horizontal integration and analysis of transcriptomics datasets",
+  author = personList(
+    person("Marie", "Oestreich"),
+    person("Lisa", "Holsten"),
+    person("Shobhit", "Agrawal"),
+    person("Kilian", "Dahm"),
+    person("Philipp", "Koch"),
+    person("Han", "Jin"),
+    person("Matthias", "Becker"),
+    person("Thomas", "Ulas")
+  ),
+  journal = "Bioinformatics",
+  year = "2022",
+  volume = "38",
+  number = "20",
+  pages = "4727-4734",
+  doi = "10.1093/bioinformatics/btac589",
+  textVersion = paste(
+    "Oestreich M, Holsten L, Agrawal S, Dahm K, Koch P, Jin H, Becker M,",
+    "Ulas T (2022). hCoCena: horizontal integration and analysis of",
+    "transcriptomics datasets. Bioinformatics 38(20):4727-4734.",
+    "doi:10.1093/bioinformatics/btac589"
+  )
+)

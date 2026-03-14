@@ -16,23 +16,23 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          working-directory: hCoCena-r-package
+          working-directory: .
           extra-packages: |
             any::BiocManager
             any::rcmdcheck
 
       - name: Install Bioconductor build dependencies
-        working-directory: hCoCena-r-package
+        working-directory: .
         run: |
           Rscript -e "BiocManager::install(c('BiocCheck','MultiAssayExperiment','SummarizedExperiment','S4Vectors','ExperimentHub'), ask=FALSE, update=FALSE)"
 
       - name: R CMD check
         uses: r-lib/actions/check-r-package@v2
         with:
-          working-directory: hCoCena-r-package
+          working-directory: .
           args: '["--as-cran", "--no-manual"]'
 
       - name: BiocCheck
-        working-directory: hCoCena-r-package
+        working-directory: .
         run: |
           Rscript -e "BiocCheck::BiocCheck('.')"

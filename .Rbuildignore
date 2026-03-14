@@ -4,6 +4,8 @@
 ^\.github$
 ^\.dockerignore$
 ^docker$
+^man-roxygen$
+^man-roxygen/
 ^\.\.Rcheck$
 ^.*\.Rcheck$
 ^.*\.BiocCheck$

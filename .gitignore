@@ -7,4 +7,8 @@
 ..Rcheck/
 *.Rcheck/
 *.BiocCheck/
+gh-check-artifact-*.zip
+github-job-*.html
+job-*-logs.zip
+job-*-logs/
 tests/testthat/Rplots.pdf

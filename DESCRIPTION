@@ -1,7 +1,7 @@
 Package: hcocena
 Title: Horizontal Integration and Analysis of Multiple Transcriptomics
         Datasets
-Version: 0.99.4
+Version: 0.99.0
 Authors@R: c(
     person(given = "Lisa",
            family = "Holsten",
@@ -23,15 +23,14 @@ Authors@R: c(
            role = c("aut", "cre"),
 		   email = "t.ulas@uni-bonn.de",
 		   comment = c(ORCID = "0000-0002-9785-4197")))
-Description: The package allows the joint analysis of multiple transcriptomics
-    datasets using a network-based integration approach. It now provides an
+Description: Joint analysis of multiple transcriptomics datasets using a
+    network-based integration approach. The package now provides an
     S4 object model based on MultiAssayExperiment while keeping backward
     compatibility with the legacy global-state workflow.
 License: GPL (>= 3)
 Encoding: UTF-8
 Depends: R (>= 4.5.0)
 biocViews: Software, Clustering, GeneExpression, Network, Transcriptomics
-BiocType: Software
 URL: https://github.com/BioCompNet/hcocena
 BugReports: https://github.com/BioCompNet/hcocena/issues
 Roxygen: list(markdown = TRUE)
@@ -58,8 +57,3 @@ Suggests: BiocStyle, CALIBERrfimpute, decoupleR, dorothea, ellmer,
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 NeedsCompilation: no
-Author: Lisa Holsten [aut] (ORCID: <https://orcid.org/0000-0001-6238-1273>),
-  Kilian Dahm [aut] (ORCID: <https://orcid.org/0000-0002-6819-2622>),
-  Marie Oestreich [aut] (ORCID: <https://orcid.org/0000-0002-4754-1301>),
-  Thomas Ulas [aut, cre] (ORCID: <https://orcid.org/0000-0002-9785-4197>)
-Maintainer: Thomas Ulas <t.ulas@uni-bonn.de>

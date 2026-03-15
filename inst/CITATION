@@ -1,9 +1,7 @@
-citHeader("To cite package 'hcocena' use:")
-
-citEntry(
-  entry = "Article",
+bibentry(
+  bibtype = "Article",
   title = "hCoCena: horizontal integration and analysis of transcriptomics datasets",
-  author = personList(
+  author = c(
     person("Marie", "Oestreich"),
     person("Lisa", "Holsten"),
     person("Shobhit", "Agrawal"),

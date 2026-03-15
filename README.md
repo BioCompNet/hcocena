@@ -5,7 +5,7 @@ transcriptomics datasets. It combines a modern S4 workflow built around
 `HCoCenaExperiment` with compatibility for the historical `hcobject` workflow,
 so new analyses and older projects can live in the same package.
 
-![hcocena overview](man/figures/hcocena-overview.png)
+![hcocena overview](man/figures/hcocena-overview.jpg)
 
 The package supports both multi-layer integration, such as RNA-seq plus array
 data, and single-layer analyses using the same API. The focus is a

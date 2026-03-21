@@ -1,4 +1,4 @@
-# hcocena 0.99.0
+# hcocena 0.99.1
 
 ## Bioconductor preparation
 

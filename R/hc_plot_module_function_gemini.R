@@ -163,6 +163,7 @@ hc_plot_module_function_llm <- function(hc,
         summary_tbl = field_tbl,
         max_chars = max_chars,
         text_size = text_size,
+        hc = hc,
         heatmap_col_order = heatmap_col_order,
         heatmap_cluster_columns = heatmap_cluster_columns
       )
@@ -326,6 +327,7 @@ hc_plot_module_function_gemini <- function(...) {
                                                   summary_tbl,
                                                   max_chars,
                                                   text_size,
+                                                  hc = NULL,
                                                   heatmap_col_order = NULL,
                                                   heatmap_cluster_columns = FALSE) {
   source_obj <- if (!is.null(heatmap_info$heatmap_obj)) heatmap_info$heatmap_obj else heatmap_info$raw_heatmap_obj
@@ -469,13 +471,9 @@ hc_plot_module_function_gemini <- function(...) {
 
   row_dend <- NULL
   col_dend <- prepared_cols$col_dend
-  gfc_lim <- suppressWarnings(max(abs(mat_use), na.rm = TRUE))
-  if (!is.finite(gfc_lim) || gfc_lim <= 0) {
-    gfc_lim <- 2
-  }
-  gfc_colors <- .hc_default_gfc_colors()
-  gfc_breaks <- seq(-gfc_lim, gfc_lim, length.out = length(gfc_colors))
-  gfc_col_fun <- circlize::colorRamp2(gfc_breaks, gfc_colors)
+  gfc_style <- .hc_llm_resolve_gfc_style(hc = hc, mat = mat_use)
+  gfc_breaks <- seq(gfc_style$limits[1], gfc_style$limits[2], length.out = length(gfc_style$colors))
+  gfc_col_fun <- circlize::colorRamp2(gfc_breaks, gfc_style$colors)
 
   combined_ht <- ComplexHeatmap::Heatmap(
     mat_use,
@@ -505,6 +503,65 @@ hc_plot_module_function_gemini <- function(...) {
       show_heatmap_legend = FALSE,
       padding = grid::unit(c(5, 8, 8, 5), "mm")
     )
+  )
+}
+
+.hc_llm_resolve_gfc_style <- function(hc = NULL, mat) {
+  normalize_scale_limits <- function(x) {
+    if (base::is.null(x)) {
+      return(NULL)
+    }
+    x <- suppressWarnings(base::as.numeric(x))
+    if (base::length(x) == 1) {
+      if (!base::is.finite(x) || x <= 0) {
+        return(NULL)
+      }
+      return(c(-base::abs(x), base::abs(x)))
+    }
+    if (base::length(x) != 2 || any(!base::is.finite(x))) {
+      return(NULL)
+    }
+    x <- base::sort(x)
+    if (x[[1]] == x[[2]]) {
+      lim_abs <- base::abs(x[[1]])
+      if (!base::is.finite(lim_abs) || lim_abs == 0) {
+        lim_abs <- 2
+      }
+      x <- c(-lim_abs, lim_abs)
+    }
+    x
+  }
+
+  stored_gfc_colors <- tryCatch(hc@integration@cluster[["gfc_colors"]], error = function(e) NULL)
+  if (!base::is.character(stored_gfc_colors) ||
+      base::length(stored_gfc_colors) < 2 ||
+      any(base::is.na(stored_gfc_colors)) ||
+      any(stored_gfc_colors == "")) {
+    stored_gfc_colors <- NULL
+  } else {
+    stored_gfc_colors <- base::as.character(stored_gfc_colors)
+  }
+  gfc_colors <- if (!base::is.null(stored_gfc_colors)) {
+    stored_gfc_colors
+  } else {
+    .hc_default_gfc_colors()
+  }
+
+  gfc_limits <- tryCatch(
+    normalize_scale_limits(hc@integration@cluster[["gfc_scale_limits"]]),
+    error = function(e) NULL
+  )
+  if (base::is.null(gfc_limits)) {
+    gfc_lim <- suppressWarnings(max(abs(mat), na.rm = TRUE))
+    if (!base::is.finite(gfc_lim) || gfc_lim <= 0) {
+      gfc_lim <- 2
+    }
+    gfc_limits <- c(-gfc_lim, gfc_lim)
+  }
+
+  list(
+    colors = gfc_colors,
+    limits = gfc_limits
   )
 }
 

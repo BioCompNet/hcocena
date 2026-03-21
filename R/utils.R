@@ -928,16 +928,9 @@ rsquaredfun <- function(graph_df, cutoff, print.all.plots, min_nodes = hcobject[
 }
 
 # Default GFC palette used across heatmaps.
-# RdBu-based with slightly darker end points for stronger +/- range contrast.
+# Matches the earlier RColorBrewer-based export appearance.
 .hc_default_gfc_colors <- function() {
-  cols <- base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))
-  cols[[1]] <- "#000418"
-  cols[[2]] <- "#12386F"
-  cols[[3]] <- "#2E5E99"
-  cols[[base::length(cols) - 2L]] <- "#A53858"
-  cols[[base::length(cols) - 1L]] <- "#7A0F2E"
-  cols[[base::length(cols)]] <- "#1A0008"
-  cols
+  base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))
 }
 
 #' Weighted sum over normalized criteria

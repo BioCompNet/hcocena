@@ -320,6 +320,7 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
   select_col_order <- get(".hc_select_heatmap_col_order", asNamespace("hcocena"))
   llm_heatmap_info <- get(".hc_llm_heatmap_info", asNamespace("hcocena"))
   llm_capture <- get(".hc_llm_capture_combined_heatmap_grob", asNamespace("hcocena"))
+  llm_gfc_style <- get(".hc_llm_resolve_gfc_style", asNamespace("hcocena"))
   plot_heatmap <- get("plot_cluster_heatmap", asNamespace("hcocena"))
   plot_heatmap_new <- get("plot_cluster_heatmap_new", asNamespace("hcocena"))
   plot_network <- get("plot_integrated_network", asNamespace("hcocena"))
@@ -386,6 +387,8 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
     heatmap_row_order = c("red", "blue"),
     heatmap_column_order = c("T2", "T1"),
     module_label_map = c(red = "M1", blue = "M2"),
+    gfc_colors = c("#010101", "#f7f7f7", "#9a0000"),
+    gfc_scale_limits = c(-1.5, 1.5),
     module_label_fontsize = 9,
     module_label_pt_size = 0.3,
     module_box_width_cm = 0.9
@@ -394,6 +397,9 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
   expect_true(isTRUE(info2$draw_supported))
   expect_equal(info2$col_order, c("T2", "T1"))
   expect_equal(info2$module_order, c("M1", "M2"))
+  style2 <- llm_gfc_style(hc = hc, mat = info2$matrix)
+  expect_equal(style2$colors, c("#010101", "#f7f7f7", "#9a0000"))
+  expect_equal(style2$limits, c(-1.5, 1.5))
 
   summary_tbl <- data.frame(
     module = c("M1", "M2"),
@@ -407,7 +413,8 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
     heatmap_info = info2,
     summary_tbl = summary_tbl,
     max_chars = 90,
-    text_size = 4
+    text_size = 4,
+    hc = hc
   )
   expect_s3_class(grob, "grob")
 })
@@ -542,6 +549,91 @@ test_that("regression: llm summary builder is robust for error-only results", {
   expect_equal(out$status, "error")
   expect_equal(out$error_message, "HTTP 400")
   expect_equal(out$gene_count_sent, 0L)
+})
+
+
+test_that("regression: llm excel export resolves output dir without longitudinal helpers", {
+  testthat::skip_if_not_installed("openxlsx")
+
+  llm_output_dir <- get(".hc_llm_output_dir", asNamespace("hcocena"))
+  export_excel <- get(".hc_llm_export_results_excel", asNamespace("hcocena"))
+
+  root_dir <- file.path(tempdir(), paste0("hcocena_llm_export_", as.integer(Sys.time())))
+  if (dir.exists(root_dir)) {
+    unlink(root_dir, recursive = TRUE, force = TRUE)
+  }
+
+  hc <- hc_init()
+  hc <- hc_set_paths(
+    hc,
+    dir_count_data = FALSE,
+    dir_annotation = FALSE,
+    dir_reference_files = tempdir(),
+    dir_output = root_dir
+  )
+  hc <- hc_init_save_folder(hc, name = "llm_run", use_output_dir = FALSE)
+
+  out_dir <- llm_output_dir(hc)
+  expect_true(dir.exists(out_dir))
+  expect_equal(
+    normalizePath(out_dir, winslash = "/", mustWork = FALSE),
+    normalizePath(file.path(root_dir, "llm_run"), winslash = "/", mustWork = FALSE)
+  )
+
+  results <- list(
+    M1 = list(
+      label = "M1",
+      module = "M1",
+      llm = "openai",
+      model = "gpt-4o-mini",
+      response = list(
+        general_processes = "interferon signaling",
+        contextual_state = "antiviral inflammatory state",
+        key_regulators = "STAT1 / IRF7 / IRF9"
+      ),
+      gene_count_input = 3L,
+      gene_count_sent = 3L,
+      truncated = FALSE,
+      status = "ok",
+      error_message = NA_character_,
+      prompt = "test prompt",
+      timestamp = "2026-03-19 00:00:00"
+    )
+  )
+  summary_tbl <- data.frame(
+    module = "M1",
+    module_color = "steelblue",
+    llm = "openai",
+    model = "gpt-4o-mini",
+    general_processes = "interferon signaling",
+    contextual_state = "antiviral inflammatory state",
+    key_regulators = "STAT1 / IRF7 / IRF9",
+    llm_long_output = "General processes: interferon signaling",
+    response_json = "{\"general_processes\":\"interferon signaling\"}",
+    short_title = "antiviral inflammatory state",
+    overarching_function = "interferon signaling",
+    confidence = NA_character_,
+    gene_count_input = 3L,
+    gene_count_sent = 3L,
+    truncated = FALSE,
+    status = "ok",
+    error_message = NA_character_,
+    timestamp = "2026-03-19 00:00:00",
+    stringsAsFactors = FALSE
+  )
+
+  file <- export_excel(
+    hc = hc,
+    results = results,
+    summary_tbl = summary_tbl,
+    slot_name = "llm_module_function"
+  )
+
+  expect_true(file.exists(file))
+  expect_match(
+    normalizePath(file, winslash = "/", mustWork = FALSE),
+    "/llm_run/llm_module_function_summary\\.xlsx$"
+  )
 })
 
 

@@ -1,7 +1,7 @@
 Package: hcocena
 Title: Horizontal Integration and Analysis of Multiple Transcriptomics
         Datasets
-Version: 0.99.0
+Version: 0.99.1
 Authors@R: c(
     person(given = "Lisa",
            family = "Holsten",
@@ -30,7 +30,8 @@ Description: Joint analysis of multiple transcriptomics datasets using a
 License: GPL (>= 3)
 Encoding: UTF-8
 Depends: R (>= 4.5.0)
-biocViews: Software, Clustering, GeneExpression, Network, Transcriptomics
+biocViews: Software, Clustering, GeneExpression, Network,
+        Transcriptomics
 URL: https://github.com/BioCompNet/hcocena
 BugReports: https://github.com/BioCompNet/hcocena/issues
 Roxygen: list(markdown = TRUE)
@@ -51,9 +52,16 @@ Imports: Cairo (>= 1.5-12.2), circlize, clusterProfiler (>= 3.18.1),
         3.1.2), tidyr, tidyselect (>= 1.1.1)
 Suggests: BiocStyle, CALIBERrfimpute, decoupleR, dorothea, ellmer,
         ExperimentHub, emmeans, ggh4x, graphlayouts, GSVA, htmlwidgets,
-        kml, knitr (>= 1.33), lme4, limma, mice, networkD3 (>= 0.4),
-        nlme, progeny, propr, RANN, RCy3 (>= 2.10.2), RcppAnnoy,
+        httr2, kml, knitr (>= 1.33), lme4, limma, mice, networkD3 (>=
+        0.4), nlme, progeny, propr, RANN, RCy3 (>= 2.10.2), RcppAnnoy,
         rmarkdown, testthat (>= 3.0.0), umap, uwot
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 NeedsCompilation: no
+Packaged: 2026-03-20 10:39:27 UTC; Thomas
+Author: Lisa Holsten [aut] (ORCID: <https://orcid.org/0000-0001-6238-1273>),
+  Kilian Dahm [aut] (ORCID: <https://orcid.org/0000-0002-6819-2622>),
+  Marie Oestreich [aut] (ORCID: <https://orcid.org/0000-0002-4754-1301>),
+  Waqar Hanif [ctb],
+  Thomas Ulas [aut, cre] (ORCID: <https://orcid.org/0000-0002-9785-4197>)
+Maintainer: Thomas Ulas <t.ulas@uni-bonn.de>

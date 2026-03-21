@@ -296,6 +296,8 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                                  module_significance_width_cm = 1.6,
                                  module_significance_p_cutoffs = c(0.001, 0.01, 0.05),
                                  module_significance_annotation_name = "sig"){
+  pdf_width_is_default <- isTRUE(all.equal(as.numeric(pdf_width), 50))
+  pdf_height_is_default <- isTRUE(all.equal(as.numeric(pdf_height), 30))
 
   module_label_mode <- base::match.arg(
     module_label_mode,
@@ -506,7 +508,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       gfc_scale_limits <- stored_limits
     } else {
       fallback_lim <- suppressWarnings(base::as.numeric(hcobject[["global_settings"]][["range_GFC"]]))
-      if (!base::is.finite(fallback_lim) || fallback_lim <= 0) {
+      if (base::length(fallback_lim) != 1 || any(!base::is.finite(fallback_lim)) || any(fallback_lim <= 0)) {
         fallback_lim <- 2
       }
       gfc_scale_limits <- c(-base::abs(fallback_lim), base::abs(fallback_lim))
@@ -1232,42 +1234,17 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                             auto = 1.0)
 
   if (!user_set_module_label_fontsize) {
-    if (base::is.null(module_labels_display)) {
-      base_font <- 8
-    } else if (user_set_module_box_width_cm) {
-      # Respect user-defined box width and fit text into it.
-      base_font <- base::max(
-        5,
-        base::min(
-          10,
-          base::floor(((module_box_width_cm * 10) - 1.5) / base::max(1, max_chars) * 1.55)
-        )
-      )
-    } else {
-      # Auto-size by number of modules and label length to avoid overlap.
-      fontsize_by_rows <- if (n_rows <= 10) {
-        9
-      } else if (n_rows <= 15) {
-        8
-      } else if (n_rows <= 25) {
-        7.5
-      } else if (n_rows <= 40) {
-        6.8
-      } else {
-        6
-      }
-      fontsize_by_chars <- base::max(5, base::floor(16 / base::max(1, max_chars)))
-      base_font <- base::max(5, base::min(10, fontsize_by_rows, fontsize_by_chars))
-    }
-    module_label_fontsize <- base::max(5, base::min(10, base::round(base_font * preset_scale_font, 1)))
+    # Set a fixed, readable font size for module labels.
+    module_label_fontsize <- 5
   }
 
   if (!user_set_module_box_width_cm) {
     if (base::is.null(module_labels_display) || module_label_mode == "legacy") {
       base_width <- 0.5
     } else {
-      # Approximate text width in cm; expand with longer labels automatically.
-      base_width <- (max_chars * module_label_fontsize * 0.07) + 0.22
+      # Scale box width to fit the text length only, independent of font size.
+      # This keeps box sizing stable when module_label_fontsize is changed.
+      base_width <- (max_chars * 0.09) + 0.15
     }
     module_box_width_cm <- base::max(
       0.62,
@@ -1280,7 +1257,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
 
   if (!user_set_module_label_pt_size) {
     base_pt <- if (n_rows <= 10) {
-      0.34
+      0.45
     } else if (n_rows <= 15) {
       0.30
     } else if (n_rows <= 25) {
@@ -1290,7 +1267,8 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     } else {
       0.18
     }
-    char_penalty <- 1 + base::max(0, max_chars - 2) * 0.12
+    # No penalty for label length; box width adapts to character count instead
+    char_penalty <- 1
     module_label_pt_size <- base::max(
       0.14,
       base::min(
@@ -1307,11 +1285,27 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
 
   if (!user_set_gene_count_pt_size) {
     if (gene_count_renderer == "pch") {
-      gene_count_pt_size <- module_label_pt_size
+      # Independent default for gene counts: smaller and stable across module label changes
+      gene_count_pt_size <- if (n_rows <= 10) {
+        0.25
+      } else if (n_rows <= 15) {
+        0.22
+      } else if (n_rows <= 25) {
+        0.20
+      } else if (n_rows <= 40) {
+        0.18
+      } else {
+        0.15
+      }
     } else {
       gene_count_pt_size <- 0.5
     }
   }
+
+  shared_heatmap_line_lwd <- 0.5
+  module_box_border_gp <- grid::gpar(col = "black", lwd = shared_heatmap_line_lwd)
+  heatmap_cell_border_gp <- grid::gpar(col = "black", lwd = shared_heatmap_line_lwd)
+  dendrogram_line_gp <- grid::gpar(col = "black", lwd = shared_heatmap_line_lwd)
 
   module_box_anno <- ComplexHeatmap::anno_simple(
     row_order,
@@ -1320,7 +1314,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     pt_gp = grid::gpar(col = module_label_color, fontsize = module_label_fontsize, fontface = "bold"),
     pt_size = grid::unit(module_label_pt_size, "snpc"),
     simple_anno_size = grid::unit(module_box_width_cm, "cm"),
-    gp = grid::gpar(col = "black"),
+    gp = module_box_border_gp,
     which = "row"
   )
 
@@ -1625,19 +1619,41 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   if (n_heat_cols > 10) {
     cell_size_mm <- base::min(cell_size_mm, 4.6)
   }
+  if (n_heat_cols <= 4 && n_heat_rows <= 24) {
+    min_body_w_mm <- if (n_heat_cols <= 3) 30 else 34
+    min_body_h_mm <- if (n_heat_rows <= 12) 90 else 108
+    max_cell_mm <- if (n_heat_rows <= 12) 10 else 8
+    boosted_cell_mm <- base::max(
+      min_body_w_mm / base::max(1, n_heat_cols),
+      min_body_h_mm / base::max(1, n_heat_rows)
+    )
+    cell_size_mm <- base::max(cell_size_mm, base::min(max_cell_mm, boosted_cell_mm))
+  }
   cell_size_mm <- cell_size_mm * overall_plot_scale
-  hm_width <- grid::unit(base::max(30 * overall_plot_scale, n_heat_cols * cell_size_mm), "mm")
-  hm_height <- grid::unit(base::max(44 * overall_plot_scale, n_heat_rows * cell_size_mm), "mm")
-  row_dend_width_mm <- if (isTRUE(cluster_rows)) {
-    base::max(20, base::min(36, n_heat_rows * 1.0))
+  hm_width <- grid::unit(n_heat_cols * cell_size_mm, "mm")
+  hm_height <- grid::unit(n_heat_rows * cell_size_mm, "mm")
+  max_col_chars <- if (!base::is.null(base::colnames(mat_heatmap)) && base::length(base::colnames(mat_heatmap)) > 0) {
+    base::max(base::nchar(base::colnames(mat_heatmap)), na.rm = TRUE)
   } else {
-    8
+    10
+  }
+  shared_column_name_max_cm <- base::max(
+    2.8,
+    base::min(
+      8.0,
+      (max_col_chars * (10 * overall_plot_scale) * 0.022) + 0.6
+    )
+  )
+  row_dend_width_mm <- if (isTRUE(cluster_rows)) {
+    base::max(8, base::min(14, n_heat_rows * 0.75))
+  } else {
+    6
   }
   row_dend_width_mm <- row_dend_width_mm * overall_plot_scale
   column_dend_height_mm <- if (isTRUE(cluster_columns)) {
-    base::max(24, base::min(44, n_heat_cols * 4.0))
+    base::max(10, base::min(18, n_heat_cols * 2.2))
   } else {
-    8
+    6
   }
   column_dend_height_mm <- column_dend_height_mm * overall_plot_scale
   gfc_palette <- grDevices::colorRampPalette(gfc_colors)(51)
@@ -1775,15 +1791,19 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                        fixed_size = TRUE,
                        body_width_mm = NULL,
                        body_height_mm = NULL) {
+    legend_height_mm <- base::max(24, 4.5 * base::max(1, base::length(gfc_scale_breaks))) * overall_plot_scale
     heat_legend_param <- list(
       title = "GFC",
       at = gfc_scale_breaks,
       labels = gfc_scale_labels,
-      labels_gp = grid::gpar(fontfamily = "mono")
+      title_gp = grid::gpar(fontsize = 7.6 * overall_plot_scale, fontface = "bold"),
+      labels_gp = grid::gpar(fontsize = 6.6 * overall_plot_scale),
+      grid_width = grid::unit(3.2 * overall_plot_scale, "mm"),
+      legend_height = grid::unit(legend_height_mm, "mm")
     )
     if (identical(heatmap_legend_side_mode, "bottom")) {
       heat_legend_param$direction <- "horizontal"
-      heat_legend_param$legend_width <- grid::unit(38 * overall_plot_scale, "mm")
+      heat_legend_param$legend_width <- grid::unit(32 * overall_plot_scale, "mm")
       heat_legend_param$title_position <- "leftcenter"
     }
 
@@ -1803,11 +1823,13 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       column_names_centered = FALSE,
       row_dend_width = grid::unit(row_dend_mm, "mm"),
       column_dend_height = grid::unit(col_dend_mm, "mm"),
+      row_dend_gp = dendrogram_line_gp,
+      column_dend_gp = dendrogram_line_gp,
       column_names_max_height = grid::unit(column_name_max_cm, "cm"),
       show_row_names = show_module_color_names,
       row_names_gp = grid::gpar(fontsize = 8 * overall_plot_scale),
       column_names_gp = grid::gpar(fontsize = 10 * overall_plot_scale),
-      rect_gp = grid::gpar(col = "black"),
+      rect_gp = heatmap_cell_border_gp,
       show_heatmap_legend = TRUE,
       heatmap_legend_param = heat_legend_param,
       column_km = k
@@ -1827,45 +1849,96 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   hm_pdf_drawn <- NULL
   heatmap_legend_side_mode <- gfc_legend_side
   annotation_legend_side_mode <- "right"
-  if (isTRUE(write_pdf)) {
-    Cairo::Cairo(file = paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", file_name),
-                 width = pdf_width,
-                 height = pdf_height,
-                 pointsize = pdf_pointsize,
-                 dpi = pdf_dpi,
-                 type = "pdf",
-                 units = "in")
+  right_pad_export_mm <- if (show_celltype_text && show_celltype_bars && base::length(lgd_list) > 0) {
+    52
+  } else if (show_celltype_text && !show_celltype_bars) {
+    26
+  } else {
+    36
+  }
+  bottom_pad_export_mm <- if (heatmap_legend_side_mode == "bottom") {
+    52
+  } else {
+    base::max(18, base::min(34, shared_column_name_max_cm * 3.0))
+  }
+  draw_padding_export <- grid::unit(
+    c(26, 18, bottom_pad_export_mm, right_pad_export_mm) * overall_plot_scale,
+    "mm"
+  )
+  export_total_width_mm <- base::as.numeric(hm_width) +
+    row_dend_width_mm +
+    (row_annotation_total_width_cm * 10) +
+    (18 * overall_plot_scale) +
+    right_pad_export_mm
+  export_total_height_mm <- base::as.numeric(hm_height) +
+    column_dend_height_mm +
+    (shared_column_name_max_cm * 10) +
+    (26 * overall_plot_scale) +
+    bottom_pad_export_mm
+  png_width_in <- if (pdf_width_is_default && pdf_height_is_default) {
+    base::max(4.8, export_total_width_mm / 25.4)
+  } else {
+    pdf_width
+  }
+  png_height_in <- if (pdf_width_is_default && pdf_height_is_default) {
+    base::max(6.0, export_total_height_mm / 25.4)
+  } else {
+    pdf_height
+  }
 
-    hm_pdf <- build_hm(
+  build_export_heatmap <- function() {
+    hm_export <- build_hm(
       row_dend_mm = row_dend_width_mm,
       col_dend_mm = column_dend_height_mm,
-      column_name_max_cm = 22,
+      column_name_max_cm = shared_column_name_max_cm,
       fixed_size = TRUE,
       body_width_mm = base::as.numeric(hm_width),
       body_height_mm = base::as.numeric(hm_height)
     )
-
-    anno_list_pdf_src <- deep_clone(anno_list)
-    lgd_list_pdf <- deep_clone(lgd_list)
-    anno_list_pdf <- if (base::is.null(anno_list_pdf_src)) {
-      hm_pdf
+    anno_list_export_src <- deep_clone(anno_list)
+    lgd_list_export <- deep_clone(lgd_list)
+    anno_list_export <- if (base::is.null(anno_list_export_src)) {
+      hm_export
     } else {
-      ComplexHeatmap::add_heatmap(hm_pdf, anno_list_pdf_src, direction = c("vertical"))
+      ComplexHeatmap::add_heatmap(hm_export, anno_list_export_src, direction = c("vertical"))
     }
+    list(
+      ht_obj = anno_list_export,
+      legend_obj = lgd_list_export
+    )
+  }
 
-    right_pad_pdf_mm <- if (show_celltype_text && show_celltype_bars && base::length(lgd_list_pdf) > 0) 52 else 36
-    bottom_pad_pdf_mm <- if (heatmap_legend_side_mode == "bottom") 52 else 34
-    draw_padding_pdf_mm <- c(26, 18, bottom_pad_pdf_mm, right_pad_pdf_mm) * overall_plot_scale
-    draw_padding <- grid::unit(draw_padding_pdf_mm, "mm")
+  draw_export_heatmap <- function(path, type = c("pdf", "png")) {
+    type <- base::match.arg(type)
+    device_width <- if (identical(type, "png")) png_width_in else pdf_width
+    device_height <- if (identical(type, "png")) png_height_in else pdf_height
+    Cairo::Cairo(
+      file = path,
+      width = device_width,
+      height = device_height,
+      pointsize = pdf_pointsize,
+      dpi = pdf_dpi,
+      type = type,
+      units = "in"
+    )
+    on.exit(grDevices::dev.off(), add = TRUE)
 
+    export_bundle <- build_export_heatmap()
+    safe_draw(
+      ht_obj = export_bundle$ht_obj,
+      legend_obj = export_bundle$legend_obj,
+      padding_obj = draw_padding_export,
+      heatmap_legend_side = heatmap_legend_side_mode,
+      annotation_legend_side = annotation_legend_side_mode,
+      context = base::paste("cluster heatmap", base::toupper(type))
+    )
+  }
+
+  if (isTRUE(write_pdf)) {
     hm_pdf_drawn <- tryCatch(
-      safe_draw(
-        ht_obj = anno_list_pdf,
-        legend_obj = lgd_list_pdf,
-        padding_obj = draw_padding,
-        heatmap_legend_side = heatmap_legend_side_mode,
-        annotation_legend_side = annotation_legend_side_mode,
-        context = "cluster heatmap PDF"
+      draw_export_heatmap(
+        path = paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", file_name),
+        type = "pdf"
       ),
       error = function(e) {
         warning(
@@ -1876,111 +1949,35 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
         NULL
       }
     )
-
-    grDevices::dev.off()
-  }
-
-  # For knitr/RStudio chunk devices keep layout compact to avoid clipping.
-  dev_in <- tryCatch(grDevices::dev.size("in"), error = function(e) c(8, 6))
-  dev_mm <- dev_in * 25.4
-  small_device <- (dev_in[1] < 9.5) || (dev_in[2] < 7.0)
-  row_dend_screen_mm <- if (small_device) {
-    base::max(8, base::min(16, row_dend_width_mm * 0.55))
-  } else {
-    base::max(10, base::min(24, row_dend_width_mm * 0.8))
-  }
-  col_dend_screen_mm <- if (small_device) {
-    base::max(8, base::min(16, column_dend_height_mm * 0.45))
-  } else {
-    base::max(10, base::min(28, column_dend_height_mm * 0.75))
-  }
-  max_col_chars <- if (!base::is.null(base::colnames(mat_heatmap)) && base::length(base::colnames(mat_heatmap)) > 0) {
-    base::max(base::nchar(base::colnames(mat_heatmap)), na.rm = TRUE)
-  } else {
-    10
-  }
-  # Conservative estimate for vertical x-label space (in cm), capped by device height.
-  label_est_cm <- (max_col_chars * (10 * overall_plot_scale) * 0.022) + 0.6
-  label_cap_cm <- (dev_mm[2] * if (small_device) 0.24 else 0.28) / 10
-  col_label_max_cm_screen <- base::max(
-    2.8,
-    base::min(
-      if (small_device) 6.5 else 8.0,
-      label_est_cm,
-      label_cap_cm
+    tryCatch(
+      draw_export_heatmap(
+        path = paste0(
+          hcobject[["working_directory"]][["dir_output"]],
+          hcobject[["global_settings"]][["save_folder"]],
+          "/",
+          base::paste0(tools::file_path_sans_ext(file_name), ".png")
+        ),
+        type = "png"
+      ),
+      error = function(e) {
+        warning(
+          "Could not fully draw cluster heatmap on PNG device: ",
+          base::conditionMessage(e),
+          call. = FALSE
+        )
+        NULL
+      }
     )
-  )
-  bottom_pad_mm <- base::max(
-    if (small_device) 12 else 16,
-    base::min(34, col_label_max_cm_screen * 3.0)
-  )
-  right_pad_screen_mm <- if (show_celltype_text && show_celltype_bars && base::length(lgd_list) > 0) {
-    if (small_device) 28 else 36
-  } else {
-    if (small_device) 12 else 16
   }
-  if (show_celltype_text && !show_celltype_bars) {
-    right_pad_screen_mm <- if (small_device) 20 else 26
-  }
-  extra_bottom_for_legend_mm <- if (heatmap_legend_side_mode == "bottom") {
-    if (small_device) 34 else 40
-  } else {
-    0
-  }
-  draw_padding_screen_mm <- if (small_device) {
-    c(8, 10, bottom_pad_mm + extra_bottom_for_legend_mm, right_pad_screen_mm) * overall_plot_scale
-  } else {
-    c(12, 12, bottom_pad_mm + extra_bottom_for_legend_mm, right_pad_screen_mm) * overall_plot_scale
-  }
-  draw_padding_screen <- grid::unit(draw_padding_screen_mm, "mm")
-  # Keep square tiles on knitr/RStudio devices while using more of the available area.
-  # This avoids unnecessary shrinking of the main heatmap in notebook/html previews.
-  base_body_w_cap_mm <- if (small_device) dev_mm[1] * 0.78 else dev_mm[1] * 0.82
-  base_body_h_cap_mm <- if (small_device) dev_mm[2] * 0.80 else dev_mm[2] * 0.84
-  row_anno_width_cm <- row_annotation_total_width_cm
-  legend_reserve_mm <- if (heatmap_legend_side_mode == "bottom") {
-    20
-  } else if (base::length(lgd_list) == 0) {
-    28
-  } else if (show_celltype_text && show_celltype_bars) {
-    72
-  } else {
-    40
-  }
-  available_body_w_mm <- dev_mm[1] -
-    (row_anno_width_cm * 10) -
-    row_dend_screen_mm -
-    draw_padding_screen_mm[2] -
-    draw_padding_screen_mm[4] -
-    legend_reserve_mm
-  available_body_h_mm <- dev_mm[2] -
-    (col_label_max_cm_screen * 10) -
-    col_dend_screen_mm -
-    draw_padding_screen_mm[1] -
-    draw_padding_screen_mm[3] -
-    8
-  body_w_cap_mm <- base::min(
-    dev_mm[1] * 0.92,
-    base_body_w_cap_mm * overall_plot_scale,
-    base::max(22, available_body_w_mm)
-  )
-  body_h_cap_mm <- base::min(
-    dev_mm[2] * 0.92,
-    base_body_h_cap_mm * overall_plot_scale,
-    base::max(26, available_body_h_mm)
-  )
-  min_cell_mm <- (if (small_device) 3.0 else 3.4) * overall_plot_scale
-  target_cell_mm <- (if (small_device) 8.0 else 8.8) * overall_plot_scale
-  cell_size_screen_mm <- base::max(
-    min_cell_mm,
-    base::min(
-      target_cell_mm,
-      body_w_cap_mm / base::max(1, n_heat_cols),
-      body_h_cap_mm / base::max(1, n_heat_rows)
-    )
-  )
-  hm_screen_w_mm <- base::max(22 * overall_plot_scale, n_heat_cols * cell_size_screen_mm)
-  hm_screen_h_mm <- base::max(26 * overall_plot_scale, n_heat_rows * cell_size_screen_mm)
+
+  # Use the same geometry on the current device as in PDF/PNG exports so the
+  # on-screen preview matches the saved output as closely as possible.
+  row_dend_screen_mm <- row_dend_width_mm
+  col_dend_screen_mm <- column_dend_height_mm
+  col_label_max_cm_screen <- shared_column_name_max_cm
+  draw_padding_screen <- draw_padding_export
+  hm_screen_w_mm <- base::as.numeric(hm_width)
+  hm_screen_h_mm <- base::as.numeric(hm_height)
 
   hm_screen <- build_hm(
     row_dend_mm = row_dend_screen_mm,
@@ -2096,12 +2093,12 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   hcobject[["integrated_output"]][["cluster_calc"]][["module_label_fontsize"]] <<- module_label_fontsize
   hcobject[["integrated_output"]][["cluster_calc"]][["module_label_pt_size"]] <<- module_label_pt_size
   hcobject[["integrated_output"]][["cluster_calc"]][["module_box_width_cm"]] <<- module_box_width_cm
-  module_box_to_cell_ratio <- suppressWarnings((as.numeric(module_box_width_cm) * 10) / as.numeric(cell_size_screen_mm))
+  module_box_to_cell_ratio <- suppressWarnings((as.numeric(module_box_width_cm) * 10) / as.numeric(cell_size_mm))
   if (!base::is.finite(module_box_to_cell_ratio) || module_box_to_cell_ratio <= 0) {
     module_box_to_cell_ratio <- NULL
   }
   hcobject[["integrated_output"]][["cluster_calc"]][["module_box_to_cell_ratio"]] <<- module_box_to_cell_ratio
-  hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cell_size_mm"]] <<- cell_size_screen_mm
+  hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cell_size_mm"]] <<- cell_size_mm
   hcobject[["integrated_output"]][["cluster_calc"]][["gene_count_fontsize"]] <<- gene_count_fontsize
   hcobject[["integrated_output"]][["cluster_calc"]][["gene_count_renderer"]] <<- gene_count_renderer
   hcobject[["integrated_output"]][["cluster_calc"]][["gene_count_pt_size"]] <<- gene_count_pt_size

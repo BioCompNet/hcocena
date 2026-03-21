@@ -1199,6 +1199,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       !base::is.null(module_labels) &&
       base::identical(module_label_mode, "prefix")
   )
+  sig_suffix <- NULL
   module_labels_display <- if (isTRUE(module_sig_integrated)) {
     sig_suffix <- base::ifelse(
       base::is.na(module_sig_labels) | !base::nzchar(module_sig_labels),
@@ -1208,6 +1209,11 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     base::paste0(module_labels, sig_suffix)
   } else {
     module_labels
+  }
+  max_sig_stars <- if (isTRUE(module_sig_integrated) && !base::is.null(sig_suffix)) {
+    base::max(base::nchar(sig_suffix), na.rm = TRUE)
+  } else {
+    0
   }
 
   max_chars <- if (base::is.null(module_labels_display)) {
@@ -1254,6 +1260,14 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       )
     )
   }
+  module_box_width_cm_draw <- module_box_width_cm
+  if (!user_set_module_box_width_cm && isTRUE(module_sig_integrated)) {
+    sig_star_width_extra_cm <- 0.08 * max_sig_stars
+    module_box_width_cm_draw <- base::min(
+      4.8,
+      module_box_width_cm + sig_star_width_extra_cm
+    )
+  }
 
   if (!user_set_module_label_pt_size) {
     base_pt <- if (n_rows <= 10) {
@@ -1275,6 +1289,14 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
         0.55,
         (base_pt * preset_scale_pt) / char_penalty
       )
+    )
+  }
+  module_label_pt_size_draw <- module_label_pt_size
+  if (!user_set_module_label_pt_size && isTRUE(module_sig_integrated) && max_sig_stars > 0) {
+    sig_pt_scale <- base::max(0.64, 1 - (0.11 * max_sig_stars))
+    module_label_pt_size_draw <- base::max(
+      0.14,
+      base::min(0.55, module_label_pt_size * sig_pt_scale)
     )
   }
 
@@ -1312,8 +1334,8 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     col = cluster_colors,
     pch = module_labels_display,
     pt_gp = grid::gpar(col = module_label_color, fontsize = module_label_fontsize, fontface = "bold"),
-    pt_size = grid::unit(module_label_pt_size, "snpc"),
-    simple_anno_size = grid::unit(module_box_width_cm, "cm"),
+    pt_size = grid::unit(module_label_pt_size_draw, "snpc"),
+    simple_anno_size = grid::unit(module_box_width_cm_draw, "cm"),
     gp = module_box_border_gp,
     which = "row"
   )
@@ -1403,7 +1425,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     ComplexHeatmap::anno_empty(width = grid::unit(0, "mm"), which = "row", border = FALSE)
   }
 
-  base_row_width_cm <- module_box_width_cm +
+  base_row_width_cm <- module_box_width_cm_draw +
     if (show_gene_text) 1.2 else 0 +
     if (show_gene_bar) 2.5 else 0 +
     if (show_module_sig) module_sig_width_cm_use else 0 +

@@ -1,0 +1,12 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^README\.Rmd$
+^\.github$
+^\.dockerignore$
+^docker$
+^man-roxygen$
+^man-roxygen/
+^\.\.Rcheck$
+^.*\.Rcheck$
+^.*\.BiocCheck$
+^hcocena_.*\.tar\.gz$

@@ -46,6 +46,10 @@ RUN mkdir -p /home/rstudio/hcocena && \
     mkdir -p /home/rstudio/hcocena/annotation_data && \
     mkdir -p /home/rstudio/hcocena/output && \
     cp /opt/hcocena/README.md /home/rstudio/hcocena/ && \
+    cp -r /opt/hcocena/github_workflows /home/rstudio/hcocena/github_workflows && \
+    cp /opt/hcocena/github_workflows/hcocena_main.Rmd /home/rstudio/hcocena/01_hcocena_main.Rmd && \
+    cp /opt/hcocena/github_workflows/hcocena_satellite.Rmd /home/rstudio/hcocena/02_hcocena_satellite.Rmd && \
+    cp /opt/hcocena/github_workflows/hcocena_main_seq_only.Rmd /home/rstudio/hcocena/03_hcocena_main_seq_only.Rmd && \
     cp -r /opt/hcocena/docker/reference_files /home/rstudio/hcocena/reference_files && \
     chown -R rstudio:rstudio /home/rstudio
 

@@ -3,9 +3,8 @@
 [![bioc-check](https://github.com/BioCompNet/hcocena/actions/workflows/bioc-check.yaml/badge.svg)](https://github.com/BioCompNet/hcocena/actions/workflows/bioc-check.yaml)
 
 `hcocena` is an R package for horizontal integration and downstream analysis of
-transcriptomics datasets. It combines a modern S4 workflow built around
-`HCoCenaExperiment` with compatibility for the historical `hcobject` workflow,
-so new analyses and older projects can live in the same package.
+transcriptomics datasets. It provides a modern S4 workflow built around
+`HCoCenaExperiment` for reproducible network-centric transcriptomics analyses.
 
 ![hcocena overview](.github/assets/hcocena-overview.jpg)
 
@@ -20,7 +19,6 @@ LLM-assisted module interpretation.
 
 - S4-first workflow with `HCoCenaExperiment`, `MultiAssayExperiment`, and
   `SummarizedExperiment`
-- Backward-compatible support for the legacy `hcobject` workflow
 - Correlation cutoff tuning and automatic cutoff selection helpers
 - Clustering, integrated network construction, module splitting, and hCoCena
   heatmaps
@@ -36,7 +34,9 @@ LLM-assisted module interpretation.
   layout
 - Docker support lives in [`docker/`](docker), including bundled
   `reference_files`
-- CI for package checks is defined in [`.github/workflows/bioc-check.yaml`](.github/workflows/bioc-check.yaml)
+- GitHub-only workflow notebooks are kept in [`github_workflows/`](github_workflows/)
+- CI for package checks is defined in
+  [`.github/workflows/bioc-check.yaml`](.github/workflows/bioc-check.yaml)
 
 ## Contributors
 
@@ -73,6 +73,8 @@ The container prepares a workspace at `/home/rstudio/hcocena` and includes:
 
 - the local `hcocena` installation
 - bundled `reference_files/`
+- visible workflow notebooks under `/home/rstudio/hcocena/github_workflows/`
+  including `hcocena_main.Rmd` and `hcocena_satellite.Rmd`
 - preinstalled optional packages for common workflows, including
   `CALIBERrfimpute`, `RCy3`, `SpatialExperiment`, and `GSVA`
 - empty `count_data`, `annotation_data`, and `output` directories
@@ -118,13 +120,13 @@ browseVignettes("hcocena")
 The package ships toy data and prepared example objects in `inst/extdata` to
 support documentation, testing, and manual smoke tests.
 
-## Legacy workflow
+## GitHub workflows
 
-Legacy APIs are still available. For mixed projects or migration work, the
-conversion helpers below bridge between the old and new object models:
+This repository also ships longer GitHub-oriented walkthroughs:
 
-- `as_hcocena()` converts legacy objects to the S4 workflow
-- `as_hcobject()` converts S4 objects back to the legacy format
+- `github_workflows/hcocena_main.Rmd`
+- `github_workflows/hcocena_satellite.Rmd`
+- `github_workflows/hcocena_main_seq_only.Rmd`
 
 One practical note: when using longitudinal imputation with
 `impute_method = "rfcont"`, attach `CALIBERrfimpute` in the session first:

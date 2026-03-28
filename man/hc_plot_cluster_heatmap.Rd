@@ -4,12 +4,13 @@
 \alias{hc_plot_cluster_heatmap}
 \title{Plot module heatmap (S4 API)}
 \usage{
-hc_plot_cluster_heatmap(hc, file_name = NULL, ...)
+hc_plot_cluster_heatmap(hc, file_name = "Heatmap_modules.pdf", ...)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{file_name}{Optional file name passed to \code{plot_cluster_heatmap()}.}
+\item{file_name}{Optional file name passed to \code{plot_cluster_heatmap()}.
+Defaults to \code{"Heatmap_modules.pdf"}. Use \code{FALSE} to skip file export.}
 
 \item{...}{Passed to \code{plot_cluster_heatmap()}.}
 }

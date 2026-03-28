@@ -1,4 +1,4 @@
-#' AI-assisted module function summary via Gemini, ChatGPT, Claude, or vLLM
+#' AI-assisted module function summary via Gemini, Claude, ChatGPT, or vLLM
 #'
 #' Uses a large language model API to summarize the likely overarching
 #' biological function of a module or free gene set. This is an AI-assisted
@@ -14,7 +14,7 @@
 #' `hc@satellite[[paste0(slot_name, "_summary")]]`.
 #'
 #' The function name is retained for backward compatibility, but it can now use
-#' Gemini, OpenAI-compatible APIs, Anthropic Claude, and local vLLM servers via `llm`.
+#' Gemini, OpenAI-compatible APIs, and local vLLM servers via `llm`.
 #'
 #' @param hc Optional `HCoCenaExperiment`. Required when `module` is used or
 #'   when `save_to_hc = TRUE`.
@@ -30,13 +30,13 @@
 #' @param label Optional label used for storing the result. Defaults to the
 #'   module name or `"custom_geneset"`. Can only be used for a single module or
 #'   a free gene set.
-#' @param llm LLM provider. Supported values are `"gemini"`, `"openai"`,
-#'   `"chatgpt"` (alias for `"openai"`), `"claude"`, or `"vllm"` for a local
-#'   OpenAI-compatible vLLM server.
+#' @param llm LLM provider. Supported values are `"gemini"`, `"claude"`,
+#'   `"anthropic"` (alias for `"claude"`), `"openai"`, `"chatgpt"` (alias for
+#'   `"openai"`), or `"vllm"` for a local OpenAI-compatible vLLM server.
 #' @param api_key API key for the selected provider. If omitted, the function
-#'   uses `GEMINI_API_KEY` for Gemini, `OPENAI_API_KEY` for OpenAI,
-#'   `ANTHROPIC_API_KEY` for Claude, and `VLLM_API_KEY` for vLLM.
-#'   For local vLLM, the fallback is `"EMPTY"`.
+#'   uses `GEMINI_API_KEY` for Gemini, `ANTHROPIC_API_KEY` for Claude,
+#'   `OPENAI_API_KEY` for OpenAI, and `VLLM_API_KEY` for vLLM. For local vLLM,
+#'   the fallback is `"EMPTY"`.
 #' @param gemini_model Optional Gemini model code. Only used when
 #'   `llm = "gemini"`. Defaults to `"gemini-2.5-pro"`.
 #' @param claude_model Optional Claude model code. Only used when
@@ -45,8 +45,8 @@
 #'   Defaults to `"Qwen/Qwen2.5-VL-32B-Instruct"`.
 #' @param vllm_base_url Base URL for the local OpenAI-compatible vLLM server.
 #'   Only used when `llm = "vllm"`. Defaults to `"http://localhost:8000/v1"`.
-#' @param model Optional generic model code. Mainly useful for OpenAI, Claude,
-#'   or as a provider-agnostic override.
+#' @param model Optional generic model code. Mainly useful for OpenAI, or as a
+#'   provider-agnostic override.
 #' @param max_genes Maximum number of genes sent to the API. Use `Inf` or
 #'   `NULL` to send all genes. Default is `Inf`.
 #' @param temperature Generation temperature. Default is `0.2`.
@@ -64,8 +64,7 @@
 #' @param system_instruction Optional custom system instruction for the model.
 #' @param verbose Logical. If `TRUE`, print short progress messages.
 #' @param ... Used by the backward-compatible wrapper aliases
-#'   `hc_module_function_gemini()`, `hc_module_function_claude()`,
-#'   and `hc_module_function_vllm()`.
+#'   `hc_module_function_gemini()` and `hc_module_function_vllm()`.
 #'
 #' @return Updated `HCoCenaExperiment` if `save_to_hc = TRUE`; otherwise either
 #'   a single result list or, for multiple modules, a list with `results` and
@@ -83,15 +82,6 @@
 #'     save_to_hc = FALSE
 #'   )
 #' }
-#' if (nzchar(Sys.getenv("ANTHROPIC_API_KEY"))) {
-#'   res_claude <- hc_module_function_llm(
-#'     genes = c("STAT1", "IRF7", "CXCL10", "GBP1", "IFI44L"),
-#'     context = "Interferon-driven blood module in acute viral infection",
-#'     llm = "claude",
-#'     api_key = Sys.getenv("ANTHROPIC_API_KEY"),
-#'     save_to_hc = FALSE
-#'   )
-#' }
 #' }
 hc_module_function_llm <- function(hc = NULL,
                                    module = NULL,
@@ -99,7 +89,7 @@ hc_module_function_llm <- function(hc = NULL,
                                    context = NULL,
                                    biological_context = NULL,
                                    label = NULL,
-                                   llm = c("gemini", "openai", "chatgpt", "claude", "vllm"),
+                                   llm = c("gemini", "claude", "openai", "chatgpt", "vllm"),
                                    api_key = NULL,
                                    gemini_model = NULL,
                                    claude_model = NULL,
@@ -116,7 +106,7 @@ hc_module_function_llm <- function(hc = NULL,
                                    system_instruction = NULL,
                                    verbose = TRUE) {
   timeout_was_missing <- missing(timeout_sec)
-  
+
   if (!base::is.null(module) && !base::is.null(genes)) {
     stop("Use either `module` or `genes`, not both.")
   }
@@ -126,15 +116,17 @@ hc_module_function_llm <- function(hc = NULL,
   if (isTRUE(save_to_hc) && base::is.null(hc)) {
     stop("`hc` must be provided when `save_to_hc = TRUE`.")
   }
-  
+
   llm <- base::tolower(base::as.character(llm[[1]]))
-  if (!(llm %in% c("gemini", "openai", "chatgpt", "claude", "vllm"))) {
-    stop("`llm` must be one of `gemini`, `openai`, `chatgpt`, `claude`, or `vllm`.")
+  if (!(llm %in% c("gemini", "claude", "anthropic", "openai", "chatgpt", "vllm"))) {
+    stop("`llm` must be one of `gemini`, `claude`, `anthropic`, `openai`, `chatgpt`, or `vllm`.")
   }
   if (llm == "chatgpt") {
     llm <- "openai"
+  } else if (llm == "anthropic") {
+    llm <- "claude"
   }
-  
+
   if (llm == "gemini" &&
       !base::is.null(gemini_model) &&
       base::nzchar(base::as.character(gemini_model[[1]]))) {
@@ -160,7 +152,6 @@ hc_module_function_llm <- function(hc = NULL,
   } else {
     model <- base::as.character(model[[1]])
   }
-  
   if (!base::is.character(model) || base::length(model) != 1 || !base::nzchar(model)) {
     stop("`model` must be a non-empty character scalar.")
   }
@@ -188,7 +179,7 @@ hc_module_function_llm <- function(hc = NULL,
   if (!base::is.logical(verbose) || base::length(verbose) != 1 || base::is.na(verbose)) {
     stop("`verbose` must be TRUE or FALSE.")
   }
-  
+
   api_key <- .hc_llm_resolve_api_key(api_key = api_key, llm = llm)
   vllm_base_url <- .hc_llm_resolve_vllm_base_url(vllm_base_url = vllm_base_url, llm = llm)
   timeout_sec <- .hc_llm_resolve_timeout(
@@ -197,7 +188,7 @@ hc_module_function_llm <- function(hc = NULL,
     timeout_was_missing = timeout_was_missing
   )
   pause_sec <- .hc_llm_normalize_pause(pause_sec)
-  
+
   if (base::is.null(system_instruction) || !base::nzchar(base::as.character(system_instruction[[1]]))) {
     system_instruction <- if (llm == "vllm") {
       paste(
@@ -219,7 +210,7 @@ hc_module_function_llm <- function(hc = NULL,
         "Use the biological context only as an interpretation frame, not as text to repeat.",
         "Prioritize module-specific biology over generic cohort-level wording.",
         "Avoid generic answers such as monocyte maturation, immune differentiation, or immune activation unless the genes strongly support nothing more specific.",
-        "Prefer concrete programs such as interferon signaling, antigen presentation, cell cycle, erythroid or megakaryocytic bias, platelet program, mitochondrial metabolism, phagolysosome, inflammatory signaling, ribosome biogenesis, stress response, chemotaxis, or tissue contamination if clearly supported.",
+        "Prefer concrete programs such as interferon signaling, antigen presentation, cell cycle, erythroid/megakaryocytic bias, platelet program, mitochondrial metabolism, phagolysosome, inflammatory signaling, ribosome biogenesis, stress response, chemotaxis, or tissue contamination if clearly supported.",
         "Make different modules distinguishable from each other.",
         "Return compact labels and compact descriptions only.",
         "Do not write sentence starters like 'this module', 'this program', or 'is best described as'.",
@@ -232,7 +223,7 @@ hc_module_function_llm <- function(hc = NULL,
   } else {
     system_instruction <- base::as.character(system_instruction[[1]])
   }
-  
+
   if (base::is.null(module)) {
     gene_infos <- list(
       list(
@@ -248,7 +239,7 @@ hc_module_function_llm <- function(hc = NULL,
     modules_to_run <- .hc_llm_resolve_modules(hc = hc, module = module)
     gene_infos <- lapply(modules_to_run, function(x) .hc_gemini_get_module_genes(hc = hc, module = x))
   }
-  
+
   gene_infos <- gene_infos[!base::vapply(gene_infos, base::is.null, FUN.VALUE = base::logical(1))]
   if (base::length(gene_infos) == 0) {
     stop("No valid module or gene inputs were resolved.")
@@ -256,14 +247,13 @@ hc_module_function_llm <- function(hc = NULL,
   if (base::length(gene_infos) > 1 && !base::is.null(label) && base::nzchar(base::as.character(label[[1]]))) {
     stop("`label` can only be used for a single module or gene set.")
   }
-  
+
   biological_context <- if (base::is.null(biological_context) || !base::length(biological_context)) {
     context
   } else {
     biological_context
   }
   context_text <- .hc_gemini_normalize_context(biological_context)
-  
   results <- .hc_llm_run_sequential(
     gene_infos = gene_infos,
     label = label,
@@ -281,7 +271,7 @@ hc_module_function_llm <- function(hc = NULL,
     response_schema = .hc_llm_response_schema(),
     verbose = verbose
   )
-  
+
   if (!isTRUE(save_to_hc)) {
     if (base::length(results) == 1) {
       return(results[[1]])
@@ -291,7 +281,7 @@ hc_module_function_llm <- function(hc = NULL,
       summary = .hc_llm_summary_from_results(results = results, hc = hc)
     ))
   }
-  
+
   sat <- tryCatch(base::as.list(hc@satellite), error = function(e) list())
   slot_obj <- sat[[slot_name]]
   if (base::is.null(slot_obj) || !base::is.list(slot_obj)) {
@@ -317,12 +307,6 @@ hc_module_function_llm <- function(hc = NULL,
 #' @export
 hc_module_function_gemini <- function(...) {
   hc_module_function_llm(...)
-}
-
-#' @rdname hc_module_function_llm
-#' @export
-hc_module_function_claude <- function(...) {
-  hc_module_function_llm(llm = "claude", ...)
 }
 
 #' @rdname hc_module_function_llm
@@ -358,12 +342,12 @@ hc_module_function_vllm <- function(...) {
       .hc_llm_summarize_one(
         gene_info = gene_info,
         label = this_label,
-        context_text = context_text,
-        llm = llm,
-        api_key = api_key,
-        model = model,
-        vllm_base_url = vllm_base_url,
-        max_genes = max_genes,
+          context_text = context_text,
+          llm = llm,
+          api_key = api_key,
+          model = model,
+          vllm_base_url = vllm_base_url,
+          max_genes = max_genes,
         temperature = temperature,
         timeout_sec = timeout_sec,
         system_instruction = system_instruction,
@@ -419,7 +403,7 @@ hc_module_function_vllm <- function(...) {
       truncated = base::length(genes_use) < base::length(genes_all)
     )
   })
-  
+
   if (isTRUE(verbose)) {
     message(
       "LLM module summary: sending ",
@@ -431,10 +415,10 @@ hc_module_function_vllm <- function(...) {
       "`."
     )
   }
-  
+
   prompt <- .hc_llm_build_batch_prompt(batch_inputs = batch_inputs, context_text = context_text)
   response_schema <- .hc_llm_batch_response_schema(n_modules = base::length(batch_inputs))
-  
+
   req_result <- if (llm == "gemini") {
     .hc_llm_request_gemini(
       api_key = api_key,
@@ -475,19 +459,19 @@ hc_module_function_vllm <- function(...) {
       timeout_sec = timeout_sec
     )
   }
-  
+
   parsed_result <- tryCatch(
     jsonlite::fromJSON(req_result$result_text, simplifyVector = FALSE),
     error = function(e) {
       stop("Could not parse combined LLM response JSON: ", base::conditionMessage(e), call. = FALSE)
     }
   )
-  
+
   module_entries <- parsed_result[["modules"]]
   if (base::is.null(module_entries) || !base::is.list(module_entries) || base::length(module_entries) == 0) {
     stop("Combined LLM response did not contain a `modules` list.", call. = FALSE)
   }
-  
+
   entry_labels <- base::vapply(
     module_entries,
     function(x) {
@@ -496,7 +480,7 @@ hc_module_function_vllm <- function(...) {
     },
     FUN.VALUE = base::character(1)
   )
-  
+
   out <- lapply(batch_inputs, function(inp) {
     idx <- base::match(inp$label, entry_labels)
     if (base::is.na(idx)) {
@@ -530,7 +514,7 @@ hc_module_function_vllm <- function(...) {
       timestamp = base::as.character(Sys.time())
     )
   })
-  
+
   out
 }
 
@@ -551,10 +535,10 @@ hc_module_function_vllm <- function(...) {
   if (base::length(genes_all) == 0) {
     stop("No valid genes available for LLM interpretation.")
   }
-  
+
   genes_use <- .hc_llm_limit_genes(genes = genes_all, max_genes = max_genes)
   truncated <- base::length(genes_use) < base::length(genes_all)
-  
+
   if (isTRUE(verbose)) {
     message(
       "LLM module summary: sending ",
@@ -564,7 +548,7 @@ hc_module_function_vllm <- function(...) {
       "` and model `", model, "`."
     )
   }
-  
+
   prompt <- .hc_gemini_build_prompt(
     label = label,
     genes = genes_use,
@@ -573,7 +557,7 @@ hc_module_function_vllm <- function(...) {
     truncated = truncated,
     llm = llm
   )
-  
+
   req_result <- if (llm == "gemini") {
     .hc_llm_request_gemini(
       api_key = api_key,
@@ -614,7 +598,7 @@ hc_module_function_vllm <- function(...) {
       timeout_sec = timeout_sec
     )
   }
-  
+
   result_text <- req_result$result_text
   parsed_result <- tryCatch(
     jsonlite::fromJSON(result_text, simplifyVector = TRUE),
@@ -627,7 +611,7 @@ hc_module_function_vllm <- function(...) {
       )
     }
   )
-  
+
   list(
     label = label,
     module = gene_info$module,
@@ -694,7 +678,7 @@ hc_module_function_vllm <- function(...) {
   if (base::length(modules) <= 1) {
     return(modules)
   }
-  
+
   parsed <- lapply(modules, function(x) {
     hit <- regexec("^([^0-9]*?)([0-9]+)([^0-9]*)$", x, perl = TRUE)
     parts <- regmatches(x, hit)[[1]]
@@ -711,7 +695,7 @@ hc_module_function_vllm <- function(...) {
       suffix = ""
     )
   })
-  
+
   ord <- base::order(
     base::vapply(parsed, function(x) x$prefix, FUN.VALUE = base::character(1)),
     base::vapply(parsed, function(x) x$number, FUN.VALUE = base::numeric(1)),
@@ -738,7 +722,7 @@ hc_module_function_vllm <- function(...) {
   if (base::length(module) == 0) {
     stop("No valid `module` values provided.")
   }
-  
+
   sat <- tryCatch(base::as.list(hc@satellite), error = function(e) list())
   tbl <- sat[["module_gene_list"]]
   if (base::is.null(tbl) || !base::is.data.frame(tbl) || !"module" %in% base::colnames(tbl)) {
@@ -747,17 +731,17 @@ hc_module_function_vllm <- function(...) {
       "to create the module-to-gene table."
     )
   }
-  
+
   available_modules <- unique(base::as.character(tbl$module))
   available_modules <- available_modules[!base::is.na(available_modules) & available_modules != ""]
   if (base::length(available_modules) == 0) {
     stop("No modules found in `hc@satellite$module_gene_list`.")
   }
-  
+
   if (base::length(module) == 1 && base::tolower(module[[1]]) == "all") {
     return(.hc_llm_module_order(hc = hc))
   }
-  
+
   module
 }
 
@@ -775,7 +759,7 @@ hc_module_function_vllm <- function(...) {
   } else {
     api_key <- base::as.character(api_key[[1]])
   }
-  
+
   if (!base::nzchar(api_key)) {
     if (llm == "gemini") {
       stop("No Gemini API key found. Pass `api_key` or set `GEMINI_API_KEY`.")
@@ -786,7 +770,7 @@ hc_module_function_vllm <- function(...) {
     }
     stop("No OpenAI API key found. Pass `api_key` or set `OPENAI_API_KEY`.")
   }
-  
+
   api_key
 }
 
@@ -838,16 +822,7 @@ hc_module_function_vllm <- function(...) {
 .hc_llm_require_ellmer <- function() {
   if (!requireNamespace("ellmer", quietly = TRUE)) {
     stop(
-      "Package `ellmer` is required for Gemini, OpenAI, and vLLM requests. Install it first.",
-      call. = FALSE
-    )
-  }
-}
-
-.hc_llm_require_httr2 <- function() {
-  if (!requireNamespace("httr2", quietly = TRUE)) {
-    stop(
-      "Package `httr2` is required for Claude requests. Install it first.",
+      "Package `ellmer` is required for LLM requests. Install it first.",
       call. = FALSE
     )
   }
@@ -862,7 +837,7 @@ hc_module_function_vllm <- function(...) {
   if (base::is.null(timeout_sec)) {
     return(force(expr))
   }
-  
+
   old_timeout <- getOption("ellmer_timeout_s")
   options(ellmer_timeout_s = base::as.numeric(timeout_sec))
   on.exit(options(ellmer_timeout_s = old_timeout), add = TRUE)
@@ -883,7 +858,7 @@ hc_module_function_vllm <- function(...) {
                                    temperature,
                                    timeout_sec) {
   .hc_llm_require_ellmer()
-  
+
   run_request <- function(include_temperature = TRUE) {
     api_args <- list()
     if (isTRUE(include_temperature) &&
@@ -891,7 +866,7 @@ hc_module_function_vllm <- function(...) {
         base::is.finite(temperature)) {
       api_args$temperature <- temperature
     }
-    
+
     chat <- tryCatch(
       do.call(
         ellmer::chat_google_gemini,
@@ -909,10 +884,10 @@ hc_module_function_vllm <- function(...) {
         stop("Could not initialize Gemini chat via ellmer: ", base::conditionMessage(e), call. = FALSE)
       }
     )
-    
+
     .hc_llm_with_ellmer_timeout(timeout_sec, chat$chat(prompt))
   }
-  
+
   result_text <- tryCatch(
     run_request(include_temperature = TRUE),
     error = function(e) {
@@ -930,12 +905,12 @@ hc_module_function_vllm <- function(...) {
       stop("Gemini request failed via ellmer: ", msg, call. = FALSE)
     }
   )
-  
+
   result_text <- .hc_llm_strip_json_fences(result_text)
   if (!base::nzchar(result_text)) {
     stop("Gemini response contained no text payload.", call. = FALSE)
   }
-  
+
   list(
     result_text = result_text,
     raw_response_text = result_text
@@ -950,7 +925,7 @@ hc_module_function_vllm <- function(...) {
                                    temperature,
                                    timeout_sec) {
   .hc_llm_require_ellmer()
-  
+
   chat <- tryCatch(
     ellmer::chat_openai(
       system_prompt = system_instruction,
@@ -966,19 +941,19 @@ hc_module_function_vllm <- function(...) {
       stop("Could not initialize OpenAI chat via ellmer: ", base::conditionMessage(e), call. = FALSE)
     }
   )
-  
+
   result_text <- tryCatch(
     .hc_llm_with_ellmer_timeout(timeout_sec, chat$chat(prompt)),
     error = function(e) {
       stop("OpenAI request failed via ellmer: ", base::conditionMessage(e), call. = FALSE)
     }
   )
-  
+
   result_text <- .hc_llm_strip_json_fences(result_text)
   if (!base::nzchar(result_text)) {
     stop("OpenAI response contained no text payload.", call. = FALSE)
   }
-  
+
   list(
     result_text = result_text,
     raw_response_text = result_text
@@ -991,64 +966,39 @@ hc_module_function_vllm <- function(...) {
                                    system_instruction,
                                    temperature,
                                    timeout_sec) {
-  .hc_llm_require_httr2()
-  
-  req <- httr2::request("https://api.anthropic.com/v1/messages") |>
-    httr2::req_method("POST") |>
-    httr2::req_headers(
-      "x-api-key" = api_key,
-      "anthropic-version" = "2023-06-01",
-      "content-type" = "application/json"
-    ) |>
-    httr2::req_body_json(
-      data = list(
-        model = model,
-        system = system_instruction,
-        max_tokens = 1024L,
-        temperature = temperature,
-        messages = list(
-          list(
-            role = "user",
-            content = prompt
-          )
-        )
+  .hc_llm_require_ellmer()
+
+  chat <- tryCatch(
+    ellmer::chat_anthropic(
+      system_prompt = system_instruction,
+      base_url = "https://api.anthropic.com/v1",
+      credentials = .hc_llm_api_key_credentials(api_key),
+      model = model,
+      api_args = list(
+        temperature = temperature
       ),
-      auto_unbox = TRUE
-    )
-  
-  if (!base::is.null(timeout_sec)) {
-    req <- httr2::req_timeout(req, timeout_sec)
-  }
-  
-  resp <- tryCatch(
-    httr2::req_perform(req),
+      echo = "none"
+    ),
     error = function(e) {
-      stop("Claude request failed: ", base::conditionMessage(e), call. = FALSE)
+      stop("Could not initialize Claude chat via ellmer: ", base::conditionMessage(e), call. = FALSE)
     }
   )
-  
-  resp_obj <- tryCatch(
-    httr2::resp_body_json(resp, simplifyVector = FALSE),
+
+  result_text <- tryCatch(
+    .hc_llm_with_ellmer_timeout(timeout_sec, chat$chat(prompt)),
     error = function(e) {
-      stop("Could not parse Claude response JSON: ", base::conditionMessage(e), call. = FALSE)
+      stop("Claude request failed via ellmer: ", base::conditionMessage(e), call. = FALSE)
     }
   )
-  
-  result_text <- .hc_llm_extract_claude_response_text(resp_obj)
+
   result_text <- .hc_llm_strip_json_fences(result_text)
-  
   if (!base::nzchar(result_text)) {
     stop("Claude response contained no text payload.", call. = FALSE)
   }
-  
-  raw_response_text <- tryCatch(
-    jsonlite::toJSON(resp_obj, auto_unbox = TRUE, null = "null"),
-    error = function(e) result_text
-  )
-  
+
   list(
     result_text = result_text,
-    raw_response_text = base::as.character(raw_response_text[[1]])
+    raw_response_text = result_text
   )
 }
 
@@ -1060,7 +1010,7 @@ hc_module_function_vllm <- function(...) {
                                  timeout_sec,
                                  base_url) {
   .hc_llm_require_ellmer()
-  
+
   chat <- tryCatch(
     ellmer::chat_vllm(
       base_url = base_url,
@@ -1077,20 +1027,20 @@ hc_module_function_vllm <- function(...) {
       stop("Could not initialize vLLM chat via ellmer: ", base::conditionMessage(e), call. = FALSE)
     }
   )
-  
+
   result_text <- tryCatch(
     .hc_llm_with_ellmer_timeout(timeout_sec, chat$chat(prompt)),
     error = function(e) {
       stop("vLLM request failed via ellmer: ", base::conditionMessage(e), call. = FALSE)
     }
   )
-  
+
   result_text <- .hc_llm_strip_think_blocks(result_text)
   result_text <- .hc_llm_strip_json_fences(result_text)
   if (!base::nzchar(result_text)) {
     stop("vLLM response contained no text payload.", call. = FALSE)
   }
-  
+
   list(
     result_text = result_text,
     raw_response_text = result_text
@@ -1122,17 +1072,17 @@ hc_module_function_vllm <- function(...) {
   module <- base::as.character(module[[1]])
   sat <- tryCatch(base::as.list(hc@satellite), error = function(e) list())
   tbl <- sat[["module_gene_list"]]
-  
+
   if (base::is.null(tbl) || !base::is.data.frame(tbl) || !"genes" %in% base::colnames(tbl) || !"module" %in% base::colnames(tbl)) {
     stop(
       "No `hc@satellite$module_gene_list` found. Run `hc_plot_cluster_heatmap()` once first ",
       "to create the module-to-gene table."
     )
   }
-  
+
   tbl$genes <- base::as.character(tbl$genes)
   tbl$module <- base::as.character(tbl$module)
-  
+
   module_lookup <- module
   if (!(module_lookup %in% tbl$module)) {
     label_map <- tryCatch(hc@integration@cluster[["module_label_map"]], error = function(e) NULL)
@@ -1147,13 +1097,13 @@ hc_module_function_vllm <- function(...) {
       }
     }
   }
-  
+
   genes <- tbl$genes[tbl$module == module_lookup]
   genes <- .hc_gemini_normalize_genes(genes)
   if (base::length(genes) == 0) {
     stop("Could not resolve genes for module `", module, "`.")
   }
-  
+
   list(
     label = module_lookup,
     module = module_lookup,
@@ -1176,9 +1126,9 @@ hc_module_function_vllm <- function(...) {
   } else {
     base::paste0("All ", total_gene_count, " input genes are included.")
   }
-  
+
   biological_context <- if (base::nzchar(context_text)) context_text else "none provided"
-  
+
   prompt_instructions <- if (llm == "vllm") {
     base::paste(
       "Infer the main biological program of this transcriptomic module.",
@@ -1216,7 +1166,7 @@ hc_module_function_vllm <- function(...) {
       "If regulator evidence is weak, state the most plausible regulators briefly rather than repeating the biological process."
     )
   }
-  
+
   base::paste(
     prompt_instructions,
     "",
@@ -1233,7 +1183,7 @@ hc_module_function_vllm <- function(...) {
   } else {
     "Context:\nNone provided.\n"
   }
-  
+
   module_blocks <- base::vapply(
     batch_inputs,
     function(inp) {
@@ -1255,11 +1205,11 @@ hc_module_function_vllm <- function(...) {
     },
     FUN.VALUE = base::character(1)
   )
-  
+
   base::paste(
     "Summarize the likely overarching biological function of each transcriptomic module separately.",
     "Return JSON matching the provided schema with one entry per module.",
-    "For each module entry, include `label`, `general_processes`, `contextual_state`, and `key_regulators`.",
+    "For each module, provide `short_title` as a short plot-ready label with about 3 to 8 words.",
     "The provided context is the primary interpretation frame and must strongly constrain the answer.",
     "Prefer explanations that are compatible with the given biological context, cell type, cohort, and tissue.",
     "Do not assign unrelated tissue programs such as neuronal, epithelial, ciliary, muscular, or organ-specific identities unless the evidence is overwhelming and no context-compatible explanation fits.",
@@ -1302,17 +1252,7 @@ hc_module_function_vllm <- function(...) {
         type = "array",
         minItems = base::as.integer(n_modules),
         maxItems = base::as.integer(n_modules),
-        items = list(
-          type = "object",
-          properties = list(
-            label = list(type = "string"),
-            general_processes = list(type = "string"),
-            contextual_state = list(type = "string"),
-            key_regulators = list(type = "string")
-          ),
-          required = c("label", "general_processes", "contextual_state", "key_regulators"),
-          additionalProperties = FALSE
-        )
+        items = .hc_llm_response_schema()
       )
     ),
     required = base::as.list("modules"),
@@ -1354,16 +1294,16 @@ hc_module_function_vllm <- function(...) {
   if (base::is.null(message_obj)) {
     return("")
   }
-  
+
   content <- message_obj$content
   if (base::is.null(content)) {
     return("")
   }
-  
+
   if (base::is.character(content) && base::length(content) >= 1) {
     return(base::as.character(content[[1]]))
   }
-  
+
   if (base::is.list(content) && base::length(content) > 0) {
     text_parts <- base::character(0)
     for (part in content) {
@@ -1379,38 +1319,8 @@ hc_module_function_vllm <- function(...) {
       return(base::paste(text_parts, collapse = "\n"))
     }
   }
-  
-  ""
-}
 
-.hc_llm_extract_claude_response_text <- function(resp_obj) {
-  content <- resp_obj[["content"]]
-  if (base::is.null(content) || !base::is.list(content) || base::length(content) == 0) {
-    return("")
-  }
-  
-  text_parts <- base::vapply(
-    content,
-    function(x) {
-      if (!base::is.list(x)) {
-        return("")
-      }
-      typ <- x[["type"]]
-      if (base::is.null(typ) || !identical(base::as.character(typ[[1]]), "text")) {
-        return("")
-      }
-      txt <- x[["text"]]
-      if (base::is.null(txt)) "" else base::as.character(txt[[1]])
-    },
-    FUN.VALUE = base::character(1)
-  )
-  
-  text_parts <- text_parts[!base::is.na(text_parts) & text_parts != ""]
-  if (base::length(text_parts) == 0) {
-    return("")
-  }
-  
-  base::paste(text_parts, collapse = "\n")
+  ""
 }
 
 .hc_llm_strip_json_fences <- function(x) {
@@ -1428,6 +1338,7 @@ hc_module_function_vllm <- function(...) {
   if (!base::nzchar(x)) {
     return("")
   }
+  # Local Qwen/vLLM deployments may emit reasoning in <think>...</think>.
   x <- gsub("(?is)<think>.*?</think>", " ", x, perl = TRUE)
   x <- sub("(?is)<think>.*$", " ", x, perl = TRUE)
   stringr::str_squish(x)
@@ -1457,7 +1368,7 @@ hc_module_function_vllm <- function(...) {
       stringsAsFactors = FALSE
     ))
   }
-  
+
   results <- results[base::vapply(results, base::is.list, FUN.VALUE = base::logical(1))]
   if (base::length(results) == 0) {
     return(base::data.frame(
@@ -1482,7 +1393,7 @@ hc_module_function_vllm <- function(...) {
       stringsAsFactors = FALSE
     ))
   }
-  
+
   out <- lapply(results, function(res) {
     base::data.frame(
       module = .hc_llm_result_scalar(res, c("label"), default = .hc_llm_result_scalar(res, c("module"), default = NA_character_)),
@@ -1508,7 +1419,7 @@ hc_module_function_vllm <- function(...) {
   })
   out <- base::do.call(base::rbind, out)
   base::rownames(out) <- NULL
-  
+
   if (!base::is.null(hc)) {
     module_order <- .hc_llm_module_order(hc = hc)
     if (base::length(module_order) > 0) {
@@ -1520,7 +1431,7 @@ hc_module_function_vllm <- function(...) {
       base::rownames(out) <- NULL
     }
   }
-  
+
   out
 }
 
@@ -1599,7 +1510,7 @@ hc_module_function_vllm <- function(...) {
   if (base::is.null(val) || base::length(val) == 0) {
     return(default)
   }
-  
+
   if (identical(mode, "character")) {
     val <- base::as.character(val[[1]])
     if (base::length(val) == 0) {
@@ -1614,7 +1525,7 @@ hc_module_function_vllm <- function(...) {
     }
     return(val)
   }
-  
+
   val <- base::as.logical(val[[1]])
   if (base::length(val) == 0 || base::is.na(val)) {
     return(base::as.logical(default[[1]]))
@@ -1630,7 +1541,7 @@ hc_module_function_vllm <- function(...) {
   if (!base::nzchar(term) || base::is.na(term)) {
     return("No interpretation available")
   }
-  
+
   term <- stringr::str_squish(term)
   term <- sub("^This module is best described as\\s+", "", term, ignore.case = TRUE)
   term <- sub("^This module can be summarized as\\s+", "", term, ignore.case = TRUE)
@@ -1647,7 +1558,7 @@ hc_module_function_vllm <- function(...) {
   term <- sub("^the activation of\\s+", "", term, ignore.case = TRUE)
   term <- sub("^the diverse functions of\\s+", "", term, ignore.case = TRUE)
   term <- sub("\\.$", "", term)
-  
+
   pieces <- unlist(strsplit(
     term,
     "\\s*,\\s*|\\s*;\\s*|\\s+and\\s+|\\s+with\\s+|\\s+linked to\\s+|\\s+coupled to\\s+",
@@ -1658,7 +1569,7 @@ hc_module_function_vllm <- function(...) {
   if (length(pieces) == 0) {
     pieces <- term
   }
-  
+
   chosen <- character(0)
   for (piece in pieces) {
     candidate <- paste(c(chosen, piece), collapse = " / ")
@@ -1670,11 +1581,11 @@ hc_module_function_vllm <- function(...) {
       break
     }
   }
-  
+
   if (length(chosen) == 0) {
     chosen <- pieces[[1]]
   }
-  
+
   short_title <- paste(chosen, collapse = " / ")
   short_title <- .hc_llm_clean_text(stringr::str_squish(short_title))
   stringr::str_trunc(short_title, width = max_chars)
@@ -1693,26 +1604,6 @@ hc_module_function_vllm <- function(...) {
   x
 }
 
-.hc_llm_output_dir <- function(hc) {
-  out_dir <- "."
-  if (base::nrow(hc@config@paths) > 0 && "dir_output" %in% base::colnames(hc@config@paths)) {
-    cand <- as.character(hc@config@paths$dir_output[[1]])
-    if (base::length(cand) == 1 && !base::is.na(cand) && base::nzchar(cand) && !identical(cand, "FALSE")) {
-      out_dir <- cand
-    }
-  }
-  if (base::nrow(hc@config@global) > 0 && "save_folder" %in% base::colnames(hc@config@global)) {
-    sf <- as.character(hc@config@global$save_folder[[1]])
-    if (base::length(sf) == 1 && !base::is.na(sf) && base::nzchar(sf)) {
-      out_dir <- base::file.path(out_dir, sf)
-    }
-  }
-  if (!base::dir.exists(out_dir)) {
-    base::dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-  out_dir
-}
-
 .hc_llm_export_results_excel <- function(hc,
                                          results,
                                          summary_tbl,
@@ -1720,7 +1611,7 @@ hc_module_function_vllm <- function(...) {
   if (base::is.null(hc) || !requireNamespace("openxlsx", quietly = TRUE)) {
     return(invisible(NULL))
   }
-  
+
   details_tbl <- base::do.call(
     base::rbind,
     lapply(results, function(res) {
@@ -1745,8 +1636,8 @@ hc_module_function_vllm <- function(...) {
     })
   )
   base::rownames(details_tbl) <- NULL
-  
-  out_dir <- .hc_llm_output_dir(hc)
+
+  out_dir <- .hc_resolve_output_dir(hc)
   file <- base::file.path(out_dir, base::paste0(slot_name, "_summary.xlsx"))
   tryCatch(
     openxlsx::write.xlsx(
@@ -1781,7 +1672,7 @@ hc_module_function_vllm <- function(...) {
       return(base::unique(mapped))
     }
   }
-  
+
   sat <- tryCatch(base::as.list(hc@satellite), error = function(e) list())
   tbl <- sat[["module_gene_list"]]
   if (base::is.null(tbl) || !base::is.data.frame(tbl) || !"module" %in% base::colnames(tbl)) {

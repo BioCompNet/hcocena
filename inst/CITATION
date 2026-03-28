@@ -1,3 +1,5 @@
+citHeader("To cite package 'hcocena' use:")
+
 bibentry(
   bibtype = "Article",
   title = "hCoCena: horizontal integration and analysis of transcriptomics datasets",

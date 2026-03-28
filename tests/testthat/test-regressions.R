@@ -6,7 +6,574 @@ test_that("regression: utils no longer references working_director", {
 
 test_that("regression: rho path now guards optional propr dependency", {
   src <- paste(deparse(get("pwcorr", asNamespace("hcocena"))), collapse = "\n")
-  expect_true(grepl("requireNamespace(\"propr\"", src, fixed = TRUE))
+  expect_true(grepl(".hc_require_namespace(\"propr\"", src, fixed = TRUE))
+  expect_true(grepl("getExportedValue(\"propr\", \"propr\")", src, fixed = TRUE))
+  expect_false(grepl("propr::propr", src, fixed = TRUE))
+})
+
+
+test_that("regression: legacy longitudinal kml path uses optional dynamic access", {
+  src <- paste(deparse(get(".hc_legacy_kml_cluster_one", asNamespace("hcocena"))), collapse = "\n")
+  expect_true(grepl("getExportedValue(\"kml\", \"cld\")", src, fixed = TRUE))
+  expect_true(grepl("getExportedValue(\"kml\", \"parALGO\")", src, fixed = TRUE))
+  expect_true(grepl("getExportedValue(\"kml\", \"kml\")", src, fixed = TRUE))
+  expect_false(grepl("kml::", src, fixed = TRUE))
+})
+
+
+test_that("regression: hub centrality helpers return finite legacy-style outputs", {
+  dc_fun <- get("weighted_DC", asNamespace("hcocena"))
+  cc_fun <- get("weighted_CC", asNamespace("hcocena"))
+  bc_fun <- get("weighted_BC", asNamespace("hcocena"))
+  combined_fun <- get("combined_centrality", asNamespace("hcocena"))
+
+  g <- igraph::graph_from_edgelist(
+    matrix(c("A", "B",
+             "B", "C",
+             "A", "C"),
+           ncol = 2, byrow = TRUE),
+    directed = FALSE
+  )
+  igraph::E(g)$weight <- c(0.8, 0.6, 0.4)
+
+  dc <- dc_fun(g)
+  cc <- cc_fun(g)
+  bc <- bc_fun(g)
+  combined <- combined_fun(g)
+
+  expect_equal(length(dc), 3)
+  expect_equal(length(cc), 3)
+  expect_equal(length(bc), 3)
+  expect_equal(sum(dc), 2)
+  expect_true(all(is.finite(dc)))
+  expect_true(all(is.finite(cc)))
+  expect_true(all(is.finite(bc)))
+  expect_true(any(bc > 0))
+  expect_identical(sort(unique(combined$node)), c("A", "B", "C"))
+  expect_identical(sort(unique(rownames(combined))), c("A", "B", "C"))
+
+  g_disc <- igraph::graph_from_edgelist(
+    matrix(c("A", "B",
+             "C", "D"),
+            ncol = 2, byrow = TRUE),
+    directed = FALSE
+  )
+  igraph::E(g_disc)$weight <- c(0.7, 0.9)
+  expect_true(all(is.finite(cc_fun(g_disc))))
+  expect_true(all(is.finite(suppressWarnings(bc_fun(g_disc)))))
+})
+
+
+test_that("regression: longitudinal module labels preserve split suffixes", {
+  label_fun <- get(".hc_normalize_longitudinal_module_labels", asNamespace("hcocena"))
+  structured_fun <- get(".hc_is_structured_module_label", asNamespace("hcocena"))
+  map_fun <- get(".hc_resolve_module_label_map_for_colors", asNamespace("hcocena"))
+  color_order_fun <- get(".hc_module_colors_in_cluster_order", asNamespace("hcocena"))
+  natural_fun <- get(".hc_natural_module_order", asNamespace("hcocena"))
+  reorder_lookup_fun <- get(".hc_reorder_module_lookup_natural", asNamespace("hcocena"))
+
+  expect_true(all(structured_fun(c("M1", "M2", "M1.1", "M1.2"))))
+  expect_equal(
+    label_fun(
+      module_labels = c("M1.1", "M1.2", "M2"),
+      module_colors = c("red", "blue", "green")
+    ),
+    c("M1.1", "M1.2", "M2")
+  )
+  expect_equal(
+    label_fun(
+      module_labels = c("red", "blue"),
+      module_colors = c("red", "blue")
+    ),
+    c("M1", "M2")
+  )
+  expect_equal(
+    map_fun(
+      label_map = stats::setNames(c("M1.1", "M1.2"), c("red", "blue")),
+      module_colors = c("red", "blue")
+    ),
+    stats::setNames(c("M1.1", "M1.2"), c("red", "blue"))
+  )
+  expect_equal(
+    map_fun(
+      label_map = stats::setNames(c("red", "blue"), c("M1.1", "M1.2")),
+      module_colors = c("red", "blue")
+    ),
+    stats::setNames(c("M1.1", "M1.2"), c("red", "blue"))
+  )
+  expect_equal(
+    color_order_fun(
+      cluster_info = data.frame(
+        color = c("gold_b", "gold_c", "gold_a", "gold_a"),
+        gene_n = c("g1", "g2", "g3", "g4"),
+        stringsAsFactors = FALSE
+      ),
+      module_genes = list(gold_a = "g3", gold_b = "g1", gold_c = "g2")
+    ),
+    c("gold_b", "gold_c", "gold_a")
+  )
+  expect_equal(
+    natural_fun(c("M4", "M10", "M8", "M5", "M7", "M3", "M9", "M6", "M1.2", "M1.3", "M1.1", "M2")),
+    c("M1.1", "M1.2", "M1.3", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10")
+  )
+  expect_equal(
+    reorder_lookup_fun(
+      data.frame(
+        module = c("M4", "M10", "M8", "M5", "M7", "M3", "M9", "M6", "M1.2", "M1.3", "M1.1", "M2"),
+        module_color = seq_len(12),
+        stringsAsFactors = FALSE
+      )
+    )$module,
+    c("M1.1", "M1.2", "M1.3", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10")
+  )
+})
+
+
+test_that("regression: heatmap gets subtle smart column gaps only at useful group boundaries", {
+  gap_fun <- get(".hc_heatmap_column_gap_spec", asNamespace("hcocena"))
+  ggplot_layout_fun <- get(".hc_heatmap_ggplot_column_layout", asNamespace("hcocena"))
+
+  hc_stub <- list(
+    layers = list(set1 = TRUE, set2 = TRUE),
+    layers_names = c("RNA", "PROT"),
+    data = list(
+      set1_anno = data.frame(Group = c("T1", "T2", "T3"), stringsAsFactors = FALSE),
+      set2_anno = data.frame(Group = c("T1", "T2", "T3"), stringsAsFactors = FALSE)
+    ),
+    global_settings = list(voi = "Group"),
+    layer_specific_outputs = NULL
+  )
+
+  by_layer <- gap_fun(
+    hcobject = hc_stub,
+    cols = c("T1", "T2", "T3", "T1", "T2", "T3"),
+    cluster_columns = FALSE,
+    gap_mm = 0.6
+  )
+  expect_identical(by_layer$source, "layer_name")
+  expect_equal(base::as.integer(by_layer$column_split), c(1L, 1L, 1L, 2L, 2L, 2L))
+  expect_equal(base::levels(by_layer$column_split), c("RNA", "PROT"))
+  expect_equal(by_layer$slice_count, 2L)
+  expect_equal(by_layer$slice_titles, c("RNA", "PROT"))
+  expect_gt(by_layer$total_gap_mm, 0)
+  ggplot_layout <- ggplot_layout_fun(
+    cols = c("T1", "T2", "T3", "T1", "T2", "T3"),
+    column_gap_spec = by_layer,
+    default_cell_mm = 5
+  )
+  expect_equal(ggplot_layout$slice_df$title, c("RNA", "PROT"))
+  expect_gt(ggplot_layout$x[[4]] - ggplot_layout$x[[3]], 1)
+
+  by_prefix <- gap_fun(
+    hcobject = hc_stub,
+    cols = c("MC1_T1_RNA", "MC1_T1_PROT", "MC2_T1_RNA", "MC2_T1_PROT"),
+    cluster_columns = FALSE,
+    gap_mm = 0.6
+  )
+  expect_identical(by_prefix$source, "prefix_before_layer")
+  expect_equal(base::as.integer(by_prefix$column_split), c(1L, 1L, 2L, 2L))
+  expect_equal(by_prefix$slice_titles, c("", ""))
+
+  clustered <- gap_fun(
+    hcobject = hc_stub,
+    cols = c("T1", "T2", "T3", "T1", "T2", "T3"),
+    cluster_columns = TRUE,
+    gap_mm = 0.6
+  )
+  expect_null(clustered$column_split)
+  expect_equal(clustered$total_gap_mm, 0)
+})
+
+
+test_that("regression: additional heatmap paths reuse layer gap and layer-title logic", {
+  fun_enrich_src <- paste(
+    readLines(test_path("..", "..", "R", "functional_enrichment.R"), warn = FALSE),
+    collapse = "\n"
+  )
+  llm_src <- paste(deparse(get(".hc_llm_capture_combined_heatmap_grob", asNamespace("hcocena"))), collapse = "\n")
+  upstream_src <- paste(deparse(get(".hc_ui_build_upstream_combined_heatmap", asNamespace("hcocena"))), collapse = "\n")
+  knowledge_src <- paste(
+    readLines(test_path("..", "..", "R", "plot_enrichment_upstream_network.R"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl(".hc_heatmap_column_gap_spec", fun_enrich_src, fixed = TRUE))
+  expect_true(grepl(".hc_heatmap_add_column_gap_args", fun_enrich_src, fixed = TRUE))
+  expect_true(grepl(".hc_heatmap_column_gap_spec", llm_src, fixed = TRUE))
+  expect_true(grepl(".hc_heatmap_add_column_gap_args", llm_src, fixed = TRUE))
+  expect_true(grepl(".hc_heatmap_column_gap_spec", upstream_src, fixed = TRUE))
+  expect_true(grepl(".hc_heatmap_add_column_gap_args", upstream_src, fixed = TRUE))
+  expect_true(grepl(".hc_heatmap_column_gap_spec", knowledge_src, fixed = TRUE))
+  expect_true(grepl(".hc_heatmap_ggplot_column_layout", knowledge_src, fixed = TRUE))
+})
+
+
+test_that("regression: regrouped heatmap uses the modern heatmap renderer and compact gene-count text mode", {
+  regroup_src <- paste(deparse(get(".hc_change_grouping_parameter_legacy_driver", asNamespace("hcocena"))), collapse = "\n")
+
+  expect_true(grepl("plot_cluster_heatmap_new", regroup_src, fixed = TRUE))
+  expect_true(grepl("gene_count_mode = \"text\"", regroup_src, fixed = TRUE))
+  expect_true(grepl("[[\"voi\"]] <<- \"regrouped\"", regroup_src, fixed = TRUE))
+  expect_false(grepl("replot_cluster_heatmap", regroup_src, fixed = TRUE))
+})
+
+
+test_that("regression: longitudinal step1 can loop all layers with unique slots and file prefixes", {
+  hc <- hc_init()
+  se1 <- SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = matrix(1, nrow = 1, ncol = 1, dimnames = list("g1", "s1"))),
+    colData = S4Vectors::DataFrame(PatID = "p1", Timepoint_rough_num = "1", row.names = "s1")
+  )
+  se2 <- SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = matrix(2, nrow = 1, ncol = 1, dimnames = list("g2", "s2"))),
+    colData = S4Vectors::DataFrame(PatID = "p2", Timepoint_rough_num = "1", row.names = "s2")
+  )
+  hc@mae <- MultiAssayExperiment::MultiAssayExperiment(
+    experiments = S4Vectors::SimpleList(set1 = se1, set2 = se2)
+  )
+  hc@config@layer <- S4Vectors::DataFrame(
+    layer_id = c("set1", "set2"),
+    layer_name = c("RNA layer", "Protein layer")
+  )
+
+  means_calls <- list()
+  cluster_calls <- list()
+  cap_calls <- list()
+
+  testthat::local_mocked_bindings(
+    hc_longitudinal_module_means = function(hc,
+                                            donor_col,
+                                            time_col,
+                                            layer,
+                                            group_col,
+                                            use_module_labels,
+                                            time_levels,
+                                            impute_missing,
+                                            slot_name,
+                                            value_label = NULL) {
+      means_calls[[length(means_calls) + 1L]] <<- list(
+        layer = layer,
+        slot_name = slot_name
+      )
+      sat <- as.list(hc@satellite)
+      sat[[slot_name]] <- list(layer_id = layer)
+      hc@satellite <- S4Vectors::SimpleList(sat)
+      hc
+    },
+    .hc_run_legacy_step1_exact = function(hc, means_slot, output_slot, ...) {
+      sat <- as.list(hc@satellite)
+      sat[[output_slot]] <- list(
+        module_cluster_score = paste0("score_", output_slot),
+        module_cluster_best_k = 2L
+      )
+      hc@satellite <- S4Vectors::SimpleList(sat)
+      hc
+    },
+    hc_plot_longitudinal_module_means = function(hc, slot_name, save_pdf, file_prefix, ...) {
+      cluster_calls[[length(cluster_calls) + 1L]] <<- list(
+        type = "means",
+        slot_name = slot_name,
+        file_prefix = file_prefix
+      )
+      list(module_means = paste(slot_name, file_prefix, sep = "::"))
+    },
+    hc_plot_longitudinal_module_clusters = function(hc, slot_name, save_pdf, file_prefix, ...) {
+      cluster_calls[[length(cluster_calls) + 1L]] <<- list(
+        type = "clusters",
+        slot_name = slot_name,
+        file_prefix = file_prefix
+      )
+      list(
+        module_cluster_waves = paste(slot_name, file_prefix, sep = "::"),
+        module_cluster_heatmap = list(
+          data = data.frame(donor = factor("d1", levels = "d1"), stringsAsFactors = TRUE)
+        )
+      )
+    },
+    hc_plot_longitudinal_cap = function(hc, slot_name, save_pdf, file_prefix, show_values, donor_order = NULL, ...) {
+      cap_calls[[length(cap_calls) + 1L]] <<- list(
+        slot_name = slot_name,
+        file_prefix = file_prefix,
+        donor_order = donor_order
+      )
+      list(cap_heatmap = paste(slot_name, file_prefix, sep = "::"))
+    },
+    .package = "hcocena"
+  )
+
+  out <- hcocena::hc_longitudinal_step1_module_donor(
+    hc,
+    donor_col = "PatID",
+    time_col = "Timepoint_rough_num",
+    layer = "all",
+    time_levels = c("1"),
+    k = 2,
+    rerolls = 1,
+    impute = FALSE,
+    ntree = 10,
+    min_cluster_fraction = 0.1,
+    score_method = "median",
+    seed = 42
+  )
+
+  expect_named(out$plots, c("set1", "set2"))
+  expect_named(out$diagnostics, c("set1", "set2"))
+  expect_equal(out$layer_info$means_slot, c("longitudinal_module_means_set1", "longitudinal_module_means_set2"))
+  expect_equal(out$layer_info$output_slot, c("longitudinal_endotypes_set1", "longitudinal_endotypes_set2"))
+  expect_equal(vapply(means_calls, `[[`, character(1), "layer"), c("set1", "set2"))
+  expect_equal(vapply(means_calls, `[[`, character(1), "slot_name"), c("longitudinal_module_means_set1", "longitudinal_module_means_set2"))
+  expect_true(any(vapply(cluster_calls, function(x) identical(x$file_prefix, "Longitudinal_ModuleMeans_RNA_layer"), logical(1))))
+  expect_true(any(vapply(cluster_calls, function(x) identical(x$file_prefix, "Longitudinal_ModuleClusters_Protein_layer"), logical(1))))
+  expect_equal(vapply(cap_calls, `[[`, character(1), "file_prefix"), c("Longitudinal_CAP_RNA_layer", "Longitudinal_CAP_Protein_layer"))
+  expect_equal(out$diagnostics$set1$module_cluster_score, "score_longitudinal_endotypes_set1")
+  expect_equal(out$diagnostics$set2$module_cluster_best_k, 2L)
+})
+
+
+test_that("regression: longitudinal step2 can loop suffixed step1 slots with unique prefixes", {
+  hc <- hc_init()
+  hc@config@layer <- S4Vectors::DataFrame(
+    layer_id = c("set1", "set2"),
+    layer_name = c("RNA layer", "Protein layer")
+  )
+  hc@satellite <- S4Vectors::SimpleList(
+    longitudinal_endotypes_set1 = list(
+      cap_matrix = matrix(
+        c(1, 2, 3, 4),
+        nrow = 2,
+        dimnames = list(c("d1", "d2"), c("m1", "m2"))
+      ),
+      source_slot = "longitudinal_module_means_set1"
+    ),
+    longitudinal_endotypes_set2 = list(
+      cap_matrix = matrix(
+        c(5, 6, 7, 8),
+        nrow = 2,
+        dimnames = list(c("d3", "d4"), c("m1", "m2"))
+      ),
+      source_slot = "longitudinal_module_means_set2"
+    )
+  )
+
+  run_calls <- list()
+  plot_calls <- list()
+
+  testthat::local_mocked_bindings(
+    .hc_run_legacy_step2_exact = function(hc, slot_name, ...) {
+      run_calls[[length(run_calls) + 1L]] <<- slot_name
+      sat <- as.list(hc@satellite)
+      sat[[slot_name]]$meta_cluster <- data.frame(
+        donor = c("d1", "d2"),
+        meta_cluster = c("MC1", "MC2"),
+        stringsAsFactors = FALSE
+      )
+      sat[[slot_name]]$meta_method_comparison <- data.frame(
+        method = "graph_leiden",
+        stringsAsFactors = FALSE
+      )
+      sat[[slot_name]]$meta_score_table <- data.frame(
+        k = 2L,
+        stringsAsFactors = FALSE
+      )
+      hc@satellite <- S4Vectors::SimpleList(sat)
+      hc
+    },
+    hc_plot_longitudinal_meta_embeddings = function(hc,
+                                                    slot_name,
+                                                    save_pdf,
+                                                    file_prefix,
+                                                    show_endotype_crosstab,
+                                                    show_cluster_labels,
+                                                    save_tables,
+                                                    table_format,
+                                                    table_detail) {
+      plot_calls[[length(plot_calls) + 1L]] <<- list(
+        slot_name = slot_name,
+        file_prefix = file_prefix
+      )
+      list(
+        pca = paste(slot_name, "pca", sep = "::"),
+        umap = paste(slot_name, "umap", sep = "::"),
+        cross_tab = paste(slot_name, "cross", sep = "::"),
+        tables = list(Method_Clusters = paste(slot_name, "table", sep = "::"))
+      )
+    },
+    .package = "hcocena"
+  )
+
+  out <- hcocena::hc_longitudinal_step2_meta_clustering(
+    hc,
+    slot_name = "longitudinal_endotypes",
+    dimensions = 4,
+    graph_method = "knn",
+    knn_method = "annoy",
+    graph_k = 7,
+    resolution = 0.3,
+    leiden_method = "RBConfigurationVertexPartition"
+  )
+
+  expect_named(out$plots, c("set1", "set2"))
+  expect_named(out$diagnostics, c("set1", "set2"))
+  expect_equal(run_calls, list("longitudinal_endotypes_set1", "longitudinal_endotypes_set2"))
+  expect_equal(vapply(plot_calls, `[[`, character(1), "file_prefix"), c("Longitudinal_Meta_RNA_layer", "Longitudinal_Meta_Protein_layer"))
+  expect_equal(out$slot_info$slot_name, c("longitudinal_endotypes_set1", "longitudinal_endotypes_set2"))
+  expect_equal(out$slot_info$layer_id, c("set1", "set2"))
+  expect_equal(out$plots$set1$pca, "longitudinal_endotypes_set1::pca")
+  expect_equal(out$diagnostics$set2$cross_tab, "longitudinal_endotypes_set2::cross")
+})
+
+
+test_that("regression: longitudinal step2 prefers suffixed family slots over stale unsuffixed slot", {
+  hc <- hc_init()
+  hc@satellite <- S4Vectors::SimpleList(
+    longitudinal_endotypes = list(
+      cap_matrix = matrix(
+        c(9, 9, 9, 9),
+        nrow = 2,
+        dimnames = list(c("dx1", "dx2"), c("m1", "m2"))
+      )
+    ),
+    longitudinal_endotypes_set1 = list(
+      cap_matrix = matrix(
+        c(1, 2, 3, 4),
+        nrow = 2,
+        dimnames = list(c("d1", "d2"), c("m1", "m2"))
+      ),
+      source_slot = "longitudinal_module_means_set1"
+    ),
+    longitudinal_endotypes_set2 = list(
+      cap_matrix = matrix(
+        c(5, 6, 7, 8),
+        nrow = 2,
+        dimnames = list(c("d3", "d4"), c("m1", "m2"))
+      ),
+      source_slot = "longitudinal_module_means_set2"
+    )
+  )
+
+  resolved <- hcocena:::.hc_longitudinal_step2_target_slots(hc, slot_name = "longitudinal_endotypes")
+  expect_equal(resolved, c("longitudinal_endotypes_set1", "longitudinal_endotypes_set2"))
+})
+
+
+test_that("regression: longitudinal step3 can loop suffixed step2 slots with unique prefixes", {
+  hc <- hc_init()
+  hc@config@layer <- S4Vectors::DataFrame(
+    layer_id = c("set1", "set2"),
+    layer_name = c("RNA layer", "Protein layer")
+  )
+  hc@satellite <- S4Vectors::SimpleList(
+    longitudinal_endotypes = list(meta_cluster = data.frame(donor = "stale", stringsAsFactors = FALSE)),
+    longitudinal_endotypes_set1 = list(
+      meta_cluster = data.frame(donor = c("d1", "d2"), meta_cluster = c("MC1", "MC2"), stringsAsFactors = FALSE),
+      source_slot = "longitudinal_module_means_set1"
+    ),
+    longitudinal_endotypes_set2 = list(
+      meta_cluster = data.frame(donor = c("d3", "d4"), meta_cluster = c("MC1", "MC2"), stringsAsFactors = FALSE),
+      source_slot = "longitudinal_module_means_set2"
+    )
+  )
+
+  plot_calls <- list()
+
+  testthat::local_mocked_bindings(
+    hc_plot_longitudinal_meta_module_waves = function(hc,
+                                                      slot_name,
+                                                      save_pdf,
+                                                      file_prefix,
+                                                      facet_ncol,
+                                                      free_y,
+                                                      square_panels,
+                                                      value_mode,
+                                                      value_range,
+                                                      save_width,
+                                                      save_height) {
+      plot_calls[[length(plot_calls) + 1L]] <<- list(
+        slot_name = slot_name,
+        file_prefix = file_prefix,
+        value_mode = value_mode
+      )
+      list(meta_module_waves = paste(slot_name, file_prefix, sep = "::"))
+    },
+    .package = "hcocena"
+  )
+
+  out <- hcocena::hc_longitudinal_step3_meta_module_trajectories(
+    hc,
+    slot_name = "longitudinal_endotypes",
+    facet_ncol = 4,
+    free_y = FALSE,
+    square_panels = TRUE,
+    value_mode = "scaled_mean_vst",
+    value_range = c(-2, 2)
+  )
+
+  expect_named(out$plots, c("set1", "set2"))
+  expect_equal(vapply(plot_calls, `[[`, character(1), "slot_name"), c("longitudinal_endotypes_set1", "longitudinal_endotypes_set2"))
+  expect_equal(vapply(plot_calls, `[[`, character(1), "file_prefix"), c("Longitudinal_Meta_ModuleWaves_RNA_layer", "Longitudinal_Meta_ModuleWaves_Protein_layer"))
+  expect_equal(out$slot_info$slot_name, c("longitudinal_endotypes_set1", "longitudinal_endotypes_set2"))
+  expect_equal(out$plots$set1$meta_module_waves, "longitudinal_endotypes_set1::Longitudinal_Meta_ModuleWaves_RNA_layer")
+  expect_equal(out$plots$set2$meta_module_waves, "longitudinal_endotypes_set2::Longitudinal_Meta_ModuleWaves_Protein_layer")
+})
+
+
+test_that("regression: meta-time grouping uses per-layer longitudinal slots and returns regrouped heatmap order", {
+  hc <- hc_init()
+  se1 <- SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = matrix(c(1, 2), nrow = 1, dimnames = list("g1", c("s1", "s2")))),
+    colData = S4Vectors::DataFrame(
+      PatID = c("p1", "p2"),
+      Timepoint_rough = c("T1", "T2"),
+      row.names = c("s1", "s2")
+    )
+  )
+  se2 <- SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = matrix(c(3, 4), nrow = 1, dimnames = list("g2", c("s3", "s4")))),
+    colData = S4Vectors::DataFrame(
+      PatID = c("p3", "p4"),
+      Timepoint_rough = c("T1", "T2"),
+      row.names = c("s3", "s4")
+    )
+  )
+  hc@mae <- MultiAssayExperiment::MultiAssayExperiment(
+    experiments = S4Vectors::SimpleList(set1 = se1, set2 = se2)
+  )
+  hc@config@layer <- S4Vectors::DataFrame(
+    layer_id = c("set1", "set2"),
+    layer_name = c("pretm", "pretm2")
+  )
+  hc@satellite <- S4Vectors::SimpleList(
+    longitudinal_endotypes = list(meta_cluster = data.frame(donor = "stale", meta_cluster = "MC0", stringsAsFactors = FALSE)),
+    longitudinal_endotypes_set1 = list(
+      meta_cluster = data.frame(donor = c("p1", "p2"), meta_cluster = c("MC1", "MC2"), stringsAsFactors = FALSE),
+      source_slot = "longitudinal_module_means_set1"
+    ),
+    longitudinal_endotypes_set2 = list(
+      meta_cluster = data.frame(donor = c("p3", "p4"), meta_cluster = c("MC3", "MC4"), stringsAsFactors = FALSE),
+      source_slot = "longitudinal_module_means_set2"
+    )
+  )
+
+  hc <- hcocena::hc_add_meta_time_grouping(
+    hc,
+    donor_col = "PatID",
+    time_col = "Timepoint_rough",
+    grouping_col = "meta_cluster_time",
+    slot_name = "longitudinal_endotypes"
+  )
+
+  anno1 <- as.data.frame(SummarizedExperiment::colData(MultiAssayExperiment::experiments(hc@mae)[["set1"]]), stringsAsFactors = FALSE)
+  anno2 <- as.data.frame(SummarizedExperiment::colData(MultiAssayExperiment::experiments(hc@mae)[["set2"]]), stringsAsFactors = FALSE)
+  expect_equal(as.character(anno1$meta_cluster_time), c("MC1__T1", "MC2__T2"))
+  expect_equal(as.character(anno2$meta_cluster_time), c("MC3__T1", "MC4__T2"))
+  expect_equal(
+    hcocena::hc_get_meta_time_col_order(hc, slot_name = "longitudinal_endotypes", layer = 1),
+    c("MC1__T1_pretm", "MC2__T2_pretm")
+  )
+  expect_equal(
+    hcocena::hc_get_meta_time_col_order(hc, slot_name = "longitudinal_endotypes"),
+    c("MC1__T1_pretm", "MC2__T2_pretm", "MC3__T1_pretm2", "MC4__T2_pretm2")
+  )
 })
 
 
@@ -170,6 +737,106 @@ test_that("regression: longitudinal plotting drops panel labels outside final fa
 })
 
 
+test_that("regression: longitudinal enrichment meta waves can flatten multi-slot outputs", {
+  hc <- hc_init()
+  hc@config@layer <- S4Vectors::DataFrame(
+    layer_id = c("set1", "set2"),
+    layer_name = c("RNA layer", "Protein layer")
+  )
+  hc@satellite <- S4Vectors::SimpleList(
+    longitudinal_endotypes = list(meta_cluster = data.frame(donor = "stale", meta_cluster = "MC0", stringsAsFactors = FALSE)),
+    longitudinal_endotypes_set1 = list(
+      meta_cluster = data.frame(donor = c("d1", "d2"), meta_cluster = c("MC1", "MC2"), stringsAsFactors = FALSE),
+      source_slot = "longitudinal_module_means_set1"
+    ),
+    longitudinal_endotypes_set2 = list(
+      meta_cluster = data.frame(donor = c("d3", "d4"), meta_cluster = c("MC1", "MC2"), stringsAsFactors = FALSE),
+      source_slot = "longitudinal_module_means_set2"
+    )
+  )
+
+  enrichment_calls <- list()
+
+  testthat::local_mocked_bindings(
+    hc_plot_longitudinal_enrichment_waves = function(hc,
+                                                     slot_name,
+                                                     databases,
+                                                     top,
+                                                     custom_terms,
+                                                     term_match,
+                                                     enrichment_table,
+                                                     score_method,
+                                                     score_scale,
+                                                     layer,
+                                                     donor_col,
+                                                     time_col,
+                                                     time_levels,
+                                                     min_term_genes,
+                                                     impute_missing,
+                                                     qvalue_max,
+                                                     show_donor_lines,
+                                                     facet_ncol,
+                                                     free_y,
+                                                     save_pdf,
+                                                     file_prefix,
+                                                     save_width,
+                                                     save_height,
+                                                     export_excel) {
+      enrichment_calls[[length(enrichment_calls) + 1L]] <<- list(
+        slot_name = slot_name,
+        file_prefix = file_prefix
+      )
+      donor_ids <- if (grepl("set1$", slot_name)) c("d1", "d2") else c("d3", "d4")
+      list(
+        plots = list(),
+        top_terms = list(
+          Hallmark = data.frame(
+            module = "M1",
+            term = "TERM_A",
+            module_color = "gold",
+            rank = 1,
+            qvalue = 0.01,
+            stringsAsFactors = FALSE
+          )
+        ),
+        donor_trajectories = list(
+          Hallmark = data.frame(
+            donor = rep(donor_ids, each = 2),
+            module = "M1",
+            term = "TERM_A",
+            time = rep(c("1", "2"), times = length(donor_ids)),
+            score = c(0.1, 0.2, 0.3, 0.4),
+            stringsAsFactors = FALSE
+          )
+        ),
+        mean_trajectories = list(),
+        score_method_used = list(Hallmark = score_method)
+      )
+    },
+    .package = "hcocena"
+  )
+
+  out <- hcocena::hc_plot_longitudinal_enrichment_meta_waves(
+    hc,
+    slot_name = "longitudinal_endotypes",
+    databases = "Hallmark",
+    top = 1,
+    show_donor_lines = FALSE,
+    score_method = "ssgsea",
+    score_scale = "z",
+    save_pdf = FALSE,
+    export_excel = FALSE
+  )
+
+  expect_equal(vapply(enrichment_calls, `[[`, character(1), "slot_name"), c("longitudinal_endotypes_set1", "longitudinal_endotypes_set2"))
+  expect_equal(vapply(enrichment_calls, `[[`, character(1), "file_prefix"), c("Longitudinal_Enrichment_MetaWaves_RNA_layer", "Longitudinal_Enrichment_MetaWaves_Protein_layer"))
+  expect_named(out$results_by_slot, c("set1", "set2"))
+  expect_true(all(c("set1__Hallmark", "set2__Hallmark") %in% names(out$plots)))
+  expect_true(inherits(out$plots$set1__Hallmark, "ggplot"))
+  expect_equal(out$slot_info$slot_name, c("longitudinal_endotypes_set1", "longitudinal_endotypes_set2"))
+})
+
+
 test_that("regression: emmeans summaries are coerced to numeric safely", {
   normalize_emm <- get(".hc_normalize_emmeans_summary", asNamespace("hcocena"))
 
@@ -315,12 +982,159 @@ test_that("regression: large result stores are no longer mirrored across legacy 
 })
 
 
+test_that("regression: duplicate GFC condition names survive S4-to-legacy conversion", {
+  to_base_df <- get(".hc_to_base_data_frame_preserve_names", asNamespace("hcocena"))
+  cluster_plot_hco <- get(".hc_as_hcobject_for_cluster_plot", asNamespace("hcocena"))
+
+  dup_df <- data.frame(
+    T1 = c(1, 2),
+    T1 = c(3, 4),
+    Gene = c("g1", "g2"),
+    check.names = FALSE
+  )
+  expect_identical(colnames(to_base_df(S4Vectors::DataFrame(dup_df, check.names = FALSE))), c("T1", "T1", "Gene"))
+
+  hc <- hc_init()
+  hc@integration@gfc <- S4Vectors::DataFrame(dup_df, check.names = FALSE)
+
+  legacy_full <- as_hcobject(hc)
+  expect_identical(colnames(legacy_full$integrated_output$GFC_all_layers), c("T1", "T1", "Gene"))
+
+  legacy_plot <- cluster_plot_hco(hc)
+  expect_identical(colnames(legacy_plot$integrated_output$GFC_all_layers), c("T1", "T1", "Gene"))
+})
+
+
+test_that("regression: duplicate GFC condition names no longer break cluster summaries", {
+  cond_names_fun <- get(".hc_gfc_condition_names", asNamespace("hcocena"))
+  colmeans_fun <- get(".hc_gfc_colmeans_for_genes", asNamespace("hcocena"))
+  cluster_mean_fun <- get("gfc_mean_clustergene", asNamespace("hcocena"))
+
+  gfc_df <- data.frame(
+    T1 = c(1, 2),
+    T2 = c(3, 4),
+    T3 = c(5, 6),
+    T1 = c(7, 8),
+    T2 = c(9, 10),
+    T3 = c(11, 12),
+    Gene = c("g1", "g2"),
+    check.names = FALSE
+  )
+
+  expect_identical(cond_names_fun(gfc_df), c("T1", "T2", "T3", "T1", "T2", "T3"))
+  expect_equal(
+    unname(colmeans_fun(gfc_df, genes = "g1")),
+    c(1, 3, 5, 7, 9, 11)
+  )
+
+  out <- cluster_mean_fun(
+    rownum = 1,
+    cluster_df = data.frame(gene_n = "g1,g2", stringsAsFactors = FALSE),
+    gfc_dat = gfc_df
+  )
+  expect_identical(out$conditions, "T1#T2#T3#T1#T2#T3")
+  expect_identical(out$grp_means, "1.5,3.5,5.5,7.5,9.5,11.5")
+})
+
+
+test_that("regression: duplicate heatmap condition labels get layer prefixes and keep axis multiplicity", {
+  display_fun <- get(".hc_gfc_display_col_labels", asNamespace("hcocena"))
+  count_fun <- get(".hc_gfc_display_count_labels", asNamespace("hcocena"))
+  width_scale_fun <- get(".hc_gfc_duplicate_condition_width_scale", asNamespace("hcocena"))
+  norm_order_fun <- get(".hc_normalize_heatmap_axis_order", asNamespace("hcocena"))
+
+  hcobject <- hcocena:::.hc_default_object()
+  hcobject$layers <- stats::setNames(list(character(0), character(0)), c("set1", "set2"))
+  hcobject$layers_names <- c("RNA", "PROT")
+  hcobject$global_settings$voi <- "group"
+  hcobject$data$set1_anno <- data.frame(
+    group = c("T1", "T1", "T2", "T3"),
+    stringsAsFactors = FALSE,
+    row.names = paste0("s", 1:4)
+  )
+  hcobject$data$set2_anno <- data.frame(
+    group = c("T1", "T2", "T2", "T3"),
+    stringsAsFactors = FALSE,
+    row.names = paste0("p", 1:4)
+  )
+  hcobject$layer_specific_outputs$set1 <- list(
+    part2 = list(
+      GFC_all_genes = data.frame(
+        T1 = 1,
+        T2 = 2,
+        T3 = 3,
+        Gene = "g1",
+        check.names = FALSE
+      )
+    )
+  )
+  hcobject$layer_specific_outputs$set2 <- list(
+    part2 = list(
+      GFC_all_genes = data.frame(
+        T1 = 4,
+        T2 = 5,
+        T3 = 6,
+        Gene = "g1",
+        check.names = FALSE
+      )
+    )
+  )
+
+  raw_cols <- c("T1", "T2", "T3", "T1", "T2", "T3")
+  expect_identical(
+    display_fun(hcobject, raw_cols),
+    c("RNA: T1", "RNA: T2", "RNA: T3", "PROT: T1", "PROT: T2", "PROT: T3")
+  )
+  expect_identical(
+    count_fun(hcobject, raw_cols),
+    c("RNA: T1  [2]", "RNA: T2  [1]", "RNA: T3  [1]", "PROT: T1  [1]", "PROT: T2  [2]", "PROT: T3  [1]")
+  )
+  expect_equal(width_scale_fun(hcobject, raw_cols), 1.12)
+  expect_equal(width_scale_fun(hcobject, c("T1", "T2", "T3")), 1)
+  expect_identical(
+    norm_order_fun(raw_cols, raw_cols),
+    raw_cols
+  )
+})
+
+
+test_that("regression: enrichment-related heatmap legends use standard font settings", {
+  fun_enrich_src <- paste(deparse(get("functional_enrichment", asNamespace("hcocena"))), collapse = "\n")
+  upstream_src <- paste(deparse(get("upstream_inference", asNamespace("hcocena"))), collapse = "\n")
+  replot_src <- paste(deparse(get("replot_cluster_heatmap", asNamespace("hcocena"))), collapse = "\n")
+
+  expect_false(grepl('fontfamily = "mono"', fun_enrich_src, fixed = TRUE))
+  expect_false(grepl('fontfamily = "mono"', upstream_src, fixed = TRUE))
+  expect_false(grepl('fontfamily = "mono"', replot_src, fixed = TRUE))
+})
+
+
+test_that("regression: enrichment plot body borders use the same thin line style as the main heatmap", {
+  fun_enrich_src <- paste(
+    readLines(test_path("..", "..", "R", "functional_enrichment.R"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl('shared_heatmap_line_lwd <- 0\\.5', fun_enrich_src))
+  expect_true(grepl('rect_gp = grid::gpar\\(col = "black",\\s*lwd = shared_heatmap_line_lwd\\)', fun_enrich_src))
+  expect_true(grepl('panel_border_gp <- grid::gpar\\(col = "black",\\s*fill = NA,\\s*lwd = shared_heatmap_line_lwd\\)', fun_enrich_src))
+  expect_true(grepl('panel_border_gp_all <- grid::gpar\\(col = "black",\\s*fill = NA,\\s*lwd = shared_heatmap_line_lwd\\)', fun_enrich_src))
+  expect_true(grepl('panel_border_slices_all <- base::seq_len\\(base::nlevels\\(term_db_levels\\)\\)', fun_enrich_src))
+  expect_true(grepl('for \\(slice_idx in slices_use\\)', fun_enrich_src))
+  expect_true(grepl('decorate_heatmap_body\\(nm, slice = slice_idx, \\{', fun_enrich_src))
+  expect_true(grepl('panel_border_slices = panel_border_slices_all', fun_enrich_src, fixed = TRUE))
+  expect_false(grepl('border_targets <- base::unique(base::c("GFC", "enrichment"', fun_enrich_src, fixed = TRUE))
+  expect_false(grepl('border_targets <- base::unique(base::c("GFC", "enrichment_all"', fun_enrich_src, fixed = TRUE))
+})
+
+
 test_that("regression: lightweight heatmap cache works without ComplexHeatmap object", {
   cache_info <- get(".hc_heatmap_cache_info", asNamespace("hcocena"))
   select_col_order <- get(".hc_select_heatmap_col_order", asNamespace("hcocena"))
   llm_heatmap_info <- get(".hc_llm_heatmap_info", asNamespace("hcocena"))
   llm_capture <- get(".hc_llm_capture_combined_heatmap_grob", asNamespace("hcocena"))
-  llm_gfc_style <- get(".hc_llm_resolve_gfc_style", asNamespace("hcocena"))
+  llm_style <- get(".hc_llm_resolve_heatmap_style", asNamespace("hcocena"))
+  llm_title_wrap_width <- get(".hc_llm_title_wrap_width", asNamespace("hcocena"))
   plot_heatmap <- get("plot_cluster_heatmap", asNamespace("hcocena"))
   plot_heatmap_new <- get("plot_cluster_heatmap_new", asNamespace("hcocena"))
   plot_network <- get("plot_integrated_network", asNamespace("hcocena"))
@@ -372,10 +1186,25 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
   expect_identical(formals(plot_heatmap)$return_HM, FALSE)
   expect_identical(formals(plot_heatmap_new)$return_HM, FALSE)
   expect_identical(formals(plot_network)$store_plot, FALSE)
+  expect_true("col_order" %in% names(formals(fun_enrich)))
+  expect_true("col_order" %in% names(formals(up_inf)))
+  expect_true("col_order" %in% names(formals(knowledge_plot)))
+  expect_true("col_order" %in% names(formals(llm_plot)))
+  expect_true("cluster_columns" %in% names(formals(fun_enrich)))
+  expect_true("cluster_columns" %in% names(formals(up_inf)))
+  expect_true("cluster_columns" %in% names(formals(knowledge_plot)))
+  expect_true("cluster_columns" %in% names(formals(llm_plot)))
   expect_true("heatmap_col_order" %in% names(formals(fun_enrich)))
   expect_true("heatmap_col_order" %in% names(formals(up_inf)))
   expect_true("heatmap_col_order" %in% names(formals(knowledge_plot)))
   expect_true("heatmap_col_order" %in% names(formals(llm_plot)))
+  expect_true("heatmap_cluster_columns" %in% names(formals(fun_enrich)))
+  expect_true("heatmap_cluster_columns" %in% names(formals(up_inf)))
+  expect_true("heatmap_cluster_columns" %in% names(formals(knowledge_plot)))
+  expect_true("heatmap_cluster_columns" %in% names(formals(llm_plot)))
+  expect_true("module_label_fontsize" %in% names(formals(llm_plot)))
+  expect_true("module_label_pt_size" %in% names(formals(llm_plot)))
+  expect_true("module_box_width_cm" %in% names(formals(llm_plot)))
 
   hc <- methods::new("HCoCenaExperiment")
   hc@integration@cluster <- S4Vectors::SimpleList(
@@ -384,22 +1213,76 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
       nrow = 2,
       dimnames = list(c("red", "blue"), c("T1", "T2"))
     ),
+    heatmap_cluster_raw = ComplexHeatmap::add_heatmap(
+      ComplexHeatmap::Heatmap(
+        matrix(
+          c(-1, 0.5, 1, -0.25),
+          nrow = 2,
+          dimnames = list(c("red", "blue"), c("T1", "T2"))
+        ),
+        name = "GFC",
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        show_row_names = FALSE,
+        width = grid::unit(90, "mm"),
+        height = grid::unit(24, "mm")
+      ),
+      ComplexHeatmap::columnAnnotation(
+        groups = ComplexHeatmap::anno_text(c("T1", "T2"))
+      ),
+      direction = "vertical"
+    ),
     heatmap_row_order = c("red", "blue"),
     heatmap_column_order = c("T2", "T1"),
     module_label_map = c(red = "M1", blue = "M2"),
-    gfc_colors = c("#010101", "#f7f7f7", "#9a0000"),
-    gfc_scale_limits = c(-1.5, 1.5),
     module_label_fontsize = 9,
     module_label_pt_size = 0.3,
-    module_box_width_cm = 0.9
+    module_box_width_cm = 0.9,
+    heatmap_cell_size_mm = 4.4,
+    gfc_colors = c("#112233", "#f7f7f7", "#cc3311"),
+    gfc_scale_limits = c(-3, 3),
+    overall_plot_scale = 1.25
   )
   info2 <- llm_heatmap_info(hc)
   expect_true(isTRUE(info2$draw_supported))
   expect_equal(info2$col_order, c("T2", "T1"))
   expect_equal(info2$module_order, c("M1", "M2"))
-  style2 <- llm_gfc_style(hc = hc, mat = info2$matrix)
-  expect_equal(style2$colors, c("#010101", "#f7f7f7", "#9a0000"))
-  expect_equal(style2$limits, c(-1.5, 1.5))
+  expect_equal(info2$stored_heatmap_cell_size_mm, 4.4)
+  expect_equal(info2$stored_gfc_colors, c("#112233", "#f7f7f7", "#cc3311"))
+  expect_equal(info2$stored_gfc_scale_limits, c(-3, 3))
+  expect_equal(info2$stored_overall_plot_scale, 1.25)
+
+  style <- llm_style(
+    heatmap_info = info2,
+    module_labels = c("M1", "M2"),
+    n_heat_rows = 2,
+    n_heat_cols = 2,
+    mat_use = matrix(c(-1, 0.5, 1, -0.25), nrow = 2)
+  )
+  expect_equal(style$module_label_fontsize, 4.2)
+  expect_equal(style$module_label_pt_size, 0.42)
+  expect_equal(style$module_box_width_cm, 0.56)
+  expect_equal(style$cell_size_mm, 4.4)
+  expect_equal(style$gfc_colors, c("#112233", "#f7f7f7", "#cc3311"))
+  expect_equal(style$gfc_scale_limits, c(-3, 3))
+  expect_equal(style$overall_plot_scale, 1.25)
+  expect_equal(llm_title_wrap_width(NA_real_), 42L)
+  expect_gte(llm_title_wrap_width(6), 32L)
+  expect_lte(llm_title_wrap_width(6), 72L)
+
+  style_override <- llm_style(
+    heatmap_info = info2,
+    module_labels = c("M1", "M2"),
+    n_heat_rows = 2,
+    n_heat_cols = 2,
+    mat_use = matrix(c(-1, 0.5, 1, -0.25), nrow = 2),
+    module_label_fontsize = 4.2,
+    module_label_pt_size = 0.22,
+    module_box_width_cm = 0.58
+  )
+  expect_equal(style_override$module_label_fontsize, 4.2)
+  expect_equal(style_override$module_label_pt_size, 0.22)
+  expect_equal(style_override$module_box_width_cm, 0.58)
 
   summary_tbl <- data.frame(
     module = c("M1", "M2"),
@@ -413,10 +1296,211 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
     heatmap_info = info2,
     summary_tbl = summary_tbl,
     max_chars = 90,
-    text_size = 4,
-    hc = hc
+    text_size = 4
   )
   expect_s3_class(grob, "grob")
+
+  hc@satellite <- S4Vectors::SimpleList(list(
+    llm_module_function = list(module_1 = list(status = "ok")),
+    llm_module_function_summary = data.frame(
+      module = c("M1", "M2"),
+      module_color = c("red", "blue"),
+      general_processes = c("alpha process", "beta process"),
+      contextual_state = c("state a", "state b"),
+      key_regulators = c("reg a", "reg b"),
+      stringsAsFactors = FALSE
+    )
+  ))
+  p_heat <- llm_plot(
+    hc,
+    fields = "general_processes",
+    save = FALSE
+  )
+  expect_s3_class(p_heat, "hc_llm_heatmap_plot")
+})
+
+
+test_that("regression: llm plot export writes pdf and png into configured output dir", {
+  hc <- methods::new("HCoCenaExperiment")
+  out_dir <- file.path(tempdir(), paste0("hc_llm_plot_export_", Sys.getpid()))
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  hc@config@paths <- S4Vectors::DataFrame(dir_output = out_dir)
+  hc@config@global <- S4Vectors::DataFrame(save_folder = "exports")
+  hc@satellite <- S4Vectors::SimpleList(list(
+    llm_module_function = list(module_1 = list(status = "ok")),
+    llm_module_function_summary = data.frame(
+      module = "M1",
+      module_color = "steelblue",
+      general_processes = "Interferon signaling",
+      contextual_state = "Acute antiviral activation",
+      key_regulators = "STAT1 / IRF7",
+      stringsAsFactors = FALSE
+    )
+  ))
+
+  p <- hcocena::hc_plot_module_function_llm(
+    hc,
+    with_heatmap = FALSE,
+    fields = "general_processes",
+    save = TRUE,
+    file_stem = "llm_test"
+  )
+
+  export_files <- attr(p, "output_files", exact = TRUE)
+  expect_true(file.exists(export_files$pdf))
+  expect_true(file.exists(export_files$png))
+  expect_match(export_files$pdf, "exports")
+  expect_match(export_files$pdf, "llm_test_M1_general_processes\\.pdf$")
+})
+
+
+test_that("regression: llm heatmap plot ignores cached dendrograms with mismatched row count", {
+  llm_capture <- get(".hc_llm_capture_combined_heatmap_grob", asNamespace("hcocena"))
+
+  source_mat <- matrix(
+    c(-1, 0.5,
+      1, -0.25,
+      0.2, 0.8),
+    nrow = 3,
+    byrow = TRUE,
+    dimnames = list(c("red", "blue", "green"), c("T1", "T2"))
+  )
+  heatmap_info <- list(
+    matrix = source_mat[c("red", "blue"), , drop = FALSE],
+    raw_heatmap_obj = ComplexHeatmap::Heatmap(
+      source_mat,
+      name = "GFC",
+      cluster_rows = TRUE,
+      cluster_columns = FALSE,
+      show_row_names = FALSE
+    ),
+    heatmap_obj = NULL,
+    draw_supported = TRUE,
+    col_order = c("T1", "T2"),
+    row_ids = c("red", "blue"),
+    module_order = c("M1", "M2"),
+    module_by_row = c("M1", "M2"),
+    stored_module_label_fontsize = 5,
+    stored_module_label_pt_size = 0.3,
+    stored_module_box_width_cm = 0.9,
+    stored_heatmap_cell_size_mm = 4.4,
+    stored_gfc_colors = c("#112233", "#f7f7f7", "#cc3311"),
+    stored_gfc_scale_limits = c(-3, 3),
+    stored_overall_plot_scale = 1
+  )
+  summary_tbl <- data.frame(
+    module = c("M1", "M2"),
+    module_color = c("red", "blue"),
+    term_plot = c("alpha process", "beta process"),
+    text_color = c("#111111", "#222222"),
+    label_color = c("white", "white"),
+    stringsAsFactors = FALSE
+  )
+
+  expect_s3_class(
+    llm_capture(
+      heatmap_info = heatmap_info,
+      summary_tbl = summary_tbl,
+      max_chars = 90,
+      text_size = 4
+    ),
+    "grob"
+  )
+})
+
+
+test_that("regression: split labels and significance suffixes expand module boxes only when needed", {
+  draw_width_fun <- get(".hc_module_label_draw_width_cm", asNamespace("hcocena"))
+
+  expect_equal(
+    draw_width_fun(
+      module_box_width_cm = 0.62,
+      module_labels_display = c("M1", "M2"),
+      user_set_module_box_width_cm = FALSE,
+      module_sig_integrated = FALSE,
+      max_sig_stars = 0
+    ),
+    0.62
+  )
+  expect_equal(
+    draw_width_fun(
+      module_box_width_cm = 0.62,
+      module_labels_display = c("M1.2", "M2"),
+      user_set_module_box_width_cm = FALSE,
+      module_sig_integrated = FALSE,
+      max_sig_stars = 0
+    ),
+    0.94
+  )
+  expect_equal(
+    draw_width_fun(
+      module_box_width_cm = 0.62,
+      module_labels_display = c("M1**", "M2"),
+      user_set_module_box_width_cm = FALSE,
+      module_sig_integrated = TRUE,
+      max_sig_stars = 2
+    ),
+    0.94
+  )
+  expect_equal(
+    draw_width_fun(
+      module_box_width_cm = 0.62,
+      module_labels_display = c("M1.2**", "M2"),
+      user_set_module_box_width_cm = FALSE,
+      module_sig_integrated = TRUE,
+      max_sig_stars = 2
+    ),
+    1.32
+  )
+  expect_equal(
+    draw_width_fun(
+      module_box_width_cm = 0.62,
+      module_labels_display = c("M1.2", "M2"),
+      user_set_module_box_width_cm = TRUE,
+      module_sig_integrated = FALSE,
+      max_sig_stars = 0
+    ),
+    0.62
+  )
+})
+
+
+test_that("regression: current-device heatmap view scales down when device is smaller than export size", {
+  screen_fit_fun <- get(".hc_heatmap_screen_fit_scale", asNamespace("hcocena"))
+
+  expect_equal(
+    screen_fit_fun(
+      total_width_mm = 120,
+      total_height_mm = 100,
+      device_size_mm = c(240, 180)
+    ),
+    1
+  )
+  expect_lt(
+    screen_fit_fun(
+      total_width_mm = 260,
+      total_height_mm = 220,
+      device_size_mm = c(180, 140)
+    ),
+    1
+  )
+  expect_gt(
+    screen_fit_fun(
+      total_width_mm = 260,
+      total_height_mm = 220,
+      device_size_mm = c(180, 140)
+    ),
+    0
+  )
+})
+
+
+test_that("regression: split suffix detection differs between unsplit and split module labels", {
+  labels_unsplit <- c("M1", "M2", "M10")
+  labels_split <- c("M1.2", "M1.3", "M2")
+
+  expect_false(any(grepl("\\.[0-9]+", labels_unsplit)))
+  expect_true(any(grepl("\\.[0-9]+", labels_split)))
 })
 
 
@@ -502,15 +1586,32 @@ test_that("regression: vllm gets a longer default timeout", {
 })
 
 
+test_that("regression: claude provider is accepted and resolves api key/model settings", {
+  resolve_api_key <- get(".hc_llm_resolve_api_key", asNamespace("hcocena"))
+  fun <- get("hc_module_function_llm", asNamespace("hcocena"))
+
+  expect_true("claude_model" %in% names(formals(fun)))
+
+  withr::local_envvar(c(ANTHROPIC_API_KEY = "test-anthropic-key"))
+  expect_identical(
+    resolve_api_key(api_key = NULL, llm = "claude"),
+    "test-anthropic-key"
+  )
+})
+
+
 test_that("regression: llm request helpers use ellmer backends", {
   gemini_src <- paste(deparse(get(".hc_llm_request_gemini", asNamespace("hcocena"))), collapse = "\n")
+  claude_src <- paste(deparse(get(".hc_llm_request_claude", asNamespace("hcocena"))), collapse = "\n")
   openai_src <- paste(deparse(get(".hc_llm_request_openai", asNamespace("hcocena"))), collapse = "\n")
   vllm_src <- paste(deparse(get(".hc_llm_request_vllm", asNamespace("hcocena"))), collapse = "\n")
 
   expect_true(grepl("ellmer::chat_google_gemini", gemini_src, fixed = TRUE))
+  expect_true(grepl("ellmer::chat_anthropic", claude_src, fixed = TRUE))
   expect_true(grepl("ellmer::chat_openai", openai_src, fixed = TRUE))
   expect_true(grepl("ellmer::chat_vllm", vllm_src, fixed = TRUE))
   expect_true(grepl("credentials = .hc_llm_api_key_credentials", gemini_src, fixed = TRUE))
+  expect_true(grepl("credentials = .hc_llm_api_key_credentials", claude_src, fixed = TRUE))
   expect_true(grepl("credentials = .hc_llm_api_key_credentials", openai_src, fixed = TRUE))
   expect_true(grepl("credentials = .hc_llm_api_key_credentials", vllm_src, fixed = TRUE))
   expect_true(grepl("run_request\\(include_temperature = FALSE\\)", gemini_src))
@@ -549,91 +1650,6 @@ test_that("regression: llm summary builder is robust for error-only results", {
   expect_equal(out$status, "error")
   expect_equal(out$error_message, "HTTP 400")
   expect_equal(out$gene_count_sent, 0L)
-})
-
-
-test_that("regression: llm excel export resolves output dir without longitudinal helpers", {
-  testthat::skip_if_not_installed("openxlsx")
-
-  llm_output_dir <- get(".hc_llm_output_dir", asNamespace("hcocena"))
-  export_excel <- get(".hc_llm_export_results_excel", asNamespace("hcocena"))
-
-  root_dir <- file.path(tempdir(), paste0("hcocena_llm_export_", as.integer(Sys.time())))
-  if (dir.exists(root_dir)) {
-    unlink(root_dir, recursive = TRUE, force = TRUE)
-  }
-
-  hc <- hc_init()
-  hc <- hc_set_paths(
-    hc,
-    dir_count_data = FALSE,
-    dir_annotation = FALSE,
-    dir_reference_files = tempdir(),
-    dir_output = root_dir
-  )
-  hc <- hc_init_save_folder(hc, name = "llm_run", use_output_dir = FALSE)
-
-  out_dir <- llm_output_dir(hc)
-  expect_true(dir.exists(out_dir))
-  expect_equal(
-    normalizePath(out_dir, winslash = "/", mustWork = FALSE),
-    normalizePath(file.path(root_dir, "llm_run"), winslash = "/", mustWork = FALSE)
-  )
-
-  results <- list(
-    M1 = list(
-      label = "M1",
-      module = "M1",
-      llm = "openai",
-      model = "gpt-4o-mini",
-      response = list(
-        general_processes = "interferon signaling",
-        contextual_state = "antiviral inflammatory state",
-        key_regulators = "STAT1 / IRF7 / IRF9"
-      ),
-      gene_count_input = 3L,
-      gene_count_sent = 3L,
-      truncated = FALSE,
-      status = "ok",
-      error_message = NA_character_,
-      prompt = "test prompt",
-      timestamp = "2026-03-19 00:00:00"
-    )
-  )
-  summary_tbl <- data.frame(
-    module = "M1",
-    module_color = "steelblue",
-    llm = "openai",
-    model = "gpt-4o-mini",
-    general_processes = "interferon signaling",
-    contextual_state = "antiviral inflammatory state",
-    key_regulators = "STAT1 / IRF7 / IRF9",
-    llm_long_output = "General processes: interferon signaling",
-    response_json = "{\"general_processes\":\"interferon signaling\"}",
-    short_title = "antiviral inflammatory state",
-    overarching_function = "interferon signaling",
-    confidence = NA_character_,
-    gene_count_input = 3L,
-    gene_count_sent = 3L,
-    truncated = FALSE,
-    status = "ok",
-    error_message = NA_character_,
-    timestamp = "2026-03-19 00:00:00",
-    stringsAsFactors = FALSE
-  )
-
-  file <- export_excel(
-    hc = hc,
-    results = results,
-    summary_tbl = summary_tbl,
-    slot_name = "llm_module_function"
-  )
-
-  expect_true(file.exists(file))
-  expect_match(
-    normalizePath(file, winslash = "/", mustWork = FALSE),
-    "/llm_run/llm_module_function_summary\\.xlsx$"
-  )
 })
 
 
@@ -701,6 +1717,11 @@ test_that("regression: plot heatmaps default to main order unless clustering is 
   expect_setequal(colnames(clustered$mat), c("T1", "T2", "T3"))
   expect_true(inherits(clustered$col_dend, "dendrogram"))
 
+  expect_true("cluster_columns" %in% names(formals(hcocena:::upstream_inference)))
+  expect_true("cluster_columns" %in% names(formals(hcocena:::plot_enrichment_upstream_network)))
+  expect_true("cluster_columns" %in% names(formals(hcocena::hc_upstream_inference)))
+  expect_true("cluster_columns" %in% names(formals(hcocena::hc_plot_enrichment_upstream_network)))
+  expect_true("cluster_columns" %in% names(formals(hcocena::hc_plot_module_function_llm)))
   expect_true("heatmap_cluster_columns" %in% names(formals(hcocena:::upstream_inference)))
   expect_true("heatmap_cluster_columns" %in% names(formals(hcocena:::plot_enrichment_upstream_network)))
   expect_true("heatmap_cluster_columns" %in% names(formals(hcocena::hc_upstream_inference)))
@@ -711,6 +1732,69 @@ test_that("regression: plot heatmaps default to main order unless clustering is 
   expect_identical(formals(hcocena:::replot_cluster_heatmap)$cluster_columns, FALSE)
   expect_identical(formals(hcocena:::change_grouping_parameter)$cluster_columns, FALSE)
   expect_identical(formals(hcocena::hc_change_grouping_parameter)$cluster_columns, FALSE)
+})
+
+test_that("regression: heatmap API alias helpers prefer new names and keep legacy aliases working", {
+  resolve_col_order_alias <- get(".hc_resolve_col_order_alias", asNamespace("hcocena"))
+  resolve_cluster_columns_alias <- get(".hc_resolve_cluster_columns_alias", asNamespace("hcocena"))
+
+  expect_equal(
+    resolve_col_order_alias(
+      col_order = c("T2", "T1"),
+      heatmap_col_order = NULL,
+      col_order_missing = FALSE,
+      heatmap_col_order_missing = TRUE
+    ),
+    c("T2", "T1")
+  )
+  expect_equal(
+    resolve_col_order_alias(
+      col_order = NULL,
+      heatmap_col_order = c("T2", "T1"),
+      col_order_missing = TRUE,
+      heatmap_col_order_missing = FALSE
+    ),
+    c("T2", "T1")
+  )
+  expect_error(
+    resolve_col_order_alias(
+      col_order = c("T1", "T2"),
+      heatmap_col_order = c("T2", "T1"),
+      col_order_missing = FALSE,
+      heatmap_col_order_missing = FALSE,
+      context = "test"
+    ),
+    "Use either `col_order` or legacy `heatmap_col_order`"
+  )
+
+  expect_identical(
+    resolve_cluster_columns_alias(
+      cluster_columns = TRUE,
+      heatmap_cluster_columns = NULL,
+      cluster_columns_missing = FALSE,
+      heatmap_cluster_columns_missing = TRUE
+    ),
+    TRUE
+  )
+  expect_identical(
+    resolve_cluster_columns_alias(
+      cluster_columns = FALSE,
+      heatmap_cluster_columns = TRUE,
+      cluster_columns_missing = TRUE,
+      heatmap_cluster_columns_missing = FALSE
+    ),
+    TRUE
+  )
+  expect_error(
+    resolve_cluster_columns_alias(
+      cluster_columns = FALSE,
+      heatmap_cluster_columns = TRUE,
+      cluster_columns_missing = FALSE,
+      heatmap_cluster_columns_missing = FALSE,
+      context = "test"
+    ),
+    "Use either `cluster_columns` or legacy `heatmap_cluster_columns`"
+  )
 })
 
 

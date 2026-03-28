@@ -27,10 +27,14 @@ import_clusters <- function(file, sep = "\t", header = TRUE){
       vertexsize <- 3
     }
     color <- c
-    conditions <- base::paste0(base::colnames(hcobject[["integrated_output"]][["GFC_all_layers"]])[1:(base::ncol(hcobject[["integrated_output"]][["GFC_all_layers"]])-1)], collapse = "#")
-    gfc_means = hcobject[["integrated_output"]][["GFC_all_layers"]][hcobject[["integrated_output"]][["GFC_all_layers"]][["Gene"]] %in% tmp$gene,] %>%
-      dplyr::select(-Gene) %>%
-      base::colMeans()
+    conditions <- base::paste0(
+      .hc_gfc_condition_names(hcobject[["integrated_output"]][["GFC_all_layers"]]),
+      collapse = "#"
+    )
+    gfc_means <- .hc_gfc_colmeans_for_genes(
+      hcobject[["integrated_output"]][["GFC_all_layers"]],
+      genes = tmp$gene
+    )
     grp_means = base::paste0(base::round(gfc_means,3) , collapse = ",")
     
     new_cluster_info <- base::rbind(new_cluster_info,

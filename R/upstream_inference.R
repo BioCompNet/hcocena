@@ -36,12 +36,14 @@
 #'   `dir_reference_files`.
 #' @param heatmap_side Position of the hCoCena heatmap in the combined output.
 #'   Choose one of `"left"` (default) or `"right"`.
-#' @param heatmap_cluster_columns Logical. If `FALSE` (default), reuse the
+#' @param cluster_columns Logical. If `FALSE` (default), reuse the
 #'   column order from the main hCoCena heatmap when available. If `TRUE`,
 #'   cluster the columns for this upstream plot instead.
-#' @param heatmap_col_order Optional character vector overriding the hCoCena
+#' @param heatmap_cluster_columns Legacy alias for `cluster_columns`.
+#' @param col_order Optional character vector overriding the hCoCena
 #'   heatmap column order for this upstream plot only. If `NULL` (default),
 #'   the column order from the main module heatmap is reused when available.
+#' @param heatmap_col_order Legacy alias for `col_order`.
 #' @param gfc_scale_limits Optional numeric vector controlling the module-heatmap
 #'   color scale limits used in upstream combined heatmaps (left/right hCoCena
 #'   panel). Provide one positive number (`x` -> `c(-x, x)`) or two numbers
@@ -85,7 +87,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
                                fc_comparisons = NULL,
                                custom_pathway_gmt = NULL,
                                heatmap_side = "left",
-                               heatmap_cluster_columns = FALSE,
+                               cluster_columns = FALSE,
+                               heatmap_cluster_columns = NULL,
+                               col_order = NULL,
                                heatmap_col_order = NULL,
                                gfc_scale_limits = NULL,
                                plot = TRUE,
@@ -184,13 +188,24 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     stop("`overall_plot_scale` must be a positive numeric scalar.")
   }
   overall_plot_scale <- base::max(0.5, base::min(3, overall_plot_scale))
-  if (!base::is.null(heatmap_col_order)) {
-    heatmap_col_order <- base::as.character(heatmap_col_order)
-  }
-  if (!base::is.logical(heatmap_cluster_columns) ||
-      base::length(heatmap_cluster_columns) != 1 ||
-      base::is.na(heatmap_cluster_columns)) {
-    stop("`heatmap_cluster_columns` must be TRUE or FALSE.")
+  col_order <- .hc_resolve_col_order_alias(
+    col_order = col_order,
+    heatmap_col_order = heatmap_col_order,
+    col_order_missing = missing(col_order),
+    heatmap_col_order_missing = missing(heatmap_col_order),
+    context = "upstream_inference()"
+  )
+  cluster_columns <- .hc_resolve_cluster_columns_alias(
+    cluster_columns = cluster_columns,
+    heatmap_cluster_columns = heatmap_cluster_columns,
+    cluster_columns_missing = missing(cluster_columns),
+    heatmap_cluster_columns_missing = missing(heatmap_cluster_columns),
+    context = "upstream_inference()"
+  )
+  if (!base::is.logical(cluster_columns) ||
+      base::length(cluster_columns) != 1 ||
+      base::is.na(cluster_columns)) {
+    stop("`cluster_columns` must be TRUE or FALSE.")
   }
   method <- base::tolower(base::as.character(method[[1]]))
   if (!method %in% "ulm") {
@@ -1255,8 +1270,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     gfc_all = gfc_all,
     stored_hm = stored_hm,
     main_heatmap_col_order = main_heatmap_col_order,
-    heatmap_cluster_columns = heatmap_cluster_columns,
-    heatmap_col_order = heatmap_col_order,
+    heatmap_cluster_columns = cluster_columns,
+    heatmap_col_order = col_order,
     module_heatmap_mat = module_heatmap_mat,
     module_heatmap_col_order = module_heatmap_col_order,
     module_heatmap_name = module_heatmap_name,
@@ -1281,8 +1296,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     gfc_all = gfc_all,
     stored_hm = stored_hm,
     main_heatmap_col_order = main_heatmap_col_order,
-    heatmap_cluster_columns = heatmap_cluster_columns,
-    heatmap_col_order = heatmap_col_order,
+    heatmap_cluster_columns = cluster_columns,
+    heatmap_col_order = col_order,
     module_heatmap_mat = module_heatmap_mat,
     module_heatmap_col_order = module_heatmap_col_order,
     module_heatmap_name = module_heatmap_name,
@@ -1303,8 +1318,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     gfc_all = gfc_all,
     stored_hm = stored_hm,
     main_heatmap_col_order = main_heatmap_col_order,
-    heatmap_cluster_columns = heatmap_cluster_columns,
-    heatmap_col_order = heatmap_col_order,
+    heatmap_cluster_columns = cluster_columns,
+    heatmap_col_order = col_order,
     module_heatmap_mat = module_heatmap_mat,
     module_heatmap_col_order = module_heatmap_col_order,
     module_heatmap_name = module_heatmap_name,
@@ -1366,8 +1381,8 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
         gfc_all = gfc_all,
         stored_hm = stored_hm,
         main_heatmap_col_order = main_heatmap_col_order,
-        heatmap_cluster_columns = heatmap_cluster_columns,
-        heatmap_col_order = heatmap_col_order,
+        heatmap_cluster_columns = cluster_columns,
+        heatmap_col_order = col_order,
         module_heatmap_mat = condition_module_mat,
         module_heatmap_col_order = condition_module_col_order,
         module_heatmap_name = module_heatmap_name,
@@ -1388,6 +1403,60 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     }
   }
 
+  draw_saved_page <- function(page_key) {
+    page_key <- base::as.character(page_key[[1]])
+    if (isTRUE(plot_per_comparison) && base::length(combined_plots_by_condition) > 0) {
+      ComplexHeatmap::draw(
+        combined_plots_by_condition[[page_key]],
+        merge_legends = TRUE,
+        newpage = TRUE
+      )
+      return(invisible(NULL))
+    }
+    if (identical(page_key, "combined") && !base::is.null(combined_plot)) {
+      ComplexHeatmap::draw(combined_plot, merge_legends = TRUE, newpage = TRUE)
+      return(invisible(NULL))
+    }
+    if (identical(page_key, "combined_tf") && !base::is.null(combined_plot_tf)) {
+      ComplexHeatmap::draw(combined_plot_tf, merge_legends = TRUE, newpage = TRUE)
+      return(invisible(NULL))
+    }
+    if (identical(page_key, "combined_pathway") && !base::is.null(combined_plot_pathway)) {
+      ComplexHeatmap::draw(combined_plot_pathway, merge_legends = TRUE, newpage = TRUE)
+      return(invisible(NULL))
+    }
+    if (identical(page_key, "dotplot") && !base::is.null(dot_plot)) {
+      print(dot_plot)
+      return(invisible(NULL))
+    }
+    if (identical(page_key, "score_heatmap") && !base::is.null(heatmap_plot)) {
+      ComplexHeatmap::draw(heatmap_plot, merge_legends = TRUE, newpage = TRUE)
+      return(invisible(NULL))
+    }
+    invisible(NULL)
+  }
+
+  saved_page_labels <- if (isTRUE(plot_per_comparison) && base::length(combined_plots_by_condition) > 0) {
+    base::names(combined_plots_by_condition)
+  } else if (!base::is.null(combined_plot)) {
+    base::c(
+      "combined",
+      if (!base::is.null(combined_plot_tf)) "combined_tf",
+      if (!base::is.null(combined_plot_pathway)) "combined_pathway"
+    )
+  } else if (!base::is.null(dot_plot)) {
+    "dotplot"
+  } else if (!base::is.null(heatmap_plot)) {
+    "score_heatmap"
+  } else {
+    base::character(0)
+  }
+
+  export_files <- list(
+    xlsx = excel_path,
+    pdf = NULL,
+    png = base::character(0)
+  )
   if (isTRUE(save_pdf)) {
     n_cols_for_width <- if (base::nrow(selected_all) > 0) {
       base::length(base::unique(selected_all$term_with_resource))
@@ -1398,66 +1467,25 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     pdf_height_auto <- base::max(8, base::min(20, 6 + 0.22 * base::length(cluster_order)))
     pdf_width_use <- if (base::is.null(pdf_width)) pdf_width_auto else as.numeric(pdf_width)
     pdf_height_use <- if (base::is.null(pdf_height)) pdf_height_auto else as.numeric(pdf_height)
-    Cairo::CairoPDF(
+    export_files <- .hc_export_multi_page_plot(
       file = pdf_path,
+      page_labels = saved_page_labels,
       width = pdf_width_use,
       height = pdf_height_use,
       pointsize = pdf_pointsize,
-      onefile = TRUE
+      res = 300,
+      draw_page_fun = function(idx, page_key) {
+        draw_saved_page(page_key)
+      }
     )
-    drew_any <- FALSE
-    if (isTRUE(plot_per_comparison) && base::length(combined_plots_by_condition) > 0) {
-      drew_any <- TRUE
-      for (cond_nm in base::names(combined_plots_by_condition)) {
-        ComplexHeatmap::draw(
-          combined_plots_by_condition[[cond_nm]],
-          merge_legends = TRUE,
-          newpage = TRUE
-        )
-      }
-    } else if (!base::is.null(combined_plot)) {
-      drew_any <- TRUE
-      ComplexHeatmap::draw(combined_plot, merge_legends = TRUE, newpage = TRUE)
-      if (!base::is.null(combined_plot_tf)) {
-        ComplexHeatmap::draw(combined_plot_tf, merge_legends = TRUE, newpage = TRUE)
-      }
-      if (!base::is.null(combined_plot_pathway)) {
-        ComplexHeatmap::draw(combined_plot_pathway, merge_legends = TRUE, newpage = TRUE)
-      }
-    }
-    if (!isTRUE(drew_any) && !base::is.null(dot_plot)) {
-      print(dot_plot)
-    } else if (!isTRUE(drew_any) && !base::is.null(heatmap_plot)) {
-      ComplexHeatmap::draw(heatmap_plot, merge_legends = TRUE, newpage = TRUE)
-    }
-    grDevices::dev.off()
+    export_files$xlsx <- excel_path
   }
 
   if (isTRUE(plot)) {
-    drew_any <- FALSE
-    if (isTRUE(plot_per_comparison) && base::length(combined_plots_by_condition) > 0) {
-      drew_any <- TRUE
-      for (cond_nm in base::names(combined_plots_by_condition)) {
-        ComplexHeatmap::draw(
-          combined_plots_by_condition[[cond_nm]],
-          merge_legends = TRUE,
-          newpage = TRUE
-        )
+    if (base::length(saved_page_labels) > 0) {
+      for (page_key in saved_page_labels) {
+        draw_saved_page(page_key)
       }
-    } else if (!base::is.null(combined_plot)) {
-      drew_any <- TRUE
-      ComplexHeatmap::draw(combined_plot, merge_legends = TRUE, newpage = TRUE)
-      if (!base::is.null(combined_plot_tf)) {
-        ComplexHeatmap::draw(combined_plot_tf, merge_legends = TRUE, newpage = TRUE)
-      }
-      if (!base::is.null(combined_plot_pathway)) {
-        ComplexHeatmap::draw(combined_plot_pathway, merge_legends = TRUE, newpage = TRUE)
-      }
-    }
-    if (!isTRUE(drew_any) && !base::is.null(dot_plot)) {
-      print(dot_plot)
-    } else if (!isTRUE(drew_any) && !base::is.null(heatmap_plot)) {
-      ComplexHeatmap::draw(heatmap_plot, merge_legends = TRUE, newpage = TRUE)
     }
   }
 
@@ -1501,10 +1529,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
       qval = qval,
       padj = padj
     ),
-    files = list(
-      xlsx = excel_path,
-      pdf = if (isTRUE(save_pdf)) pdf_path else NULL
-    )
+    files = export_files
   )
   hcobject[["satellite_outputs"]][["upstream_inference"]] <<- output
   output
@@ -1524,7 +1549,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
                                fc_comparisons = NULL,
                                custom_pathway_gmt = NULL,
                                heatmap_side = "left",
-                               heatmap_cluster_columns = FALSE,
+                               cluster_columns = FALSE,
+                               heatmap_cluster_columns = NULL,
+                               col_order = NULL,
                                heatmap_col_order = NULL,
                                gfc_scale_limits = NULL,
                                plot = TRUE,
@@ -1550,7 +1577,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     fc_comparisons = fc_comparisons,
     custom_pathway_gmt = custom_pathway_gmt,
     heatmap_side = heatmap_side,
+    cluster_columns = cluster_columns,
     heatmap_cluster_columns = heatmap_cluster_columns,
+    col_order = col_order,
     heatmap_col_order = heatmap_col_order,
     gfc_scale_limits = gfc_scale_limits,
     plot = plot,
@@ -2284,10 +2313,16 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     gap = grid::unit(1.6 * overall_plot_scale, "mm")
   )
 
+  column_gap_spec <- .hc_heatmap_column_gap_spec(
+    hcobject = hcobject,
+    cols = base::colnames(heatmap_mat),
+    cluster_columns = heatmap_cluster_columns,
+    gap_mm = 0.6 * overall_plot_scale
+  )
   hc_body_w_mm <- if (n_hc_cols <= 1) {
     hc_cell_mm
   } else {
-    base::max(18, n_hc_cols * hc_cell_mm)
+    base::max(18, (n_hc_cols * hc_cell_mm) + column_gap_spec$total_gap_mm)
   }
   hc_body_h_mm <- base::max(20, n_hc_rows * hc_cell_mm)
   gfc_palette <- grDevices::colorRampPalette(gfc_colors)(51)
@@ -2295,8 +2330,9 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = base::length(gfc_palette)),
     gfc_palette
   )
-  hc_ht <- ComplexHeatmap::Heatmap(
-    heatmap_mat,
+  heatmap_column_labels_display <- .hc_gfc_display_col_labels(hcobject, base::colnames(heatmap_mat))
+  hc_ht_args <- list(
+    matrix = heatmap_mat,
     name = module_heatmap_name,
     right_annotation = right_anno,
     col = gfc_col_fun,
@@ -2306,6 +2342,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     show_column_dend = !base::is.null(hc_col_dend),
     show_row_dend = FALSE,
     column_names_rot = 90,
+    column_labels = heatmap_column_labels_display,
     column_names_gp = grid::gpar(fontsize = font_axis),
     width = grid::unit(hc_body_w_mm, "mm"),
     height = grid::unit(hc_body_h_mm, "mm"),
@@ -2314,9 +2351,16 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
       title = module_heatmap_name,
       at = gfc_scale_ticks$breaks,
       labels = gfc_scale_ticks$labels,
-      labels_gp = grid::gpar(fontfamily = "mono")
+      title_gp = grid::gpar(fontsize = 7.6 * overall_plot_scale, fontface = "bold"),
+      labels_gp = grid::gpar(fontsize = 6.6 * overall_plot_scale)
     )
   )
+  hc_ht_args <- .hc_heatmap_add_column_gap_args(
+    hc_ht_args,
+    column_gap_spec = column_gap_spec,
+    title_gp = grid::gpar(fontsize = font_axis, fontface = "bold")
+  )
+  hc_ht <- do.call(ComplexHeatmap::Heatmap, hc_ht_args)
 
   df <- selected_all
   df <- df[df$cluster %in% keep_clusters, , drop = FALSE]

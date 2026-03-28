@@ -56,6 +56,22 @@ meta_plot <- function(set, group_col = NULL, meta_col = NULL, type = "cat", cols
       ggplot2::scale_fill_manual(values = my_palette)+
       ggplot2::theme_bw()
     graphics::plot(p)
+    .hc_export_ggplot_file(
+      file = .hc_output_file(
+        base::paste0(
+          "Meta_plot_",
+          hcobject[["layers_names"]][set],
+          "_",
+          .hc_export_sanitize_stem(group_col, "group"),
+          "_",
+          .hc_export_sanitize_stem(meta_col, "meta"),
+          "_cat.pdf"
+        )
+      ),
+      plot = p,
+      width = 8,
+      height = 6
+    )
   }
   
   if(type == "num"){
@@ -81,6 +97,22 @@ meta_plot <- function(set, group_col = NULL, meta_col = NULL, type = "cat", cols
       ggplot2::theme_bw()
 
     graphics::plot(p)
+    .hc_export_ggplot_file(
+      file = .hc_output_file(
+        base::paste0(
+          "Meta_plot_",
+          hcobject[["layers_names"]][set],
+          "_",
+          .hc_export_sanitize_stem(group_col, "group"),
+          "_",
+          .hc_export_sanitize_stem(meta_col, "meta"),
+          "_num.pdf"
+        )
+      ),
+      plot = p,
+      width = 8,
+      height = 6
+    )
   }
 
 }

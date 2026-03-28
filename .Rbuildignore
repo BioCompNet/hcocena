@@ -10,3 +10,8 @@
 ^.*\.Rcheck$
 ^.*\.BiocCheck$
 ^hcocena_.*\.tar\.gz$
+^Rplots\.pdf$
+^\.tmp_llm_visual$
+^\.tmp_llm_visual/
+^github_workflows$
+^github_workflows/

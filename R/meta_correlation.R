@@ -62,8 +62,12 @@ meta_correlation_num <- function(set, meta, p_val = 0.05, padj = "BH"){
     ggplot2::ggtitle(paste0("Correlation of ", meta, " with modules"))
   
   graphics::plot(g)
-  ggplot2::ggsave(base::paste0("numerical_meta_correlation_", hcobject[["layers_names"]][set], ".pdf"),
-                  g, device = cairo_pdf, width = 10, height = 8, path = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]]))
+  .hc_export_ggplot_file(
+    file = .hc_output_file(base::paste0("numerical_meta_correlation_", hcobject[["layers_names"]][set], ".pdf")),
+    plot = g,
+    width = 10,
+    height = 8
+  )
   
 }
 

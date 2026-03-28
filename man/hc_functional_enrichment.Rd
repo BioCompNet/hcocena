@@ -14,9 +14,11 @@ hc_functional_enrichment(
   qval = 0.05,
   heatmap_side = "left",
   heatmap_cluster_rows = FALSE,
-  heatmap_cluster_columns = FALSE,
+  cluster_columns = FALSE,
+  heatmap_cluster_columns = NULL,
   heatmap_show_row_dend = FALSE,
   heatmap_show_column_dend = FALSE,
+  col_order = NULL,
   heatmap_col_order = NULL,
   heatmap_order = NULL,
   heatmap_module_label_mode = "same",
@@ -61,15 +63,19 @@ Choose one of "left" (default) or "right".}
 
 \item{heatmap_cluster_rows}{A Boolean whether or not to cluster rows in the hCoCena heatmap.}
 
-\item{heatmap_cluster_columns}{A Boolean whether or not to cluster columns in the hCoCena heatmap.}
+\item{cluster_columns}{A Boolean whether or not to cluster columns in the hCoCena heatmap.}
+
+\item{heatmap_cluster_columns}{Legacy alias for \code{cluster_columns}.}
 
 \item{heatmap_show_row_dend}{A Boolean whether to show the row dendrogram when \code{heatmap_cluster_rows = TRUE}.}
 
-\item{heatmap_show_column_dend}{A Boolean whether to show the column dendrogram when \code{heatmap_cluster_columns = TRUE}.}
+\item{heatmap_show_column_dend}{A Boolean whether to show the column dendrogram when \code{cluster_columns = TRUE}.}
 
-\item{heatmap_col_order}{Optional character vector overriding the hCoCena
+\item{col_order}{Optional character vector overriding the hCoCena
 heatmap column order for this enrichment plot only. If \code{NULL} (default),
 the column order from the main module heatmap is reused when available.}
+
+\item{heatmap_col_order}{Legacy alias for \code{col_order}.}
 
 \item{heatmap_order}{Optional character vector specifying module order in the hCoCena heatmap.
 Entries can be module colors (e.g. "turquoise") or module labels from the main heatmap

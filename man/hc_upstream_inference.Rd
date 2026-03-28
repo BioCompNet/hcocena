@@ -18,7 +18,9 @@ hc_upstream_inference(
   fc_comparisons = NULL,
   custom_pathway_gmt = NULL,
   heatmap_side = "left",
-  heatmap_cluster_columns = FALSE,
+  cluster_columns = FALSE,
+  heatmap_cluster_columns = NULL,
+  col_order = NULL,
   heatmap_col_order = NULL,
   gfc_scale_limits = NULL,
   plot = TRUE,
@@ -77,13 +79,17 @@ file paths. Paths can be absolute/relative or file names inside
 \item{heatmap_side}{Position of the hCoCena heatmap in the combined output.
 Choose one of \code{"left"} (default) or \code{"right"}.}
 
-\item{heatmap_cluster_columns}{Logical. If \code{FALSE} (default), reuse the
+\item{cluster_columns}{Logical. If \code{FALSE} (default), reuse the
 column order from the main hCoCena heatmap when available. If \code{TRUE},
 cluster the columns for this upstream plot instead.}
 
-\item{heatmap_col_order}{Optional character vector overriding the hCoCena
+\item{heatmap_cluster_columns}{Legacy alias for \code{cluster_columns}.}
+
+\item{col_order}{Optional character vector overriding the hCoCena
 heatmap column order for this upstream plot only. If \code{NULL} (default),
 the column order from the main module heatmap is reused when available.}
+
+\item{heatmap_col_order}{Legacy alias for \code{col_order}.}
 
 \item{gfc_scale_limits}{Optional numeric vector controlling the module-heatmap
 color scale limits used in upstream combined heatmaps (left/right hCoCena

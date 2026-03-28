@@ -47,12 +47,24 @@ check_tf <- function(TF){
 	igraph::V(g)$color <- base::as.character(nodes$color)
 	l <- igraph::layout.star(g, center = igraph::V(g)[TF])
 	#plot to PDF:
-	Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/TF_", TF, "_starplot.pdf"), width = 10,
-	                            height = 10)
-	igraph::plot.igraph(g, layout = l, edge.arrow.size = 0.5, vertex.label.color = "black", edge.color = edges$color,
-	                  vertex.label.cex = 0.7, vertex.label.font = 2, edge.width = 2, 
-	                  vertex.frame.color = base::as.character(nodes$color))
-	grDevices::dev.off()
+	.hc_export_single_page_plot(
+	  file = .hc_output_file(base::paste0("TF_", TF, "_starplot.pdf")),
+	  width = 10,
+	  height = 10,
+	  draw_fun = function() {
+	    igraph::plot.igraph(
+	      g,
+	      layout = l,
+	      edge.arrow.size = 0.5,
+	      vertex.label.color = "black",
+	      edge.color = edges$color,
+	      vertex.label.cex = 0.7,
+	      vertex.label.font = 2,
+	      edge.width = 2,
+	      vertex.frame.color = base::as.character(nodes$color)
+	    )
+	  }
+	)
 
 	# plot to markdown:
 	igraph::plot.igraph(g, layout = l, edge.arrow.size = 0.5, vertex.label.color = "black", edge.color = edges$color,

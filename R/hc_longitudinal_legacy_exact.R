@@ -18,11 +18,16 @@
   .hc_require_namespace("mice", "legacy longitudinal imputation")
   if (identical(method, "rfcont")) {
     .hc_require_namespace("CALIBERrfimpute", "legacy `rfcont` imputation")
-    if (!("package:CALIBERrfimpute" %in% search())) {
-      stop(
-        "For `impute_method = \"rfcont\"`, attach `CALIBERrfimpute` first via ",
-        "`library(CALIBERrfimpute)` in the current R session.",
-        call. = FALSE
+    rf_pkg_search <- "package:CALIBERrfimpute"
+    attached_here <- FALSE
+    if (!(rf_pkg_search %in% search())) {
+      base::attachNamespace(base::asNamespace("CALIBERrfimpute"))
+      attached_here <- TRUE
+    }
+    if (isTRUE(attached_here)) {
+      on.exit(
+        detach(rf_pkg_search, unload = FALSE, character.only = TRUE),
+        add = TRUE
       )
     }
     CALIBERrfimpute::setRFoptions(ntree_cont = ntree)
@@ -67,19 +72,22 @@
                                        rerolls = 1000,
                                        maxNA = 1) {
   .hc_require_namespace("kml", "legacy longitudinal module clustering")
-  longData_df <- kml::cld(
+  kml_cld <- getExportedValue("kml", "cld")
+  kml_par_algo <- getExportedValue("kml", "parALGO")
+  kml_run <- getExportedValue("kml", "kml")
+  longData_df <- kml_cld(
     time_data,
     timeInData = 2:base::ncol(time_data),
     maxNA = maxNA
   )
   longData_df["initializationMethod"] <- "kmeans++"
-  par_algo <- kml::parALGO(
+  par_algo <- kml_par_algo(
     startingCond = "kmeans++",
     imputationMethod = "copyMean",
     scale = TRUE,
     saveFreq = Inf
   )
-  kml::kml(
+  kml_run(
     longData_df,
     nbRedrawing = rerolls,
     nbClusters = k,

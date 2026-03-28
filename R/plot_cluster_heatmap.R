@@ -251,10 +251,87 @@ plot_cluster_heatmap <- function(col_order = NULL,
   ))
 }
 
+.hc_module_label_draw_width_cm <- function(module_box_width_cm,
+                                           module_labels_display = NULL,
+                                           user_set_module_box_width_cm = FALSE,
+                                           module_sig_integrated = FALSE,
+                                           max_sig_stars = 0) {
+  draw_width <- module_box_width_cm
+  if (isTRUE(user_set_module_box_width_cm)) {
+    return(draw_width)
+  }
+
+  labels_chr <- base::as.character(module_labels_display)
+  labels_chr <- labels_chr[!base::is.na(labels_chr) & base::nzchar(labels_chr)]
+  max_label_chars <- if (base::length(labels_chr) == 0) {
+    0
+  } else {
+    base::max(base::nchar(labels_chr), na.rm = TRUE)
+  }
+  has_split_like_labels <- base::length(labels_chr) > 0 &&
+    base::any(base::grepl("\\.[0-9]+", labels_chr))
+  has_sig_suffix <- isTRUE(module_sig_integrated) && max_sig_stars > 0
+  label_width_step_cm <- 0.16
+  split_sig_extra_cm <- 0.03 * base::min(3, max_sig_stars)
+
+  if ((isTRUE(has_split_like_labels) || isTRUE(has_sig_suffix)) && max_label_chars > 2) {
+    required_width <- 0.62 + (label_width_step_cm * (max_label_chars - 2))
+    if (isTRUE(has_split_like_labels) && isTRUE(has_sig_suffix)) {
+      required_width <- required_width + split_sig_extra_cm
+    }
+    draw_width <- base::min(4.8, base::max(draw_width, required_width))
+  } else if (isTRUE(has_sig_suffix)) {
+    required_width <- 0.62 + (label_width_step_cm * max_sig_stars)
+    draw_width <- base::min(4.8, base::max(draw_width, required_width))
+  }
+
+  draw_width
+}
+
+.hc_heatmap_screen_fit_scale <- function(total_width_mm,
+                                         total_height_mm,
+                                         device_size_mm = NULL,
+                                         width_fill = 0.95,
+                                         height_fill = 0.90) {
+  total_width_mm <- suppressWarnings(base::as.numeric(total_width_mm[[1]]))
+  total_height_mm <- suppressWarnings(base::as.numeric(total_height_mm[[1]]))
+  if (!base::is.finite(total_width_mm) || total_width_mm <= 0 ||
+      !base::is.finite(total_height_mm) || total_height_mm <= 0) {
+    return(1)
+  }
+
+  if (base::is.null(device_size_mm)) {
+    device_size_mm <- tryCatch(
+      grDevices::dev.size("in"),
+      error = function(e) c(NA_real_, NA_real_)
+    )
+    device_size_mm <- suppressWarnings(base::as.numeric(device_size_mm) * 25.4)
+  } else {
+    device_size_mm <- suppressWarnings(base::as.numeric(device_size_mm))
+  }
+
+  if (base::length(device_size_mm) != 2 ||
+      any(!base::is.finite(device_size_mm)) ||
+      any(device_size_mm <= 0)) {
+    return(1)
+  }
+
+  screen_scale <- base::min(
+    1,
+    (device_size_mm[[1]] * width_fill) / total_width_mm,
+    (device_size_mm[[2]] * height_fill) / total_height_mm
+  )
+  if (!base::is.finite(screen_scale) || screen_scale <= 0) {
+    return(1)
+  }
+
+  screen_scale
+}
+
 
 plot_cluster_heatmap_new <- function(col_order = NULL, 
-                                 row_order = NULL, 
-                                 cluster_columns = FALSE,
+                                  row_order = NULL, 
+                                  cluster_columns = FALSE,
                                  cluster_rows = TRUE, 
                                  k = 0, 
                                  return_HM = FALSE, 
@@ -1210,6 +1287,9 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   } else {
     module_labels
   }
+  module_labels_have_split_suffix <- !base::is.null(module_labels_display) &&
+    base::length(module_labels_display) > 0 &&
+    base::any(base::grepl("\\.[0-9]+", module_labels_display))
   max_sig_stars <- if (isTRUE(module_sig_integrated) && !base::is.null(sig_suffix)) {
     base::max(base::nchar(sig_suffix), na.rm = TRUE)
   } else {
@@ -1248,8 +1328,8 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     if (base::is.null(module_labels_display) || module_label_mode == "legacy") {
       base_width <- 0.5
     } else {
-      # Scale box width to fit the text length only, independent of font size.
-      # This keeps box sizing stable when module_label_fontsize is changed.
+      # Keep the default layout unchanged; split labels and significance
+      # suffixes are widened later in `.hc_module_label_draw_width_cm()`.
       base_width <- (max_chars * 0.09) + 0.15
     }
     module_box_width_cm <- base::max(
@@ -1260,14 +1340,13 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       )
     )
   }
-  module_box_width_cm_draw <- module_box_width_cm
-  if (!user_set_module_box_width_cm && isTRUE(module_sig_integrated)) {
-    sig_star_width_extra_cm <- 0.08 * max_sig_stars
-    module_box_width_cm_draw <- base::min(
-      4.8,
-      module_box_width_cm + sig_star_width_extra_cm
-    )
-  }
+  module_box_width_cm_draw <- .hc_module_label_draw_width_cm(
+    module_box_width_cm = module_box_width_cm,
+    module_labels_display = module_labels_display,
+    user_set_module_box_width_cm = user_set_module_box_width_cm,
+    module_sig_integrated = module_sig_integrated,
+    max_sig_stars = max_sig_stars
+  )
 
   if (!user_set_module_label_pt_size) {
     base_pt <- if (n_rows <= 10) {
@@ -1329,6 +1408,18 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   heatmap_cell_border_gp <- grid::gpar(col = "black", lwd = shared_heatmap_line_lwd)
   dendrogram_line_gp <- grid::gpar(col = "black", lwd = shared_heatmap_line_lwd)
 
+  show_module_sig <- isTRUE(include_module_significance) &&
+    !base::is.null(module_sig_labels) &&
+    !isTRUE(module_sig_integrated)
+  module_sig_width_cm_use <- if (isTRUE(show_module_sig)) {
+    if (isTRUE(module_significance_show_qvalue)) {
+      base::max(2.4, module_significance_width_cm)
+    } else {
+      base::max(1.8, module_significance_width_cm)
+    }
+  } else {
+    module_significance_width_cm
+  }
   module_box_anno <- ComplexHeatmap::anno_simple(
     row_order,
     col = cluster_colors,
@@ -1371,18 +1462,6 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     ComplexHeatmap::anno_empty(width = grid::unit(0, "mm"), which = "row", border = FALSE)
   }
 
-  show_module_sig <- isTRUE(include_module_significance) &&
-    !base::is.null(module_sig_labels) &&
-    !isTRUE(module_sig_integrated)
-  module_sig_width_cm_use <- if (isTRUE(show_module_sig)) {
-    if (isTRUE(module_significance_show_qvalue)) {
-      base::max(2.4, module_significance_width_cm)
-    } else {
-      base::max(1.8, module_significance_width_cm)
-    }
-  } else {
-    module_significance_width_cm
-  }
   module_sig_anno <- if (isTRUE(show_module_sig)) {
     sig_cols <- if (!base::is.null(module_sig_q) && base::length(module_sig_q) == base::length(module_sig_labels)) {
       base::ifelse(
@@ -1441,9 +1520,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     0
   }
   row_annotation_total_width_cm <- base_row_width_cm + enrichment_total_width_cm
-  
-  # --- 5. Assemble HeatmapAnnotation (Row) ---
-  
+
   lgd_list <- list()
   ha_annos <- list(
     modules = module_box_anno,
@@ -1534,8 +1611,231 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       )
     )
   )
-  
-  
+  build_row_annotation <- function(anno_scale = 1, build_legends = TRUE) {
+    anno_scale <- suppressWarnings(base::as.numeric(anno_scale[[1]]))
+    if (!base::is.finite(anno_scale) || anno_scale <= 0) {
+      anno_scale <- 1
+    }
+    anno_scale <- base::max(0.55, base::min(1, anno_scale))
+
+    module_box_width_cm_use <- module_box_width_cm_draw * anno_scale
+    gene_bar_width_cm_use <- if (show_gene_bar) 2.5 * anno_scale else 0
+    gene_text_width_cm_use <- if (show_gene_text) 1.2 * anno_scale else 0
+    module_sig_width_cm_scaled <- if (show_module_sig) module_sig_width_cm_use * anno_scale else 0
+    enrichment_slot_bar_width_cm <- if (show_celltype_bars) 2.2 * anno_scale else 0
+    enrichment_slot_text_width_cm <- if (show_celltype_text) celltype_bar_dominant_width_cm * anno_scale else 0
+    enrichment_slot_gap_cm <- 0.15 * anno_scale
+    n_enrichment_slots <- base::length(enrichment_entries)
+    enrichment_total_width_cm <- if (n_enrichment_slots > 0) {
+      (n_enrichment_slots * (enrichment_slot_bar_width_cm + enrichment_slot_text_width_cm)) +
+        ((n_enrichment_slots - 1) * enrichment_slot_gap_cm)
+    } else {
+      0
+    }
+    base_row_width_cm <- module_box_width_cm_use +
+      gene_text_width_cm_use +
+      gene_bar_width_cm_use +
+      module_sig_width_cm_scaled +
+      (0.8 * anno_scale)
+    row_annotation_total_width_cm <- base_row_width_cm + enrichment_total_width_cm
+
+    module_box_anno <- ComplexHeatmap::anno_simple(
+      row_order,
+      col = cluster_colors,
+      pch = module_labels_display,
+      pt_gp = grid::gpar(
+        col = module_label_color,
+        fontsize = module_label_fontsize,
+        fontface = "bold"
+      ),
+      pt_size = grid::unit(module_label_pt_size_draw, "snpc"),
+      simple_anno_size = grid::unit(module_box_width_cm_use, "cm"),
+      gp = module_box_border_gp,
+      which = "row"
+    )
+
+    gene_bar_anno <- if (show_gene_bar) {
+      ComplexHeatmap::anno_barplot(
+        c_df$gene_no,
+        width = grid::unit(gene_bar_width_cm_use, "cm"),
+        which = "row"
+      )
+    } else {
+      ComplexHeatmap::anno_empty(width = grid::unit(0, "mm"), which = "row", border = FALSE)
+    }
+
+    gene_text_anno <- if (show_gene_text) {
+      if (gene_count_renderer == "pch") {
+        ComplexHeatmap::anno_simple(
+          x = base::rep("count_text", base::nrow(c_df)),
+          col = c(count_text = "transparent"),
+          pch = base::as.character(c_df$gene_no),
+          pt_gp = grid::gpar(
+            col = "black",
+            fontsize = gene_count_fontsize,
+            fontface = gene_count_fontface
+          ),
+          pt_size = grid::unit(gene_count_pt_size, "snpc"),
+          gp = grid::gpar(col = NA),
+          simple_anno_size = grid::unit(gene_text_width_cm_use, "cm"),
+          which = "row"
+        )
+      } else {
+        ComplexHeatmap::anno_text(
+          base::as.character(c_df$gene_no),
+          width = grid::unit(gene_text_width_cm_use, "cm"),
+          just = "left",
+          gp = grid::gpar(
+            fontsize = gene_count_fontsize,
+            fontface = gene_count_fontface
+          ),
+          which = "row"
+        )
+      }
+    } else {
+      ComplexHeatmap::anno_empty(width = grid::unit(0, "mm"), which = "row", border = FALSE)
+    }
+
+    module_sig_anno <- if (isTRUE(show_module_sig)) {
+      sig_cols <- if (!base::is.null(module_sig_q) && base::length(module_sig_q) == base::length(module_sig_labels)) {
+        base::ifelse(
+          base::is.finite(module_sig_q) & module_sig_q <= module_significance_p_cutoffs[[3]],
+          "black",
+          "#8a8a8a"
+        )
+      } else {
+        base::ifelse(base::nzchar(module_sig_labels), "black", "#8a8a8a")
+      }
+      if (isTRUE(module_significance_show_qvalue)) {
+        ComplexHeatmap::anno_text(
+          module_sig_labels,
+          width = grid::unit(module_sig_width_cm_scaled, "cm"),
+          just = "center",
+          gp = grid::gpar(
+            col = sig_cols,
+            fontsize = base::max(9.5, gene_count_fontsize),
+            fontface = "bold"
+          ),
+          which = "row"
+        )
+      } else {
+        ComplexHeatmap::anno_simple(
+          x = base::rep("sig_bg", base::length(module_sig_labels)),
+          col = c(sig_bg = "#f5f5f5"),
+        pch = module_sig_labels,
+        pt_gp = grid::gpar(
+          col = sig_cols,
+          fontsize = base::max(11, gene_count_fontsize + 1),
+          fontface = "bold"
+        ),
+        pt_size = grid::unit(0.9, "snpc"),
+        simple_anno_size = grid::unit(module_sig_width_cm_scaled, "cm"),
+        gp = grid::gpar(col = "#d0d0d0"),
+        which = "row"
+      )
+      }
+    } else {
+      ComplexHeatmap::anno_empty(width = grid::unit(0, "mm"), which = "row", border = FALSE)
+    }
+
+    lgd_list_local <- if (isTRUE(build_legends)) list() else NULL
+    ha_annos <- list(
+      modules = module_box_anno,
+      `# genes` = gene_text_anno,
+      genes = gene_bar_anno
+    )
+    if (isTRUE(show_module_sig)) {
+      sig_anno_name <- module_significance_annotation_name
+      if (sig_anno_name %in% base::names(ha_annos)) {
+        sig_anno_name <- base::paste0(sig_anno_name, "_sig")
+      }
+      ha_annos[[sig_anno_name]] <- module_sig_anno
+    }
+    if (n_enrichment_slots > 0) {
+      for (i in base::seq_along(enrichment_entries)) {
+        entry <- enrichment_entries[[i]]
+        anno_name <- entry$label
+        if (show_celltype_bars) {
+          ha_annos[[anno_name]] <- ComplexHeatmap::anno_barplot(
+            entry$mat,
+            width = grid::unit(enrichment_slot_bar_width_cm, "cm"),
+            gp = grid::gpar(fill = entry$colors, col = entry$colors),
+            baseline = 0,
+            which = "row"
+          )
+        }
+        if (show_celltype_text) {
+          dominant_name <- base::paste0(anno_name, "_dominant")
+          dom_mat <- entry$mat
+          dom_labels <- base::character(base::nrow(dom_mat))
+          for (ri in base::seq_len(base::nrow(dom_mat))) {
+            vv <- suppressWarnings(base::as.numeric(dom_mat[ri, , drop = TRUE]))
+            if (!base::any(base::is.finite(vv) & vv > 0)) {
+              dom_labels[[ri]] <- ""
+              next
+            }
+            ctn <- .clean_celltype_label(base::colnames(dom_mat))
+            is_other_like <- base::tolower(ctn) == base::tolower(celltype_bar_other_label)
+            idx_pool <- base::which(!is_other_like & base::is.finite(vv) & vv > 0)
+            if (base::length(idx_pool) == 0) {
+              idx_pool <- base::which(base::is.finite(vv) & vv > 0)
+            }
+            if (base::length(idx_pool) == 0) {
+              dom_labels[[ri]] <- ""
+              next
+            }
+            j <- idx_pool[[base::which.max(vv[idx_pool])]]
+            ct_lab <- ctn[[j]]
+            ct_val <- vv[[j]]
+            if (!base::nzchar(ct_lab) || !base::is.finite(ct_val)) {
+              dom_labels[[ri]] <- ""
+            } else {
+              dom_labels[[ri]] <- base::paste0(ct_lab, " (", base::format(round(ct_val, 1), trim = TRUE, nsmall = 0), "%)")
+            }
+          }
+          dominant_labels <- .truncate_for_label(dom_labels, max_chars = 34)
+          dominant_labels[base::is.na(dominant_labels)] <- ""
+          ha_annos[[dominant_name]] <- ComplexHeatmap::anno_text(
+          dominant_labels,
+          which = "row",
+          just = "left",
+          location = 0,
+          width = grid::unit(enrichment_slot_text_width_cm, "cm"),
+          gp = grid::gpar(fontsize = 7.2, col = "#333333")
+        )
+      }
+        if (isTRUE(show_celltype_bars) && isTRUE(build_legends)) {
+          lgd_list_local[[base::length(lgd_list_local) + 1]] <- ComplexHeatmap::Legend(
+            labels = .clean_celltype_label(entry$cell_types),
+            title = if (n_enrichment_slots == 1) "Cell type" else anno_name,
+            legend_gp = grid::gpar(col = entry$colors),
+            type = "points",
+            pch = 15
+          )
+        }
+      }
+    }
+
+    ha <- base::do.call(
+      ComplexHeatmap::HeatmapAnnotation,
+      base::c(
+        ha_annos,
+        list(
+        which = "row",
+        width = grid::unit(row_annotation_total_width_cm, "cm"),
+        annotation_name_side = "top",
+        gap = grid::unit(base::max(1, 2 * anno_scale), "mm"),
+        annotation_name_gp = grid::gpar(fontsize = 8)
+      )
+    )
+    )
+
+    list(
+      annotation = ha,
+      row_annotation_total_width_cm = row_annotation_total_width_cm,
+      legend_list = lgd_list_local
+    )
+  }
   # --- 6. Setup Column Annotations ---
   
   anno_list <- NULL
@@ -1605,15 +1905,18 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     }
   }
   
-  all_conditions <- NULL
-  for(setnum in 1:base::length(hcobject[["layers"]])){
-    all_conditions <- base::c(all_conditions, base::as.character(dplyr::pull(hcobject[["data"]][[base::paste0("set", setnum, "_anno")]], hcobject[["global_settings"]][["voi"]])))
-  }
-  all_conditions <- base::table(all_conditions) %>%
-    base::as.data.frame() %>%
-    dplyr::filter(., all_conditions %in% base::colnames(mat_heatmap))
-  all_conditions <- all_conditions[base::match(base::colnames(mat_heatmap), base::as.character(all_conditions$all_conditions)),]
-  all_conditions <- base::paste0(all_conditions$all_conditions, "  [", all_conditions$Freq, "]")
+  column_labels_display <- .hc_gfc_display_col_labels(hcobject, base::colnames(mat_heatmap))
+  all_conditions <- .hc_gfc_display_count_labels(hcobject, base::colnames(mat_heatmap))
+  duplicate_condition_width_scale <- .hc_gfc_duplicate_condition_width_scale(
+    hcobject,
+    base::colnames(mat_heatmap)
+  )
+  column_gap_spec <- .hc_heatmap_column_gap_spec(
+    hcobject = hcobject,
+    cols = base::colnames(mat_heatmap),
+    cluster_columns = cluster_columns,
+    gap_mm = 0.6 * overall_plot_scale
+  )
   
   if(base::is.null(anno_list)){
     anno_list <- ComplexHeatmap::columnAnnotation(groups = ComplexHeatmap::anno_text(all_conditions))
@@ -1651,11 +1954,19 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     )
     cell_size_mm <- base::max(cell_size_mm, base::min(max_cell_mm, boosted_cell_mm))
   }
+  if (duplicate_condition_width_scale > 1) {
+    # Keep module boxes visually narrower than one heatmap column when
+    # duplicated layer conditions add extra prefixed columns.
+    target_module_box_to_cell_ratio <- 0.68
+    min_cell_mm_from_box_ratio <- (module_box_width_cm_draw * 10) / target_module_box_to_cell_ratio
+    min_cell_mm_from_box_ratio <- base::min(10, min_cell_mm_from_box_ratio)
+    cell_size_mm <- base::max(cell_size_mm, min_cell_mm_from_box_ratio)
+  }
   cell_size_mm <- cell_size_mm * overall_plot_scale
-  hm_width <- grid::unit(n_heat_cols * cell_size_mm, "mm")
+  hm_width <- grid::unit((n_heat_cols * cell_size_mm) + column_gap_spec$total_gap_mm, "mm")
   hm_height <- grid::unit(n_heat_rows * cell_size_mm, "mm")
-  max_col_chars <- if (!base::is.null(base::colnames(mat_heatmap)) && base::length(base::colnames(mat_heatmap)) > 0) {
-    base::max(base::nchar(base::colnames(mat_heatmap)), na.rm = TRUE)
+  max_col_chars <- if (base::length(column_labels_display) > 0) {
+    base::max(base::nchar(column_labels_display), na.rm = TRUE)
   } else {
     10
   }
@@ -1811,6 +2122,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                        col_dend_mm,
                        column_name_max_cm,
                        fixed_size = TRUE,
+                       right_annotation_obj = ha,
                        body_width_mm = NULL,
                        body_height_mm = NULL) {
     legend_height_mm <- base::max(24, 4.5 * base::max(1, base::length(gfc_scale_breaks))) * overall_plot_scale
@@ -1829,10 +2141,14 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       heat_legend_param$title_position <- "leftcenter"
     }
 
+    use_column_gap <- !base::is.null(column_gap_spec$column_split) &&
+      !base::is.null(column_gap_spec$column_gap) &&
+      (!base::is.numeric(k) || base::length(k) == 0 || base::all(k <= 0))
+
     hm_args <- list(
       mat_heatmap,
       name = "GFC",
-      right_annotation = deep_clone(ha),
+      right_annotation = deep_clone(right_annotation_obj),
       col = gfc_col_fun,
       clustering_distance_rows = "euclidean",
       clustering_distance_columns = "euclidean",
@@ -1842,6 +2158,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       cluster_rows = cluster_rows_for_heatmap,
       row_dend_reorder = FALSE,
       column_names_rot = 90,
+      column_labels = column_labels_display,
       column_names_centered = FALSE,
       row_dend_width = grid::unit(row_dend_mm, "mm"),
       column_dend_height = grid::unit(col_dend_mm, "mm"),
@@ -1856,6 +2173,12 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       heatmap_legend_param = heat_legend_param,
       column_km = k
     )
+    if (isTRUE(use_column_gap)) {
+      hm_args$column_split <- column_gap_spec$column_split
+      hm_args$column_gap <- column_gap_spec$column_gap
+      hm_args$cluster_column_slices <- FALSE
+      hm_args$column_title <- column_gap_spec$slice_titles
+    }
     if (isTRUE(fixed_size)) {
       if (!base::is.null(body_width_mm) && !base::is.null(body_height_mm)) {
         hm_args$width <- grid::unit(body_width_mm, "mm")
@@ -1869,6 +2192,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   }
 
   hm_pdf_drawn <- NULL
+  heatmap_export_files <- NULL
   heatmap_legend_side_mode <- gfc_legend_side
   annotation_legend_side_mode <- "right"
   right_pad_export_mm <- if (show_celltype_text && show_celltype_bars && base::length(lgd_list) > 0) {
@@ -1883,10 +2207,8 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   } else {
     base::max(18, base::min(34, shared_column_name_max_cm * 3.0))
   }
-  draw_padding_export <- grid::unit(
-    c(26, 18, bottom_pad_export_mm, right_pad_export_mm) * overall_plot_scale,
-    "mm"
-  )
+  draw_padding_export_mm <- c(26, 18, bottom_pad_export_mm, right_pad_export_mm) * overall_plot_scale
+  draw_padding_export <- grid::unit(draw_padding_export_mm, "mm")
   export_total_width_mm <- base::as.numeric(hm_width) +
     row_dend_width_mm +
     (row_annotation_total_width_cm * 10) +
@@ -1907,83 +2229,71 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   } else {
     pdf_height
   }
-
-  build_export_heatmap <- function() {
-    hm_export <- build_hm(
-      row_dend_mm = row_dend_width_mm,
-      col_dend_mm = column_dend_height_mm,
-      column_name_max_cm = shared_column_name_max_cm,
-      fixed_size = TRUE,
-      body_width_mm = base::as.numeric(hm_width),
-      body_height_mm = base::as.numeric(hm_height)
-    )
-    anno_list_export_src <- deep_clone(anno_list)
-    lgd_list_export <- deep_clone(lgd_list)
-    anno_list_export <- if (base::is.null(anno_list_export_src)) {
-      hm_export
-    } else {
-      ComplexHeatmap::add_heatmap(hm_export, anno_list_export_src, direction = c("vertical"))
-    }
-    list(
-      ht_obj = anno_list_export,
-      legend_obj = lgd_list_export
-    )
-  }
-
-  draw_export_heatmap <- function(path, type = c("pdf", "png")) {
-    type <- base::match.arg(type)
-    device_width <- if (identical(type, "png")) png_width_in else pdf_width
-    device_height <- if (identical(type, "png")) png_height_in else pdf_height
-    Cairo::Cairo(
-      file = path,
-      width = device_width,
-      height = device_height,
-      pointsize = pdf_pointsize,
-      dpi = pdf_dpi,
-      type = type,
-      units = "in"
-    )
-    on.exit(grDevices::dev.off(), add = TRUE)
-
-    export_bundle <- build_export_heatmap()
-    safe_draw(
-      ht_obj = export_bundle$ht_obj,
-      legend_obj = export_bundle$legend_obj,
-      padding_obj = draw_padding_export,
-      heatmap_legend_side = heatmap_legend_side_mode,
-      annotation_legend_side = annotation_legend_side_mode,
-      context = base::paste("cluster heatmap", base::toupper(type))
-    )
-  }
-
   if (isTRUE(write_pdf)) {
-    hm_pdf_drawn <- tryCatch(
-      draw_export_heatmap(
-        path = paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", file_name),
-        type = "pdf"
-      ),
-      error = function(e) {
-        warning(
-          "Could not fully draw cluster heatmap on PDF device: ",
-          base::conditionMessage(e),
-          call. = FALSE
-        )
-        NULL
-      }
+    export_file <- paste0(
+      hcobject[["working_directory"]][["dir_output"]],
+      hcobject[["global_settings"]][["save_folder"]],
+      "/",
+      file_name
     )
-    tryCatch(
-      draw_export_heatmap(
-        path = paste0(
-          hcobject[["working_directory"]][["dir_output"]],
-          hcobject[["global_settings"]][["save_folder"]],
-          "/",
-          base::paste0(tools::file_path_sans_ext(file_name), ".png")
+    draw_export_heatmap <- function() {
+      hm_export <- build_hm(
+        row_dend_mm = row_dend_width_mm,
+        col_dend_mm = column_dend_height_mm,
+        column_name_max_cm = shared_column_name_max_cm,
+        fixed_size = TRUE,
+        right_annotation_obj = ha,
+        body_width_mm = base::as.numeric(hm_width),
+        body_height_mm = base::as.numeric(hm_height)
+      )
+
+      anno_list_export_src <- deep_clone(anno_list)
+      lgd_list_export <- deep_clone(lgd_list)
+      anno_list_export <- if (base::is.null(anno_list_export_src)) {
+        hm_export
+      } else {
+        ComplexHeatmap::add_heatmap(hm_export, anno_list_export_src, direction = c("vertical"))
+      }
+
+      drawn_export <- tryCatch(
+        safe_draw(
+          ht_obj = anno_list_export,
+          legend_obj = lgd_list_export,
+          padding_obj = draw_padding_export,
+          heatmap_legend_side = heatmap_legend_side_mode,
+          annotation_legend_side = annotation_legend_side_mode,
+          context = "cluster heatmap export"
         ),
-        type = "png"
+        error = function(e) {
+          warning(
+            "Could not fully draw cluster heatmap export: ",
+            base::conditionMessage(e),
+            call. = FALSE
+          )
+          NULL
+        }
+      )
+      if (base::is.null(hm_pdf_drawn)) {
+        hm_pdf_drawn <<- drawn_export
+      }
+      invisible(drawn_export)
+    }
+
+    heatmap_export_files <- tryCatch(
+      .hc_export_single_page_plot(
+        file = export_file,
+        width = pdf_width,
+        height = pdf_height,
+        png_width = png_width_in,
+        png_height = png_height_in,
+        pointsize = pdf_pointsize,
+        res = pdf_dpi,
+        pdf_dpi = pdf_dpi,
+        draw_fun = draw_export_heatmap
       ),
       error = function(e) {
         warning(
-          "Could not fully draw cluster heatmap on PNG device: ",
+          "Could not export cluster heatmap PDF/PNG: ",
           base::conditionMessage(e),
           call. = FALSE
         )
@@ -1992,20 +2302,43 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     )
   }
 
-  # Use the same geometry on the current device as in PDF/PNG exports so the
-  # on-screen preview matches the saved output as closely as possible.
-  row_dend_screen_mm <- row_dend_width_mm
-  col_dend_screen_mm <- column_dend_height_mm
-  col_label_max_cm_screen <- shared_column_name_max_cm
-  draw_padding_screen <- draw_padding_export
-  hm_screen_w_mm <- base::as.numeric(hm_width)
-  hm_screen_h_mm <- base::as.numeric(hm_height)
+  if (isTRUE(module_labels_have_split_suffix) || duplicate_condition_width_scale > 1) {
+    screen_fit_scale <- .hc_heatmap_screen_fit_scale(
+      total_width_mm = export_total_width_mm,
+      total_height_mm = export_total_height_mm
+    )
+    row_dend_screen_mm <- base::max(6 * overall_plot_scale, row_dend_width_mm * screen_fit_scale)
+    col_dend_screen_mm <- base::max(6 * overall_plot_scale, column_dend_height_mm * screen_fit_scale)
+    col_label_max_cm_screen <- base::max(2.4, shared_column_name_max_cm * screen_fit_scale)
+    draw_padding_screen_mm <- base::pmax(
+      c(10, 10, 14, 14) * overall_plot_scale,
+      draw_padding_export_mm * screen_fit_scale
+    )
+    draw_padding_screen <- grid::unit(draw_padding_screen_mm, "mm")
+    hm_screen_w_mm <- base::max(20 * overall_plot_scale, base::as.numeric(hm_width) * screen_fit_scale)
+    hm_screen_h_mm <- base::max(24 * overall_plot_scale, base::as.numeric(hm_height) * screen_fit_scale)
+    row_annotation_screen_scale <- base::max(0.58, screen_fit_scale)
+  } else {
+    row_dend_screen_mm <- row_dend_width_mm
+    col_dend_screen_mm <- column_dend_height_mm
+    col_label_max_cm_screen <- shared_column_name_max_cm
+    draw_padding_screen <- draw_padding_export
+    hm_screen_w_mm <- base::as.numeric(hm_width)
+    hm_screen_h_mm <- base::as.numeric(hm_height)
+    row_annotation_screen_scale <- 1
+  }
+  ha_screen <- if (row_annotation_screen_scale < 0.999) {
+    build_row_annotation(anno_scale = row_annotation_screen_scale, build_legends = FALSE)$annotation
+  } else {
+    ha
+  }
 
   hm_screen <- build_hm(
     row_dend_mm = row_dend_screen_mm,
     col_dend_mm = col_dend_screen_mm,
     column_name_max_cm = col_label_max_cm_screen,
     fixed_size = TRUE,
+    right_annotation_obj = ha_screen,
     body_width_mm = hm_screen_w_mm,
     body_height_mm = hm_screen_h_mm
   )
@@ -2121,12 +2454,16 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   }
   hcobject[["integrated_output"]][["cluster_calc"]][["module_box_to_cell_ratio"]] <<- module_box_to_cell_ratio
   hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cell_size_mm"]] <<- cell_size_mm
+  hcobject[["integrated_output"]][["cluster_calc"]][["duplicate_condition_width_scale"]] <<- duplicate_condition_width_scale
+  hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_column_gap_mm"]] <<- column_gap_spec$total_gap_mm
+  hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_column_gap_source"]] <<- column_gap_spec$source
   hcobject[["integrated_output"]][["cluster_calc"]][["gene_count_fontsize"]] <<- gene_count_fontsize
   hcobject[["integrated_output"]][["cluster_calc"]][["gene_count_renderer"]] <<- gene_count_renderer
   hcobject[["integrated_output"]][["cluster_calc"]][["gene_count_pt_size"]] <<- gene_count_pt_size
   hcobject[["integrated_output"]][["cluster_calc"]][["gfc_colors"]] <<- gfc_colors
   hcobject[["integrated_output"]][["cluster_calc"]][["gfc_scale_limits"]] <<- gfc_scale_limits
   hcobject[["integrated_output"]][["cluster_calc"]][["overall_plot_scale"]] <<- overall_plot_scale
+  hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_output_files"]] <<- heatmap_export_files
   final_row_order <- .hc_normalize_heatmap_axis_order(
     tryCatch(ComplexHeatmap::row_order(hm_w_lgd), error = function(e) NULL),
     base::rownames(mat_heatmap)
@@ -2144,17 +2481,20 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_matrix"]] <<- mat_heatmap
   hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_row_order"]] <<- final_row_order
   hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_column_order"]] <<- final_col_order
+  hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_column_labels_display"]] <<- column_labels_display
   if (module_label_mode == "prefix") {
     hcobject[["integrated_output"]][["cluster_calc"]][["module_prefix"]] <<- module_prefix
   } else {
     hcobject[["integrated_output"]][["cluster_calc"]][["module_prefix"]] <<- NULL
   }
 
+  # Always cache the reusable raw heatmap object so downstream views such as
+  # the LLM module summaries can mirror the main heatmap styling even when the
+  # user does not request a heatmap object return value.
+  hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster_raw"]] <<- deep_clone(anno_list_screen)
   if(return_HM){
-    hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster_raw"]] <<- deep_clone(anno_list_screen)
     hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster"]] <<- hm_w_lgd
   } else {
-    hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster_raw"]] <<- NULL
     hcobject[["integrated_output"]][["cluster_calc"]][["heatmap_cluster"]] <<- NULL
   }
 }

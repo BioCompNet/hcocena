@@ -17,6 +17,19 @@
   S4Vectors::DataFrame(as.list(x), check.names = FALSE)
 }
 
+.hc_to_base_data_frame_preserve_names <- function(x) {
+  if (is.null(x) || base::length(x) == 0) {
+    return(base::data.frame())
+  }
+  if (inherits(x, "DataFrame")) {
+    return(base::data.frame(base::lapply(base::as.list(x), base::identity), check.names = FALSE))
+  }
+  if (base::is.data.frame(x)) {
+    return(base::data.frame(base::lapply(x, base::identity), check.names = FALSE))
+  }
+  base::data.frame(base::lapply(base::as.list(x), base::identity), check.names = FALSE)
+}
+
 .hc_rows_to_data_frame <- function(rows) {
   if (base::length(rows) == 0) {
     return(S4Vectors::DataFrame())
@@ -380,9 +393,9 @@ as_hcobject <- function(hc) {
     }
   }
 
-  out[["integrated_output"]][["combined_edgelist"]] <- base::as.data.frame(hc@integration@combined_edgelist)
+  out[["integrated_output"]][["combined_edgelist"]] <- .hc_to_base_data_frame_preserve_names(hc@integration@combined_edgelist)
   out[["integrated_output"]][["merged_net"]] <- hc@integration@graph
-  out[["integrated_output"]][["GFC_all_layers"]] <- base::as.data.frame(hc@integration@gfc)
+  out[["integrated_output"]][["GFC_all_layers"]] <- .hc_to_base_data_frame_preserve_names(hc@integration@gfc)
   out[["integrated_output"]][["cluster_calc"]] <- as.list(hc@integration@cluster)
   out[["satellite_outputs"]] <- as.list(hc@satellite)
 

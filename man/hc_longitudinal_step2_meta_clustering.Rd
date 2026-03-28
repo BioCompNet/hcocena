@@ -23,7 +23,10 @@ hc_longitudinal_step2_meta_clustering(
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{slot_name}{Satellite slot containing step 1 outputs.}
+\item{slot_name}{Satellite slot containing step 1 outputs. Use a concrete
+slot name, a shared prefix such as \code{"longitudinal_endotypes"} to process
+matching suffixed slots, or \code{"all"} to run over every compatible step 1
+slot in \code{hc@satellite}.}
 
 \item{dimensions}{Number of PCA dimensions used to build the donor graph.}
 
@@ -49,7 +52,10 @@ PCA subspace used for graph clustering.}
 \item{seed}{Random seed.}
 }
 \value{
-A list with updated \code{hc}, step plots, and diagnostics.
+A list with updated \code{hc}, step plots, and diagnostics. When multiple
+slots are processed, \code{plots} and \code{diagnostics} are returned as named
+lists keyed by layer/slot, plus a \code{slot_info} table describing the
+resolved slots.
 }
 \description{
 Runs the exact CAP -> PCA -> graph -> Leiden donor meta-clustering and

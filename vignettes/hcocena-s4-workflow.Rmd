@@ -19,8 +19,7 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 `hcocena` provides a network-centric workflow for single-layer and multi-layer
 transcriptomics analyses. The object-oriented API stores assays in
 `MultiAssayExperiment` / `SummarizedExperiment` containers via the
-`HCoCenaExperiment` class while keeping compatibility with the historical
-`hcobject` workflow.
+`HCoCenaExperiment` class.
 
 ## Installation
 

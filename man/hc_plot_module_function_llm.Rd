@@ -13,11 +13,21 @@ hc_plot_module_function_llm(
   max_chars = 90,
   text_size = 4,
   with_heatmap = TRUE,
+  col_order = NULL,
   heatmap_col_order = NULL,
-  heatmap_cluster_columns = FALSE,
+  cluster_columns = FALSE,
+  heatmap_cluster_columns = NULL,
   heatmap_rel_width = 1.7,
   text_rel_width = 1.25,
-  title = "AI-assisted module interpretation"
+  title = "AI-assisted module interpretation",
+  module_label_fontsize = NULL,
+  module_label_pt_size = NULL,
+  module_box_width_cm = NULL,
+  save = TRUE,
+  file_stem = "LLM_module_function",
+  pdf_width = NULL,
+  pdf_height = NULL,
+  dpi = 300
 )
 
 hc_plot_module_function_gemini(...)
@@ -44,13 +54,17 @@ values are \code{"general_processes"}, \code{"contextual_state"}, and
 heatmap and place the LLM interpretations as a right-side annotation.
 Falls back to a text-only plot if no heatmap cache is available.}
 
-\item{heatmap_col_order}{Optional character vector overriding the hCoCena
+\item{col_order}{Optional character vector overriding the hCoCena
 heatmap column order for this LLM plot only. If \code{NULL} (default), the
 column order from the main module heatmap is reused when available.}
 
-\item{heatmap_cluster_columns}{Logical. If \code{FALSE} (default), reuse the
+\item{heatmap_col_order}{Legacy alias for \code{col_order}.}
+
+\item{cluster_columns}{Logical. If \code{FALSE} (default), reuse the
 column order from the main hCoCena heatmap when available. If \code{TRUE},
 cluster the columns for this LLM plot instead.}
+
+\item{heatmap_cluster_columns}{Legacy alias for \code{cluster_columns}.}
 
 \item{heatmap_rel_width}{Relative width of the heatmap panel when
 \code{with_heatmap = TRUE}.}
@@ -59,6 +73,33 @@ cluster the columns for this LLM plot instead.}
 \code{with_heatmap = TRUE}.}
 
 \item{title}{Plot title. Default is \code{"AI-assisted module interpretation"}.}
+
+\item{module_label_fontsize}{Optional numeric fontsize for module labels
+inside the colored module boxes. If \code{NULL}, a compact
+\code{hc_plot_cluster_heatmap()}-like default is used.}
+
+\item{module_label_pt_size}{Optional numeric glyph size for module labels
+inside the colored module boxes. Uses \code{snpc} units. If \code{NULL}, a compact
+\code{hc_plot_cluster_heatmap()}-like default is used.}
+
+\item{module_box_width_cm}{Optional numeric width (cm) for the module color
+boxes. If \code{NULL}, a compact \code{hc_plot_cluster_heatmap()}-like default is
+used.}
+
+\item{save}{Logical. If \code{TRUE} (default), export each selected field plot as
+both PDF and PNG into the configured hCoCena output directory.}
+
+\item{file_stem}{Base file name used for exported plots. Field names and, for
+single-module selections, the module label are appended automatically.
+Default is \code{"LLM_module_function"}.}
+
+\item{pdf_width}{Optional numeric export width in inches. If \code{NULL}, a
+field-appropriate default is chosen.}
+
+\item{pdf_height}{Optional numeric export height in inches. If \code{NULL}, a
+module-count dependent default is chosen.}
+
+\item{dpi}{Numeric export DPI for PNG output. Default is \code{300}.}
 
 \item{...}{Used by the backward-compatible wrapper alias
 \code{hc_plot_module_function_gemini()}.}
@@ -88,7 +129,7 @@ methods::slot(hc, "satellite")[["llm_module_function_summary"]] <- data.frame(
   key_regulators = "STAT1, IRF7",
   stringsAsFactors = FALSE
 )
-p <- hc_plot_module_function_llm(hc, with_heatmap = FALSE)
+p <- hc_plot_module_function_llm(hc, with_heatmap = FALSE, save = FALSE)
 print(p)
 }
 }

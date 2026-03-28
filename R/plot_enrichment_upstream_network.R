@@ -27,13 +27,15 @@
 #'   heatmap color scale limits. Provide one positive number (`x` -> `c(-x, x)`)
 #'   or two numbers (`c(min, max)`). If NULL, uses upstream inference settings
 #'   first (if available), then main heatmap settings, then `c(-range_GFC, range_GFC)`.
-#' @param heatmap_col_order Optional character vector overriding the hCoCena
+#' @param col_order Optional character vector overriding the hCoCena
 #'   heatmap column order for this knowledge-network plot only. If `NULL`
 #'   (default), the column order from the main module heatmap is reused when
 #'   available.
-#' @param heatmap_cluster_columns Logical. If `FALSE` (default), reuse the
+#' @param heatmap_col_order Legacy alias for `col_order`.
+#' @param cluster_columns Logical. If `FALSE` (default), reuse the
 #'   column order from the main hCoCena heatmap when available. If `TRUE`,
 #'   cluster the columns for this knowledge-network plot instead.
+#' @param heatmap_cluster_columns Legacy alias for `cluster_columns`.
 #' @param pdf_width Optional numeric width (inches) for network PDFs.
 #'   If NULL (default), width is auto-estimated from content.
 #' @param pdf_height Optional numeric height (inches) for network PDFs.
@@ -54,8 +56,10 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
                                              save_pdf = TRUE,
                                              pdf_name = "Module_Knowledge_Network.pdf",
                                              gfc_scale_limits = NULL,
+                                             col_order = NULL,
                                              heatmap_col_order = NULL,
-                                             heatmap_cluster_columns = FALSE,
+                                             cluster_columns = FALSE,
+                                             heatmap_cluster_columns = NULL,
                                              pdf_width = NULL,
                                              pdf_height = NULL,
                                              pdf_pointsize = 11,
@@ -104,13 +108,24 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     stop("`overall_plot_scale` must be a positive numeric scalar.")
   }
   overall_plot_scale <- base::max(0.5, base::min(3, overall_plot_scale))
-  if (!base::is.null(heatmap_col_order)) {
-    heatmap_col_order <- base::as.character(heatmap_col_order)
-  }
-  if (!base::is.logical(heatmap_cluster_columns) ||
-      base::length(heatmap_cluster_columns) != 1 ||
-      base::is.na(heatmap_cluster_columns)) {
-    stop("`heatmap_cluster_columns` must be TRUE or FALSE.")
+  col_order <- .hc_resolve_col_order_alias(
+    col_order = col_order,
+    heatmap_col_order = heatmap_col_order,
+    col_order_missing = missing(col_order),
+    heatmap_col_order_missing = missing(heatmap_col_order),
+    context = "plot_enrichment_upstream_network()"
+  )
+  cluster_columns <- .hc_resolve_cluster_columns_alias(
+    cluster_columns = cluster_columns,
+    heatmap_cluster_columns = heatmap_cluster_columns,
+    cluster_columns_missing = missing(cluster_columns),
+    heatmap_cluster_columns_missing = missing(heatmap_cluster_columns),
+    context = "plot_enrichment_upstream_network()"
+  )
+  if (!base::is.logical(cluster_columns) ||
+      base::length(cluster_columns) != 1 ||
+      base::is.na(cluster_columns)) {
+    stop("`cluster_columns` must be TRUE or FALSE.")
   }
 
   normalize_scale_limits <- function(x) {
@@ -1235,15 +1250,31 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     module_y <- base::rev(base::seq_len(n_r))
     row_levels <- base::rownames(mat)
     col_levels <- base::colnames(mat)
+    heatmap_column_labels_display <- .hc_gfc_display_col_labels(hcobject, col_levels)
+    column_gap_spec <- .hc_heatmap_column_gap_spec(
+      hcobject = hcobject,
+      cols = col_levels,
+      cluster_columns = heatmap_cluster_columns,
+      gap_mm = 0.6 * overall_plot_scale
+    )
+    column_layout <- .hc_heatmap_ggplot_column_layout(
+      cols = col_levels,
+      column_gap_spec = column_gap_spec,
+      default_cell_mm = 5
+    )
 
-    hm_long <- base::as.data.frame(base::as.table(mat), stringsAsFactors = FALSE)
-    base::colnames(hm_long) <- c("module_label", "condition", "value")
+    hm_long <- base::data.frame(
+      module_label = base::rep(row_levels, times = n_c),
+      condition = base::rep(col_levels, each = n_r),
+      value = base::as.vector(mat),
+      row_idx = base::rep(base::seq_len(n_r), times = n_c),
+      col_idx = base::rep(base::seq_len(n_c), each = n_r),
+      stringsAsFactors = FALSE
+    )
     hm_long$module_label <- base::as.character(hm_long$module_label)
     hm_long$condition <- base::as.character(hm_long$condition)
-    hm_long$row_idx <- base::match(hm_long$module_label, row_levels)
-    hm_long$col_idx <- base::match(hm_long$condition, col_levels)
     hm_long$y <- module_y[hm_long$row_idx]
-    hm_long$x <- hm_long$col_idx
+    hm_long$x <- column_layout$x[hm_long$col_idx]
     hm_long$value <- suppressWarnings(base::as.numeric(hm_long$value))
 
     module_df <- base::data.frame(
@@ -1276,7 +1307,7 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     }
     module_box_height_units <- 0.96
     module_box_gap_units <- 0.16
-    heatmap_right_edge <- n_c + 0.5
+    heatmap_right_edge <- base::max(column_layout$x) + 0.5
     x_mod <- heatmap_right_edge + module_box_gap_units + (module_box_width_units / 2)
     x_right <- heatmap_right_edge + module_box_gap_units + module_box_width_units + 0.26
     font_module <- if (!base::is.null(stored_module_label_fontsize)) {
@@ -1317,9 +1348,9 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
       ) +
       fill_scale +
       ggplot2::scale_x_continuous(
-        limits = c(0.5, x_right),
-        breaks = base::seq_len(n_c),
-        labels = col_levels,
+        limits = c(column_layout$limits[[1]], x_right),
+        breaks = column_layout$x,
+        labels = heatmap_column_labels_display,
         expand = ggplot2::expansion(mult = 0, add = 0)
       ) +
       ggplot2::scale_y_continuous(
@@ -1327,13 +1358,24 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
         breaks = NULL,
         expand = ggplot2::expansion(mult = 0, add = 0)
       ) +
+      {
+        if (base::nrow(column_layout$slice_df) > 0) {
+          ggplot2::geom_text(
+            data = transform(column_layout$slice_df, y = n_r + 0.72),
+            ggplot2::aes(x = x, y = y, label = title),
+            inherit.aes = FALSE,
+            fontface = "bold",
+            size = base::max(3.2, 3.7 * overall_plot_scale)
+          )
+        }
+      } +
       ggplot2::coord_cartesian(clip = "off") +
       ggplot2::theme_void(base_size = 11 * overall_plot_scale) +
       ggplot2::theme(
         legend.position = "none",
         axis.text.x = ggplot2::element_blank(),
         axis.ticks.x = ggplot2::element_blank(),
-        plot.margin = grid::unit(c(1.2, 0.25, 1.2, 2.6) * overall_plot_scale, "mm")
+        plot.margin = grid::unit(c(4.2, 0.25, 1.2, 2.6) * overall_plot_scale, "mm")
       )
   }
 
@@ -1343,8 +1385,8 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     cluster_info = cluster_info,
     stored_hm = stored_hm,
     main_heatmap_col_order = main_heatmap_col_order,
-    heatmap_col_order = heatmap_col_order,
-    heatmap_cluster_columns = heatmap_cluster_columns,
+    heatmap_col_order = col_order,
+    heatmap_cluster_columns = cluster_columns,
     override_mat = upstream_module_heatmap_mat,
     override_col_order = upstream_module_heatmap_col_order,
     value_name = upstream_module_heatmap_name,
@@ -1843,52 +1885,56 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
   pdf_height_use <- if (base::is.null(pdf_height)) pdf_height_auto else as.numeric(pdf_height)
 
   out_file <- NULL
+  overview_png_files <- stats::setNames(base::character(0), base::character(0))
   focus_files <- stats::setNames(base::character(0), base::character(0))
+  focus_png_files <- stats::setNames(base::character(0), base::character(0))
   if (isTRUE(save_pdf)) {
     out_file <- base::paste0(file_prefix, "/", pdf_name)
-    if (requireNamespace("Cairo", quietly = TRUE)) {
-      Cairo::CairoPDF(file = out_file, width = pdf_width_use, height = pdf_height_use, pointsize = pdf_pointsize)
-    } else {
-      grDevices::pdf(file = out_file, width = pdf_width_use, height = pdf_height_use, pointsize = pdf_pointsize)
-    }
-    draw_combined_page(overview_plot, page_title_for_focus())
-    for (i in base::seq_along(focus_plots)) {
-      draw_combined_page(focus_plots[[i]], focus_titles[[i]])
-    }
-    grDevices::dev.off()
+    overview_page_labels <- base::c("overview", base::names(focus_plots))
+    overview_export_files <- .hc_export_multi_page_plot(
+      file = out_file,
+      page_labels = overview_page_labels,
+      width = pdf_width_use,
+      height = pdf_height_use,
+      pointsize = pdf_pointsize,
+      res = 300,
+      draw_page_fun = function(idx, page_key) {
+        if (identical(page_key, "overview")) {
+          draw_combined_page(overview_plot, page_title_for_focus())
+        } else {
+          draw_combined_page(focus_plots[[page_key]], focus_titles[[page_key]])
+        }
+      }
+    )
+    overview_png_files <- overview_export_files$png
 
     focus_dir <- base::paste0(file_prefix, "/Module_Knowledge_Network_by_module")
     if (!base::dir.exists(focus_dir)) {
       base::dir.create(focus_dir, recursive = TRUE, showWarnings = FALSE)
     }
-    sanitize_file_stem <- function(x) {
-      x <- base::as.character(x)
-      x <- gsub("[^A-Za-z0-9_-]+", "_", x)
-      x <- gsub("_+", "_", x)
-      x <- gsub("^_|_$", "", x)
-      if (base::nchar(x) == 0) {
-        x <- "module"
-      }
-      x
-    }
     focus_names <- base::names(focus_plots)
     focus_files <- stats::setNames(base::character(base::length(focus_names)), focus_names)
+    focus_png_files <- stats::setNames(base::character(base::length(focus_names)), focus_names)
     for (i in base::seq_along(focus_plots)) {
       mod_nm <- focus_names[[i]]
       mod_file <- base::paste0(
         focus_dir,
         "/Module_Knowledge_Network_",
-        sanitize_file_stem(mod_nm),
+        .hc_export_sanitize_stem(mod_nm, default = "module"),
         ".pdf"
       )
-      if (requireNamespace("Cairo", quietly = TRUE)) {
-        Cairo::CairoPDF(file = mod_file, width = pdf_width_use, height = pdf_height_use, pointsize = pdf_pointsize)
-      } else {
-        grDevices::pdf(file = mod_file, width = pdf_width_use, height = pdf_height_use, pointsize = pdf_pointsize)
-      }
-      draw_combined_page(focus_plots[[i]], focus_titles[[i]])
-      grDevices::dev.off()
-      focus_files[[i]] <- mod_file
+      focus_export_files <- .hc_export_single_page_plot(
+        file = mod_file,
+        width = pdf_width_use,
+        height = pdf_height_use,
+        pointsize = pdf_pointsize,
+        res = 300,
+        draw_fun = function() {
+          draw_combined_page(focus_plots[[i]], focus_titles[[i]])
+        }
+      )
+      focus_files[[i]] <- focus_export_files$pdf
+      focus_png_files[[i]] <- focus_export_files$png
     }
   }
 
@@ -1917,9 +1963,11 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     plot = overview_plot,
     focus_plots = focus_plots,
     focus_files = focus_files,
+    focus_png_files = focus_png_files,
     nodes = nodes,
     edges = edges,
     file = out_file,
+    png_files = overview_png_files,
     settings = list(
       enrichment_mode = enrichment_mode,
       upstream_mode = upstream_mode,
@@ -1948,8 +1996,10 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
                                              save_pdf = TRUE,
                                              pdf_name = "Module_Knowledge_Network.pdf",
                                              gfc_scale_limits = NULL,
+                                             col_order = NULL,
                                              heatmap_col_order = NULL,
-                                             heatmap_cluster_columns = FALSE,
+                                             cluster_columns = FALSE,
+                                             heatmap_cluster_columns = NULL,
                                              pdf_width = NULL,
                                              pdf_height = NULL,
                                              pdf_pointsize = 11,
@@ -1967,7 +2017,9 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     save_pdf = save_pdf,
     pdf_name = pdf_name,
     gfc_scale_limits = gfc_scale_limits,
+    col_order = col_order,
     heatmap_col_order = heatmap_col_order,
+    cluster_columns = cluster_columns,
     heatmap_cluster_columns = heatmap_cluster_columns,
     pdf_width = pdf_width,
     pdf_height = pdf_height,

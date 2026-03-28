@@ -224,15 +224,24 @@ plot_integrated_network <- function(layout = NULL,
     })%>% base::unlist()
     
     if(save == TRUE){
-      Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/Network_col_by_module.pdf"), 
-                      width = 15, height = 15)
-      
-      igraph::plot.igraph(network2, vertex.size = 3, vertex.label = new_labels, vertex.label.cex = 0.75,
-                          layout = l2, main = "Co-expression network coloured by module",
-                          edge.color = new_edge_color, vertex.label.color = new_label_color,
-                          vertex.frame.color = new_frame_color)
-      
-      grDevices::dev.off()
+      .hc_export_single_page_plot(
+        file = .hc_output_file("Network_col_by_module.pdf"),
+        width = 15,
+        height = 15,
+        draw_fun = function() {
+          igraph::plot.igraph(
+            network2,
+            vertex.size = 3,
+            vertex.label = new_labels,
+            vertex.label.cex = 0.75,
+            layout = l2,
+            main = "Co-expression network coloured by module",
+            edge.color = new_edge_color,
+            vertex.label.color = new_label_color,
+            vertex.frame.color = new_frame_color
+          )
+        }
+      )
     }
     
     
@@ -254,13 +263,20 @@ plot_integrated_network <- function(layout = NULL,
   }else{
     
     if(save == TRUE){
-      Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/Network_modules.pdf"), 
-                      width = 15, height = 15)
-      
-      igraph::plot.igraph(network, vertex.label = NA, vertex.size = 3, 
-                          layout = l, main = "Co-expression network coloured by module")
-      
-      grDevices::dev.off()
+      .hc_export_single_page_plot(
+        file = .hc_output_file("Network_modules.pdf"),
+        width = 15,
+        height = 15,
+        draw_fun = function() {
+          igraph::plot.igraph(
+            network,
+            vertex.label = NA,
+            vertex.size = 3,
+            layout = l,
+            main = "Co-expression network coloured by module"
+          )
+        }
+      )
     }
     
     

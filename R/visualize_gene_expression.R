@@ -79,10 +79,24 @@ visualize_gene_expression <- function(genes, name = NULL, width = 15, height = 1
     if(base::is.null(name)){
       message("Cannot save the file since no unique file name was provided (See function parameter 'name').")
     }else{
-      Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", name, ".pdf"),
-                      width = width, height = height)
-      ComplexHeatmap::plot.HeatmapList(plotls, column_title = heatmap_title, column_title_gp = grid::gpar(fontsize = 14, fontface = "bold"))
-      grDevices::dev.off()
+      .hc_export_single_page_plot(
+        file = base::paste0(
+          hcobject[["working_directory"]][["dir_output"]],
+          hcobject[["global_settings"]][["save_folder"]],
+          "/",
+          name,
+          ".pdf"
+        ),
+        width = width,
+        height = height,
+        draw_fun = function() {
+          ComplexHeatmap::plot.HeatmapList(
+            plotls,
+            column_title = heatmap_title,
+            column_title_gp = grid::gpar(fontsize = 14, fontface = "bold")
+          )
+        }
+      )
     }
   }
   

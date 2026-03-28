@@ -168,97 +168,115 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5){
   edgelist <- hcobject[["integrated_output"]][["combined_edgelist"]]
   edgelist$merged  <- base::paste0(base::as.character(edgelist$V1), base::as.character(edgelist$V2))
   edgelist$merged2 <- base::paste0(base::as.character(edgelist$V2), base::as.character(edgelist$V1))
-  
-  Cairo::CairoPDF(file = paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/TF_overrep_module.pdf"), 
-                  width = 15, height = 8, onefile = TRUE)
-  
-  # loop in pairs of two to create double plots: 
-  for(n in 1:base::length(tt_list)){
-    module_color <- base::names(tt_list)[n]
-    if (base::is.na(module_color) || !base::nzchar(module_color)) {
-      module_color <- base::as.character(clusters[[n]])
-    }
-    module_title <- if (module_color %in% base::names(module_title_by_color)) {
+
+  module_keys <- base::names(tt_list)
+  if (base::is.null(module_keys)) {
+    module_keys <- base::as.character(clusters[base::seq_along(tt_list)])
+  }
+  module_keys <- base::as.character(module_keys)
+  module_titles <- base::vapply(module_keys, function(module_color) {
+    if (module_color %in% base::names(module_title_by_color)) {
       base::as.character(module_title_by_color[[module_color]])
     } else {
       module_color
     }
-    
-    # set layout to plot two plots each in horizontal arrangement
-    # graphics::layout(mat = base::matrix(1:2, 1, 2), widths = c(1,1), heights = c(1,1)) 
-    
-    # create link data frame:
-    fromto <- tt_list[[n]]
-    # only consider no TF targets:
-    fromto <- dplyr::filter(fromto, !Target %in% TF)
+  }, FUN.VALUE = character(1))
+
+  draw_tf_module_panel <- function(idx) {
+    module_color <- module_keys[[idx]]
+    module_title <- module_titles[[idx]]
+    fromto <- tt_list[[idx]]
+    fromto <- dplyr::filter(fromto, !Target %in% TFs)
     fromto <- fromto[stats::complete.cases(fromto),]
     fromto <- base::unique(fromto)
-    
-    
-    # dataframe that associates each gene with its cluster colour:
-    NodeToColor <- base::rbind(base::data.frame(gene = fromto$TF, color = fromto$ClusterTF),
-                               base::data.frame(gene = fromto$Target, color = base::rep(module_color, base::nrow(fromto)))) %>%
+
+    NodeToColor <- base::rbind(
+      base::data.frame(gene = fromto$TF, color = fromto$ClusterTF),
+      base::data.frame(gene = fromto$Target, color = base::rep(module_color, base::nrow(fromto)))
+    ) %>%
       base::unique()
-    
-    
-    # create plot factors:
+
     factors <- base::unique(base::as.character(NodeToColor$gene))
-    circlize::circos.par(points.overflow.warning=FALSE)
-    circlize::circos.initialize(factors, xlim = c(0, 1)) 
-    circlize::circos.trackPlotRegion(sectors = factors,
-                                     ylim = c(0, 1), 
-                                     track.height = 0.05, 
-                                     bg.col = base::ifelse(factors %in% TFs, yes = "grey", no = "white")) 
-    circlize::circos.trackPlotRegion(sectors = factors,
-                                     ylim = c(0, 1), 
-                                     track.height = 0.05, 
-                                     bg.col = base::as.character(NodeToColor$color))
-    
-    # add sector labels:
-    g <- circlize::circos.trackPlotRegion(track.index = 1, panel.fun = function(x,y){
-      xlim = circlize::get.cell.meta.data("xlim")
-      ylim = circlize::get.cell.meta.data("ylim")
-      sector.name = circlize::get.cell.meta.data("sector.index")
-      if(sector.name %in% TFs){
-        circlize::circos.text(base::mean(xlim), base::mean(ylim)+2.5, sector.name, facing = "inside", niceFacing = TRUE, cex = .9, font = 2)
-      }else{
-        circlize::circos.text(base::mean(xlim), base::mean(ylim)+2.5, sector.name, facing = "inside", niceFacing = TRUE, cex = .9, )
+    circlize::circos.clear()
+    circlize::circos.par(points.overflow.warning = FALSE)
+    circlize::circos.initialize(factors, xlim = c(0, 1))
+    circlize::circos.trackPlotRegion(
+      sectors = factors,
+      ylim = c(0, 1),
+      track.height = 0.05,
+      bg.col = base::ifelse(factors %in% TFs, yes = "grey", no = "white")
+    )
+    circlize::circos.trackPlotRegion(
+      sectors = factors,
+      ylim = c(0, 1),
+      track.height = 0.05,
+      bg.col = base::as.character(NodeToColor$color)
+    )
+
+    circlize::circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+      xlim <- circlize::get.cell.meta.data("xlim")
+      ylim <- circlize::get.cell.meta.data("ylim")
+      sector.name <- circlize::get.cell.meta.data("sector.index")
+      if (sector.name %in% TFs) {
+        circlize::circos.text(base::mean(xlim), base::mean(ylim) + 2.5, sector.name, facing = "inside", niceFacing = TRUE, cex = .9, font = 2)
+      } else {
+        circlize::circos.text(base::mean(xlim), base::mean(ylim) + 2.5, sector.name, facing = "inside", niceFacing = TRUE, cex = .9)
       }
-      
     })
-    
-    # add links
-    for(i in 1:base::nrow(fromto)) {
-      merged <- base::paste0(base::as.character(fromto[i,1]), base::as.character(fromto[i,2]))
-      if(merged %in% edgelist$merged | merged %in% edgelist$merged2){
-        g <- circlize::circos.link(sector.index1 =  base::as.character(fromto[i,1]), c(0.5),
-                                   sector.index2 =  base::as.character(fromto[i,2]), c(0.5), 
-                                   col = base::as.character(fromto[i,3]),
-                                   lwd = 2, lty = 1,
-                                   directional = 1,
-                                   arr.width = .25,
-                                   arr.length = .25)
-      }else{
-        g <- circlize::circos.link(sector.index1 =  base::as.character(fromto[i,1]), c(0.5),
-                                   sector.index2 =  base::as.character(fromto[i,2]), c(0.5), 
-                                   # col = makeTransparent(base::as.character(fromto[i,3]), alpha = 90),
-                                   col = base::as.character(fromto[i,3]),
-                                   lwd = 1, lty = 5,
-                                   directional = 1,
-                                   arr.width = .15,
-                                   arr.length = .15)
+
+    for (i in base::seq_len(base::nrow(fromto))) {
+      merged <- base::paste0(base::as.character(fromto[i, 1]), base::as.character(fromto[i, 2]))
+      if (merged %in% edgelist$merged | merged %in% edgelist$merged2) {
+        circlize::circos.link(
+          sector.index1 = base::as.character(fromto[i, 1]), c(0.5),
+          sector.index2 = base::as.character(fromto[i, 2]), c(0.5),
+          col = base::as.character(fromto[i, 3]),
+          lwd = 2, lty = 1,
+          directional = 1,
+          arr.width = .25,
+          arr.length = .25
+        )
+      } else {
+        circlize::circos.link(
+          sector.index1 = base::as.character(fromto[i, 1]), c(0.5),
+          sector.index2 = base::as.character(fromto[i, 2]), c(0.5),
+          col = base::as.character(fromto[i, 3]),
+          lwd = 1, lty = 5,
+          directional = 1,
+          arr.width = .15,
+          arr.length = .15
+        )
       }
-      
-      
     }
     graphics::title(module_title)
     circlize::circos.clear()
-    
-    visualize_gene_expression(genes = exp_plot_list[[n]] %>% base::unlist(use.names = FALSE), 
-                              name = module_title, 
-                              save = FALSE)
   }
-  grDevices::dev.off()
+
+  page_labels <- base::unlist(base::lapply(base::seq_along(module_keys), function(idx) {
+    base::c(
+      base::paste0(module_titles[[idx]], "_tf"),
+      base::paste0(module_titles[[idx]], "_expression")
+    )
+  }), use.names = FALSE)
+
+  .hc_export_multi_page_plot(
+    file = .hc_output_file("TF_overrep_module.pdf"),
+    page_labels = page_labels,
+    width = 15,
+    height = 8,
+    draw_page_fun = function(page_idx, page_label) {
+      module_idx <- ((page_idx - 1L) %/% 2L) + 1L
+      if ((page_idx %% 2L) == 1L) {
+        draw_tf_module_panel(module_idx)
+      } else {
+        visualize_gene_expression(
+          genes = exp_plot_list[[module_idx]] %>% base::unlist(use.names = FALSE),
+          name = module_titles[[module_idx]],
+          save = FALSE
+        )
+      }
+    }
+  )
 }
 
 

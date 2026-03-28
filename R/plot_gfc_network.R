@@ -64,12 +64,20 @@ plot_GFC_network <- function(){
   for(x in base::colnames(colors)){
     if(! x == "name"){
       igraph::V(network)$color <- colors %>% dplyr::pull(., var = x)
-      Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/Network_GFC_", x, ".pdf"), 
-                      width = 15, height = 15)
-      igraph::plot.igraph(network, vertex.label = NA, vertex.size = 3,
-                          layout = l,
-                          main = x)
-      grDevices::dev.off()
+      .hc_export_single_page_plot(
+        file = .hc_output_file(base::paste0("Network_GFC_", x, ".pdf")),
+        width = 15,
+        height = 15,
+        draw_fun = function() {
+          igraph::plot.igraph(
+            network,
+            vertex.label = NA,
+            vertex.size = 3,
+            layout = l,
+            main = x
+          )
+        }
+      )
       igraph::plot.igraph(network, vertex.label = NA, vertex.size = 3,
                           layout = l, 
                           main = x)

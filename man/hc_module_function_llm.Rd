@@ -4,7 +4,7 @@
 \alias{hc_module_function_llm}
 \alias{hc_module_function_gemini}
 \alias{hc_module_function_vllm}
-\title{AI-assisted module function summary via Gemini, ChatGPT, or vLLM}
+\title{AI-assisted module function summary via Gemini, Claude, ChatGPT, or vLLM}
 \usage{
 hc_module_function_llm(
   hc = NULL,
@@ -13,9 +13,10 @@ hc_module_function_llm(
   context = NULL,
   biological_context = NULL,
   label = NULL,
-  llm = c("gemini", "openai", "chatgpt", "vllm"),
+  llm = c("gemini", "claude", "openai", "chatgpt", "vllm"),
   api_key = NULL,
   gemini_model = NULL,
+  claude_model = NULL,
   vllm_model = NULL,
   vllm_base_url = NULL,
   model = NULL,
@@ -55,16 +56,21 @@ context for the interpretation. Preferred over \code{context}.}
 module name or \code{"custom_geneset"}. Can only be used for a single module or
 a free gene set.}
 
-\item{llm}{LLM provider. Supported values are \code{"gemini"}, \code{"openai"},
+\item{llm}{LLM provider. Supported values are \code{"gemini"}, \code{"claude"},
+\code{"anthropic"} (alias for \code{"claude"}), \code{"openai"},
 \code{"chatgpt"} (alias for \code{"openai"}), or \code{"vllm"} for a local
 OpenAI-compatible vLLM server.}
 
 \item{api_key}{API key for the selected provider. If omitted, the function
-uses \code{GEMINI_API_KEY} for Gemini, \code{OPENAI_API_KEY} for OpenAI, and
-\code{VLLM_API_KEY} for vLLM. For local vLLM, the fallback is \code{"EMPTY"}.}
+uses \code{GEMINI_API_KEY} for Gemini, \code{ANTHROPIC_API_KEY} for Claude,
+\code{OPENAI_API_KEY} for OpenAI, and \code{VLLM_API_KEY} for vLLM. For local
+vLLM, the fallback is \code{"EMPTY"}.}
 
 \item{gemini_model}{Optional Gemini model code. Only used when
 \code{llm = "gemini"}. Defaults to \code{"gemini-2.5-pro"}.}
+
+\item{claude_model}{Optional Claude model code. Only used when
+\code{llm = "claude"}. Defaults to \code{"claude-sonnet-4-6"}.}
 
 \item{vllm_model}{Optional vLLM model code. Only used when \code{llm = "vllm"}.
 Defaults to \code{"Qwen/Qwen2.5-VL-32B-Instruct"}.}

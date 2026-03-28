@@ -52,12 +52,12 @@ get_module_scores <- function(save = TRUE){
   graphics::plot(p)
 
   if(save){
-    Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/Module_scores.pdf"), 
-                    width = 8)
-    
-    graphics::plot(p)
-    
-    grDevices::dev.off()
+    .hc_export_ggplot_file(
+      file = .hc_output_file("Module_scores.pdf"),
+      plot = p,
+      width = 8,
+      height = 7
+    )
   }
 
   gtc$label <- NULL

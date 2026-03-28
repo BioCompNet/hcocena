@@ -15,8 +15,10 @@ plot_enrichment_upstream_network(
   save_pdf = TRUE,
   pdf_name = "Module_Knowledge_Network.pdf",
   gfc_scale_limits = NULL,
+  col_order = NULL,
   heatmap_col_order = NULL,
-  heatmap_cluster_columns = FALSE,
+  cluster_columns = FALSE,
+  heatmap_cluster_columns = NULL,
   pdf_width = NULL,
   pdf_height = NULL,
   pdf_pointsize = 11,
@@ -55,14 +57,18 @@ heatmap color scale limits. Provide one positive number (\code{x} -> \code{c(-x,
 or two numbers (\code{c(min, max)}). If NULL, uses upstream inference settings
 first (if available), then main heatmap settings, then \code{c(-range_GFC, range_GFC)}.}
 
-\item{heatmap_col_order}{Optional character vector overriding the hCoCena
+\item{col_order}{Optional character vector overriding the hCoCena
 heatmap column order for this knowledge-network plot only. If \code{NULL}
 (default), the column order from the main module heatmap is reused when
 available.}
 
-\item{heatmap_cluster_columns}{Logical. If \code{FALSE} (default), reuse the
+\item{heatmap_col_order}{Legacy alias for \code{col_order}.}
+
+\item{cluster_columns}{Logical. If \code{FALSE} (default), reuse the
 column order from the main hCoCena heatmap when available. If \code{TRUE},
 cluster the columns for this knowledge-network plot instead.}
+
+\item{heatmap_cluster_columns}{Legacy alias for \code{cluster_columns}.}
 
 \item{pdf_width}{Optional numeric width (inches) for network PDFs.
 If NULL (default), width is auto-estimated from content.}

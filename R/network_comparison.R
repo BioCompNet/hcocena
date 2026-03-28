@@ -58,12 +58,14 @@ network_comparison_1 <- function(gtc1_path, gtc2_path, sep = "\t", header = TRUE
                      display_numbers = TRUE, 
                      fontsize_number = 6, 
                      number_color = 'orange', main = 'Jaccard Index of Cluster Pairs')
-  # save to PDF
-  Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/network_comparison_1.pdf"), 
-                  width = 10, 
-                  height = 7)
-  p
-  grDevices::dev.off()
+  .hc_export_single_page_plot(
+    file = .hc_output_file("network_comparison_1.pdf"),
+    width = 10,
+    height = 7,
+    draw_fun = function() {
+      print(p)
+    }
+  )
   
   hcobject[["satellite_outputs"]][["network_comparison_1"]] <<-list(heatmap=p, matrix=as.matrix(out))
 }
@@ -140,6 +142,12 @@ network_comparison_2 <- function(net1, net2, as = 'igraph', gene_vec){
                     size = ggplot2::guide_legend(order = 2))+
     ggplot2::labs(color = "Jaccard-Index of Neighbours", size=ggplot2::element_blank())
   graphics::plot(g)
+  .hc_export_ggplot_file(
+    file = .hc_output_file("network_comparison_2.pdf"),
+    plot = g,
+    width = 8,
+    height = 6
+  )
   hcobject[["satellite_outputs"]][["network_comparison_2"]] <<- list(plot=g, data=out)
 }
 

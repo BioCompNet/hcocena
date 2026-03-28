@@ -162,30 +162,37 @@ highlight_geneset <- function(gene_set, name = NULL, col = "black", label_offset
   
   igraph::V(network3)$size <- (max(l2) + abs(min(l2)))*2
   
+  plot_title <- if (base::is.null(name) || !base::nzchar(base::as.character(name[[1]]))) {
+    "highlighted_geneset"
+  } else {
+    base::as.character(name[[1]])
+  }
   if(save){
-    Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", name, "_network.pdf"), 
-                    width = 20, height = 15)
-    
-    igraph::plot.igraph(network2, vertex.size = vertex_size,
-                        vertex.label = NA,
-                        layout = l2,
-                        vertex.label.color = "black",
-                        edge.color = "lightgray",rescale = FALSE, 
-                        xlim = c(min(l2[,1]), max(l2[,1])), 
-                        ylim = c(min(l2[,2]), max(l2[,2])))
-    
-    igraph::plot.igraph(network3, add = TRUE, rescale = FALSE, 
-                        vertex.label = new_labels, 
-                        edge.color = "black", 
-                        vertex.label.cex = 1,
-                        vertex.label.dist = 1,
-                        vertex.label.color = "black",
-                        layout = l2[rownames(l2) %in% igraph::V(network3)$name,], 
-                        xlim = c(min(l2[,1]), max(l2[,1])), 
-                        ylim = c(min(l2[,2]), max(l2[,2])))
-    graphics::title(main = name, cex.main = 2)
-    
-    grDevices::dev.off()
+    .hc_export_single_page_plot(
+      file = .hc_output_file(base::paste0(plot_title, "_network.pdf")),
+      width = 20,
+      height = 15,
+      draw_fun = function() {
+        igraph::plot.igraph(network2, vertex.size = vertex_size,
+                            vertex.label = NA,
+                            layout = l2,
+                            vertex.label.color = "black",
+                            edge.color = "lightgray",rescale = FALSE, 
+                            xlim = c(min(l2[,1]), max(l2[,1])), 
+                            ylim = c(min(l2[,2]), max(l2[,2])))
+        
+        igraph::plot.igraph(network3, add = TRUE, rescale = FALSE, 
+                            vertex.label = new_labels, 
+                            edge.color = "black", 
+                            vertex.label.cex = 1,
+                            vertex.label.dist = 1,
+                            vertex.label.color = "black",
+                            layout = l2[rownames(l2) %in% igraph::V(network3)$name,], 
+                            xlim = c(min(l2[,1]), max(l2[,1])), 
+                            ylim = c(min(l2[,2]), max(l2[,2])))
+        graphics::title(main = plot_title, cex.main = 2)
+      }
+    )
   }
   if(plot){
     igraph::plot.igraph(network2, vertex.size = vertex_size,
@@ -204,7 +211,7 @@ highlight_geneset <- function(gene_set, name = NULL, col = "black", label_offset
                         layout = l2[rownames(l2) %in% igraph::V(network3)$name,], 
                         xlim = c(min(l2[,1]), max(l2[,1])), 
                         ylim = c(min(l2[,2]), max(l2[,2])))
-    graphics::title(main = name, cex.main = 2)
+    graphics::title(main = plot_title, cex.main = 2)
   }
 }
 

@@ -102,9 +102,12 @@ PCA <- function(which = "all", color_by = NULL, ellipses = FALSE, cols = NULL){
     
     graphics::plot(g)
     
-    Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/PCA_", which, "_", hcobject[["layers_names"]][x], ".pdf"), width = 10, height = 7)
-    graphics::plot(g)
-    grDevices::dev.off()
+    .hc_export_ggplot_file(
+      file = .hc_output_file(base::paste0("PCA_", which, "_", hcobject[["layers_names"]][x], ".pdf")),
+      plot = g,
+      width = 10,
+      height = 7
+    )
 
     return(g)
     

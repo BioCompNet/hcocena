@@ -27,7 +27,9 @@ hc_add_meta_time_grouping(
 \item{grouping_col}{Name of the new annotation column to create.}
 
 \item{slot_name}{Satellite slot holding longitudinal outputs. Must contain
-\code{meta_cluster} table.}
+\code{meta_cluster} table. Use a concrete slot name, a shared prefix such as
+\code{"longitudinal_endotypes"} to process matching suffixed slots, or
+\code{"all"} to use every compatible step 2 slot in \code{hc@satellite}.}
 
 \item{layer}{Layer index, layer id/name, or \code{"all"} (default) to add the
 grouping column to all layers.}
@@ -43,7 +45,8 @@ label (recommended when multiple layers share group names).}
 }
 \value{
 Updated \code{HCoCenaExperiment}. The computed order is stored in
-\code{hc@satellite[[slot_name]]$meta_time_grouping}.
+\code{hc@satellite[[slot_name]]$meta_time_grouping} and/or the resolved
+per-layer step 2 slots.
 }
 \description{
 Creates an annotation column that combines donor meta-cluster assignment and

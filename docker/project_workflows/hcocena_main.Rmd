@@ -7,13 +7,14 @@ output:
   pdf_document: default
 ---
 
+
 # 0 Introduction
 
-This GitHub-only workflow keeps the familiar `main` / `satellite` structure
-while using the current object-based hCoCena API. For a fully
-functional analysis, these steps are mandatory unless declared otherwise
-(flagged with OPTIONAL). Feel free to expand upon this base analysis with the
-provided satellite functions or your custom scripts.
+This GitHub-side workflow contains the core hCoCena pipeline using the current
+object-based API. For a fully functional analysis, these steps are mandatory
+unless declared otherwise (flagged with OPTIONAL). Feel free to expand upon
+this base analysis with the provided satellite functions or your custom
+scripts.
 
 
 # 1 Pre-Integration Phase
@@ -42,16 +43,38 @@ hc <- hc_init()
   + dir_reference_files: path of your reference files folder (the folder with corresponding files can be downloaded from the github repo https://github.com/MarieOestreich/hCoCena, they are contained in the folder 'reference_files')
   + dir_output: path to the location in which the save folder for this analyses should be created (e.g., "~/" for your home directory).
 
+  In the Docker image, project paths are preset to:
+  - count data: `/home/rstudio/count_data/`
+  - annotation: `/home/rstudio/annotation_data/`
+  - reference files: `/home/rstudio/reference_files/`
+  - output root: `/home/rstudio/output/`
+  - project data: `/home/rstudio/project_data/`
+
+  The public Docker image does **not** bundle the project-specific `.rds`
+  inputs. Before running section 1.4, place these files into
+  `/home/rstudio/project_data/`:
+  - `sample_table_230530.rds`
+  - `vst_anno_log_230530.rds`
+  - `exclusion_vector_lm_full_240625.rds`
+
+  Use `hc_auto_set_paths()` to keep this step short. It auto-detects Docker paths and local `reference_files`/`output` folders.
+
 ```{r}
+# Adapt these paths only if you are not running inside the Docker image:
+docker_workspace <- "/home/rstudio"
+project_data_dir <- paste0(docker_workspace, "/project_data")
+dir_count_data <- FALSE
+dir_annotation <- FALSE
+dir_reference_files <- paste0(docker_workspace, "/reference_files/")
+dir_output <- paste0(docker_workspace, "/output/")
 
 hc <- hc_set_paths(
   hc,
-  dir_count_data = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_GENE_EXPRESSION_TABLES",
-  dir_annotation = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_ANNOTATION_TABLES",
-  dir_reference_files = "PATH_TO_REFERENCE_FILES_FOLDER",
-  dir_output = "PATH_TO_FOLDER_WHERE_HCOCENA_SHOULD_SAVE_ALL_ANALYSIS_OUTPUTS"
+  dir_count_data = dir_count_data,      # or FALSE when using data frames from environment
+  dir_annotation = dir_annotation,      # or FALSE when using data frames from environment
+  dir_reference_files = dir_reference_files,
+  dir_output = dir_output
 )
-
 ```
 
   Ensure that all directories exist with the following chunk:
@@ -78,13 +101,36 @@ hc <- hc_init_save_folder(hc, name = "outputs")
     
 ```{r defining Omics Layers}
 
+sample_table <- readRDS(file = file.path(project_data_dir, "sample_table_230530.rds"))
+norm_anno <- readRDS(file = file.path(project_data_dir, "vst_anno_log_230530.rds"))
+exclusion_vector_lm_full <- readRDS(file = file.path(project_data_dir, "exclusion_vector_lm_full_240625.rds"))
+
+count_file_name <- norm_anno
+count_file_name <- count_file_name[,c(2:(ncol(count_file_name)-3))]
+count_file_name_symbol <- count_file_name[!duplicated(count_file_name[,ncol(count_file_name)]), ]
+count_file_name_symbol <- count_file_name_symbol[complete.cases(count_file_name_symbol), ]
+row.names(count_file_name_symbol) <- count_file_name_symbol[,ncol(count_file_name)]
+norm_data <- count_file_name_symbol[!rownames(count_file_name_symbol) %in% exclusion_vector_lm_full,c(-(ncol(count_file_name)))]
+
+
+sample_table$condition_num <- sample_table$condition %>% as.numeric()
+sample_table$`Donor/Animal` <- as.character(sample_table$`Donor/Animal`)
+sample_table$PatID <- sample_table$`Donor/Animal`
+sample_table$Timepoint_rough <- factor(sample_table$Timepoint_rough,
+                                        levels = c("T1", "T2", "T3"))
+sample_table$Timepoint_rough_num <- as.numeric(sample_table$Timepoint_rough)
+
+
+
 hc <- hc_define_layers(
   hc,
   data_sets = list(
-    RNA_Seq = c("data_batch_donor.txt", "annotation_seq.txt"),
-    Array = c("data.txt", "annotation_array.txt")
+    preterm = c("norm_data", "sample_table")
+
   )
 )
+
+
 
 hc <- hc_set_supp_files(
   hc,
@@ -109,7 +155,7 @@ hc <- hc_read_data(
   sep_counts = "\t",
   sep_anno = "\t",
   gene_symbol_col = "SYMBOL",
-  sample_col = "SampleID",
+  sample_col = "ID",
   count_has_rn = FALSE,
   anno_has_rn = FALSE
 )
@@ -129,12 +175,12 @@ hc <- hc_read_supplementary(hc)
 hc <- hc_set_global_settings(
   hc,
   organism = "human",
-  control_keyword = "baseline",
-  variable_of_interest = "merged",
-  min_nodes_number_for_network = 15,
-  min_nodes_number_for_cluster = 15,
+  control_keyword = "none",
+  variable_of_interest = "Timepoint_rough",
+  min_nodes_number_for_network = 40,
+  min_nodes_number_for_cluster = 50,
   range_GFC = 2.0,
-  layout_algorithm = "layout_with_fr",
+  layout_algorithm = "layout_with_stress",
   data_in_log = TRUE
 )
 
@@ -156,10 +202,10 @@ hc <- hc_set_global_settings(
 
 hc <- hc_set_layer_settings(
   hc,
-  top_var = c("all", "all"),
-  min_corr = c(0.9, 0.9),
-  range_cutoff_length = c(100, 100),
-  print_distribution_plots = c(FALSE, FALSE)
+  top_var = c(10238),
+  min_corr = c(0.6),
+  range_cutoff_length = c(300),
+  print_distribution_plots = c(FALSE)
 )
 
 
@@ -195,10 +241,31 @@ hc <- hc_run_expression_analysis_1(hc, corr_method = "pearson")
 
 ## 1.9 Data processing part II
 
+  **OPTIONAL: Correlation cutoff tuning (`hc_tune_cutoff`)**
+
+  You can run the cutoff tuner before plotting the cutoff statistics.  
+  If tuning results are present, `hc_plot_cutoffs()` will add vertical markers for `strict`, `relaxed`, `best_available` and the `simple` baseline cutoff.
+
+```{r optional cutoff tuning tiered}
+
+hc <- hc_tune_cutoff(
+  hc,
+  apply = FALSE,
+  max_no_networks = 3,
+  min_node_fraction = 0.6,
+  verbose = TRUE
+)
+
+hc@satellite$cutoff_tuning$comparison_with_simple
+
+```
+
 
   **Choosing the cut-offs:**
 
-  Set a correlation cut-off for each of your data sets. To aid this choice, the following plot presents the different cut-off statistics per data set. For more details on cut-offs and the information in this plot as well as the parameters, enter `?hcocena::hc_plot_cutoffs` into the console.
+  Set a correlation cut-off for each of your data sets. To aid this choice, the following plot presents the different cut-off statistics per data set.  
+  If `hc_tune_cutoff()` was run before, the plot includes the tuning markers automatically (`selected`, `strict`, `relaxed`, `best_available`, and `simple`).  
+  For more details on cut-offs and the information in this plot as well as the parameters, enter `?hcocena::hc_plot_cutoffs` into the console.
   
   
 ```{r fig.height = 8, fig.width = 15}
@@ -213,7 +280,7 @@ hc <- hc_plot_cutoffs(hc, interactive = TRUE)
 
 ```{r choose cutoff}
 
-hc <- hc_set_cutoff(hc, cutoff_vector = c(0.974, 0.984))
+hc <- hc_set_cutoff(hc, cutoff_vector = c(0.713),auto = F)
 
 ```
 
@@ -266,19 +333,38 @@ hc <- hc_build_integrated_network(hc, mode = "u", multi_edges = "min")
   
   In this step, modules of strong co-expression will be detected in the network and their expression pattern across conditions will be represented in a GFC heatmap. For more information on the available clustering algorithms and setting the clustering resolution, run `?hcocena::hc_cluster_calculation` and visit the repository's Wiki pages.
   NOTE: You can export your clustering for future use. To do so, please refer to the satellite script, section "Export clustering".
-  NOTE 2: Instead of clustering your network here, you can alternatively import a clustering model. To do so, please use the import_clusters() function (see satellite markdown for infos).
+  NOTE 2: Instead of clustering your network here, you can alternatively import a clustering model. To do so, please use `import_clusters()` (see satellite markdown for details).
   
-```{r compute clusters and plot module heatmap, fig.width = 13, fig.height = 10, out.width = "100%"}
+```{r compute_clusters_and_plot_module_heatmap, fig.height=10, fig.width=8}
 hc <- hc_cluster_calculation(
   hc,
   cluster_algo = "cluster_leiden",
   no_of_iterations = 2,
-  resolution = 0.1,
+  resolution = 1.0,
   partition_type = "RBConfigurationVertexPartition",
   max_cluster_count_per_gene = 1
 )
-hc <- hc_plot_cluster_heatmap(hc)
+
+hc <- hc_plot_cluster_heatmap(
+  hc,
+  cluster_columns = FALSE,
+  col_order = c("T1", "T2", "T3"),
+  gfc_scale_limits = c(-1.5, 1.5)
+)
+
+
+
 ```
+
+  Running `hc_plot_cluster_heatmap()` also writes `Module_Gene_List.xlsx`
+  to the output folder (`genes` in column 1, `module` in column 2), based on
+  the currently displayed module labels.
+
+## OPTIONAL: Longitudinal endotype clustering (quick run)
+
+  This optional block was moved to `hcocena_satellite.Rmd` under
+  "Longitudinal endotype clustering (quick run)" to keep this main script
+  focused on the core pipeline.
 
 
 ## OPTIONAL: Module scores
@@ -296,13 +382,6 @@ hc <- hc_plot_cluster_heatmap(hc)
 NOTE: due to issues in the communication between R and Cytoscape, please refer to the satellite markdown, section "Cytoscape" if you chose Cytoscape as the option for the network layout in your global settings.
 
 
-```{r plot network coloured by cluster, fig.width=10, fig.height=7}
-
-hc <- hc_plot_integrated_network(hc)
-
-```
-
-
 ## OPTIONAL: Plotting network coloured by GFC
 
   You can re-plot the network for each condition colouring the nodes according to their GFC in the different conditions. To do so, please refer to the section "Plotting network coloured by GFC" in the satellite markdown.
@@ -312,7 +391,9 @@ hc <- hc_plot_integrated_network(hc)
 
   Enrichment analysis of the found modules using the GO, KEGG, Hallmark and Reactome databases or based on a user-defined enrichment file. For detailed information on parameter settings, please run `?hcocena::hc_functional_enrichment`.
   Results are written to the output folder and stored in the `hc` object.
-  If you later run `hc_upstream_inference()` (see `hcocena_main_seq_only.Rmd`),
+  The combined Excel export now includes `all_enrichments_all_dbs` (all terms, no significance filter) and
+  keeps `Module_Gene_List.xlsx` synchronized with the module labels shown in the heatmap.
+  If you later run `hc_upstream_inference()` (see `hcocena_satellite.Rmd`),
   per-condition comparison now defaults to `consistent_terms = TRUE` to keep
   one fixed term axis across conditions; set `consistent_terms = FALSE` for
   condition-specific discovery pages.
@@ -321,32 +402,31 @@ hc <- hc_plot_integrated_network(hc)
 
 hc <- hc_functional_enrichment(
   hc,
-  gene_sets = c("Hallmark", "Go", "Kegg"),
+  gene_sets = c("Hallmark","GO","Kegg"),
+  # custom_gmt_files = c(MyCustomPathways = "my_custom_pathways.gmt"),
   clusters = "all",
-  top = 5,
+  top = 3,
   padj = "BH",
-  qval = 0.1
+  qval = 0.1,
+ # heatmap_col_order  = c("T1","T3","T2")
   # Optional label styling controls (defaults keep current automatic behavior):
   # , heatmap_column_label_fontsize = 10
   # , heatmap_module_label_fontsize = 8.5
   # , legend_fontsize = 9
   # , enrichment_label_fontsize = 9
+  # , enrichment_db_header_fontsize = 11   # controls "Go/Kegg/Hallmark" headers in combined all-DB plots
   # , enrichment_label_wrap = FALSE
   # , enrichment_label_wrap_width = 30
 )
 
+
+
 ```
 
+## OPTIONAL: Longitudinal enrichment waves per database (top terms per module)
 
-## 3.4 Transcription factor enrichment analyses with ChEA3
-
-  Transcription factor enrichment analysis for each module and for the entire network based on ChEA3 (Kennan AB, 2019). For more details, refer to the function documentations with `?hcocena::hc_tf_overrep_module` and `?hcocena::hc_tf_overrep_network`. The plots can be found in the save folder.
-  
-```{r , fig.width = 10, fig.height = 7}
-
-hc <- hc_tf_overrep_module(hc, clusters = "all", topTF = 5, topTarget = 5)
-
-```
+  This optional block was moved to `hcocena_satellite.Rmd` under
+  "Longitudinal enrichment waves (quick run)".
 
 
  
@@ -381,9 +461,11 @@ hc <- hc_tf_overrep_module(hc, clusters = "all", topTF = 5, topTarget = 5)
   To see how numeric or categorical meta information correlates to the expression patterns of a module, refer to the satellite markdown, section "Correlate numeric meta data with modules" and "Correlate categorical meta data with modules", respectively.
 
 
-## OPTIONAL: Module analysis and meta-annotation
 
-  You have the option to analyse the genes present in the found modules with regard to shared functionality or enriched gene sets as well as to annotate the groups of samples with meta information from your annotation file. To do so, please refer to the satellite markdown, section "Module analysis and meta-annotation".
+### OPTIONAL: Module-condition significance (Wilcoxon + limma + LMM)
+
+  This optional step tests which modules differ significantly between conditions
+  on **sample-level module means**.
 
 
 ## OPTIONAL: Replotting of heatmap with different variable of interest
@@ -402,7 +484,7 @@ hc <- hc_tf_overrep_module(hc, clusters = "all", topTF = 5, topTarget = 5)
   
 ```{r create module heatmap, fig.width = 13, fig.height = 10, out.width = "100%"}
 
-layout_obj <- hc@integration@cluster[["layout"]]
+layout_obj <- hc_integration(hc)@cluster[["layout"]]
 
 hc <- hc_plot_cluster_heatmap(hc)
 hc <- hc_plot_integrated_network(hc, layout = layout_obj, save = FALSE)
@@ -418,6 +500,25 @@ hc <- hc_plot_integrated_network(hc, layout = layout_obj, save = FALSE)
 ```{r write session info}
 
 hc <- hc_write_session_info(hc)
+
+```
+
+```{r save hc object for showcase, message = FALSE, warning = FALSE}
+
+showcase_rds <- "hc_after_main.rds"
+
+if (!inherits(hc, "HCoCenaExperiment")) {
+  stop("`hc` must be an HCoCenaExperiment before saving for showcase.")
+}
+
+saveRDS(hc, file = showcase_rds)
+cat("Saved hCoCena object for showcase to:", showcase_rds, "\n")
+cat(
+  "Render showcase with: rmarkdown::render('hcocena_plot_showcase.Rmd', params = list(hc_rds = '",
+  showcase_rds,
+  "'))\n",
+  sep = ""
+)
 
 ```
 

@@ -23,8 +23,8 @@ Authors@R: c(
            role = c("aut", "cre"),
 		   email = "t.ulas@uni-bonn.de",
 		   comment = c(ORCID = "0000-0002-9785-4197")))
-Description: The package allows the joint analysis of multiple transcriptomics
-    datasets using a network-based integration approach. It now provides an
+Description: Tools for the joint analysis of multiple transcriptomics datasets
+    using a network-based integration approach. The package now provides an
     S4 object model based on MultiAssayExperiment while keeping backward
     compatibility with the legacy global-state workflow.
 License: GPL (>= 3)
@@ -52,14 +52,9 @@ Imports: Cairo (>= 1.5-12.2), circlize, clusterProfiler (>= 3.18.1),
         3.1.2), tidyr, tidyselect (>= 1.1.1)
 Suggests: BiocStyle, CALIBERrfimpute, decoupleR, dorothea, ellmer,
         ExperimentHub, emmeans, ggh4x, graphlayouts, GSVA, htmlwidgets,
-        kml, knitr (>= 1.33), lme4, limma, mice, networkD3 (>= 0.4),
-        nlme, progeny, propr, RANN, RCy3 (>= 2.10.2), RcppAnnoy,
-        rmarkdown, testthat (>= 3.0.0), umap, uwot
+        knitr (>= 1.33), lme4, limma, mice, networkD3 (>= 0.4),
+        nlme, progeny, RANN, RCy3 (>= 2.10.2), RcppAnnoy, rmarkdown,
+        testthat (>= 3.0.0), umap, uwot, withr
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 NeedsCompilation: no
-Author: Lisa Holsten [aut] (ORCID: <https://orcid.org/0000-0001-6238-1273>),
-  Kilian Dahm [aut] (ORCID: <https://orcid.org/0000-0002-6819-2622>),
-  Marie Oestreich [aut] (ORCID: <https://orcid.org/0000-0002-4754-1301>),
-  Thomas Ulas [aut, cre] (ORCID: <https://orcid.org/0000-0002-9785-4197>)
-Maintainer: Thomas Ulas <t.ulas@uni-bonn.de>

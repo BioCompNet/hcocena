@@ -128,7 +128,7 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
         genes <- igraph::V(hcobject[["layer_specific_outputs"]][[base::paste0("set", l)]][["part2"]][["heatmap_out"]][["filt_cutoff_graph"]])$name 
         dat <- dat[genes,]
         p <- pheatmap::pheatmap(mat = dat,
-                                color = base::rev(RColorBrewer::brewer.pal(11, "RdBu")),
+                                color = .hc_default_gfc_colors(),
                                 scale = "row",
                                 cluster_rows =  TRUE,
                                 cluster_cols =  TRUE,
@@ -179,7 +179,7 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
         genes <- igraph::V(hcobject[["layer_specific_outputs"]][[base::paste0("set", l)]][["part2"]][["heatmap_out"]][["filt_cutoff_graph"]])$name 
         dat <- dat[genes,]
         p <- pheatmap::pheatmap(mat = dat,
-                                color=base::rev(RColorBrewer::brewer.pal(11, "RdBu")),
+                                color = .hc_default_gfc_colors(),
                                 scale="row",
                                 cluster_rows=TRUE,
                                 cluster_cols=TRUE,
@@ -253,7 +253,7 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
         hcobject[["satellite_outputs"]][["FC_samples_X_clusters"]][[base::paste0("layer_", l)]] <<- FCs
         
         p <- pheatmap::pheatmap(mat = FCs,
-                                color=grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(base::length(base::seq(-2, 2, by = .1))),
+                                color = grDevices::colorRampPalette(.hc_default_gfc_colors())(base::length(base::seq(-2, 2, by = .1))),
                                 scale="column",
                                 cluster_rows=FALSE,
                                 cluster_cols=TRUE,
@@ -314,7 +314,7 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
         hcobject[["satellite_outputs"]][["FC_samples_X_clusters"]][[base::paste0("layer_", l)]] <<- FCs
         
         p <- pheatmap::pheatmap(mat = FCs,
-                                color=grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(base::length(base::seq(-2, 2, by = .1))),
+                                color = grDevices::colorRampPalette(.hc_default_gfc_colors())(base::length(base::seq(-2, 2, by = .1))),
                                 scale="column",
                                 cluster_rows=FALSE,
                                 cluster_cols=TRUE,

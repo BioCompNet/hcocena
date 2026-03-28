@@ -17,7 +17,10 @@ hc_longitudinal_step3_meta_module_trajectories(
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{slot_name}{Satellite slot containing meta-clustering outputs.}
+\item{slot_name}{Satellite slot containing meta-clustering outputs. Use a
+concrete slot name, a shared prefix such as \code{"longitudinal_endotypes"} to
+process matching suffixed slots, or \code{"all"} to run over every compatible
+step 2 slot in \code{hc@satellite}.}
 
 \item{facet_ncol}{Number of facet columns.}
 
@@ -32,7 +35,9 @@ when \code{value_mode = "scaled_mean_vst"}. Default is \code{c(-2, 2)}. Use \cod
 for automatic scaling.}
 }
 \value{
-A list with unchanged \code{hc} and the step 3 plot.
+A list with unchanged \code{hc} and the step 3 plot. When multiple slots are
+processed, \code{plots} is returned as a named list keyed by layer/slot, plus
+a \code{slot_info} table describing the resolved slots.
 }
 \description{
 Plots module trajectories after meta-clustering using donor and meta-cluster

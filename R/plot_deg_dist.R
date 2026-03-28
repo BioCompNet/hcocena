@@ -28,8 +28,14 @@ plot_deg_dist <- function(){
       ggplot2::theme(plot.title = ggplot2::element_text(size = 14), plot.subtitle = ggplot2::element_text(size = 10)) 
     
     print(dd_plot_calculated_optimal)
-    ggplot2::ggsave(base::paste0("Degree_distribution_plot_", hcobject[["layers_names"]][x], "_", hcobject[["cutoff_vec"]][x], ".pdf"),
-          dd_plot_calculated_optimal, device = cairo_pdf, width = 10, height = 8, path = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]]))
+    .hc_export_ggplot_file(
+      file = .hc_output_file(
+        base::paste0("Degree_distribution_plot_", hcobject[["layers_names"]][x], "_", hcobject[["cutoff_vec"]][x], ".pdf")
+      ),
+      plot = dd_plot_calculated_optimal,
+      width = 10,
+      height = 8
+    )
     
   }
   

@@ -13,12 +13,16 @@ hc_get_meta_time_col_order(
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{slot_name}{Satellite slot containing \code{meta_time_grouping}.}
+\item{slot_name}{Satellite slot containing \code{meta_time_grouping}, or a base
+prefix such as \code{"longitudinal_endotypes"} that resolves matching suffixed
+slots.}
 
-\item{layer}{Layer index, layer id/name, or \code{NULL} for combined order.}
+\item{layer}{Layer index, layer id/name, or \code{NULL} for combined order across
+all resolved layers.}
 }
 \value{
-Character vector with heatmap column order.
+Character vector with heatmap column order as expected by
+\code{hc_change_grouping_parameter()}.
 }
 \description{
 Returns the column-order vector stored by \code{hc_add_meta_time_grouping()}.

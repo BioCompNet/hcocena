@@ -12,6 +12,36 @@ get_cluster_colours <- function(){
   
 }
 
+.hc_match_axis_order_with_duplicates <- function(axis_ids, requested_order) {
+  axis_ids <- base::as.character(axis_ids)
+  requested_order <- base::as.character(requested_order)
+  if (base::length(axis_ids) == 0) {
+    return(axis_ids)
+  }
+  if (base::length(requested_order) == 0) {
+    return(axis_ids)
+  }
+
+  source_idx <- base::split(base::seq_along(axis_ids), axis_ids)
+  used <- stats::setNames(base::integer(base::length(source_idx)), base::names(source_idx))
+  out_idx <- base::integer()
+
+  for (val in requested_order) {
+    idxs <- source_idx[[val]]
+    if (base::is.null(idxs) || base::length(idxs) == 0) {
+      next
+    }
+    next_pos <- used[[val]] + 1L
+    if (next_pos <= base::length(idxs)) {
+      out_idx <- base::c(out_idx, idxs[[next_pos]])
+      used[[val]] <- next_pos
+    }
+  }
+
+  remaining_idx <- base::seq_along(axis_ids)[!(base::seq_along(axis_ids) %in% out_idx)]
+  axis_ids[base::c(out_idx, remaining_idx)]
+}
+
 .hc_resolve_heatmap_col_order <- function(mat_cols,
                                           requested_order = NULL,
                                           context = "heatmap") {
@@ -27,7 +57,7 @@ get_cluster_colours <- function(){
   }
 
   keep <- requested_order[requested_order %in% mat_cols]
-  dropped <- base::setdiff(base::unique(requested_order), mat_cols)
+  dropped <- base::setdiff(base::unique(requested_order), base::unique(mat_cols))
   if (base::length(dropped) > 0) {
     preview <- base::paste(utils::head(dropped, 8L), collapse = ", ")
     if (base::length(dropped) > 8L) {
@@ -45,7 +75,64 @@ get_cluster_colours <- function(){
     return(mat_cols)
   }
 
-  base::c(keep, base::setdiff(mat_cols, keep))
+  .hc_match_axis_order_with_duplicates(mat_cols, keep)
+}
+
+.hc_resolve_col_order_alias <- function(col_order = NULL,
+                                        heatmap_col_order = NULL,
+                                        col_order_missing = FALSE,
+                                        heatmap_col_order_missing = TRUE,
+                                        context = "heatmap plot") {
+  if (!base::is.null(col_order)) {
+    col_order <- base::as.character(col_order)
+  }
+  alias_provided <- !isTRUE(heatmap_col_order_missing) && !base::is.null(heatmap_col_order)
+  direct_provided <- !isTRUE(col_order_missing) && !base::is.null(col_order)
+
+  if (!alias_provided) {
+    return(col_order)
+  }
+
+  heatmap_col_order <- base::as.character(heatmap_col_order)
+  if (direct_provided && !base::identical(col_order, heatmap_col_order)) {
+    stop(
+      "Use either `col_order` or legacy `heatmap_col_order` in ", context,
+      ", not both with different values.",
+      call. = FALSE
+    )
+  }
+
+  if (direct_provided) {
+    return(col_order)
+  }
+  heatmap_col_order
+}
+
+.hc_resolve_cluster_columns_alias <- function(cluster_columns = FALSE,
+                                              heatmap_cluster_columns = NULL,
+                                              cluster_columns_missing = FALSE,
+                                              heatmap_cluster_columns_missing = TRUE,
+                                              context = "heatmap plot") {
+  alias_provided <- !isTRUE(heatmap_cluster_columns_missing) &&
+    !base::is.null(heatmap_cluster_columns)
+  direct_provided <- !isTRUE(cluster_columns_missing)
+
+  if (!alias_provided) {
+    return(cluster_columns)
+  }
+
+  if (direct_provided && !base::identical(cluster_columns, heatmap_cluster_columns)) {
+    stop(
+      "Use either `cluster_columns` or legacy `heatmap_cluster_columns` in ", context,
+      ", not both with different values.",
+      call. = FALSE
+    )
+  }
+
+  if (direct_provided) {
+    return(cluster_columns)
+  }
+  heatmap_cluster_columns
 }
 
 
@@ -119,13 +206,14 @@ leiden_clustering <- function(g, num_it, resolution, partition_type){
     # cluster color:
     col_color <- color.cluster[x]
     # order of conditions for following GFC values:
-    col_conditions <- base::colnames(dplyr::select(hcobject[["integrated_output"]][["GFC_all_layers"]], -Gene)) %>% 
+    col_conditions <- .hc_gfc_condition_names(hcobject[["integrated_output"]][["GFC_all_layers"]]) %>%
       base::paste0(., collapse = "#")
     # mean GFCs of the cluster genes per sample group:
-    col_grp_means <- dplyr::filter(hcobject[["integrated_output"]][["GFC_all_layers"]], Gene %in% genes) %>% 
-      dplyr::select(-Gene) %>% 
-      base::apply(., 2, base::mean) %>% 
-      base::round(., digits = 3) %>% 
+    col_grp_means <- .hc_gfc_colmeans_for_genes(
+      hcobject[["integrated_output"]][["GFC_all_layers"]],
+      genes = genes
+    ) %>%
+      base::round(., digits = 3) %>%
       base::paste0(., collapse = ",")
     # collect all information:
     out <- base::data.frame(clusters = col_clusters,
@@ -171,19 +259,538 @@ cluster_calculation_internal <- function(graph_obj,
   return(output)
 }
 
+#' Resolve GFC value-column indices while preserving duplicate condition names
+#' @noRd
+.hc_gfc_value_col_idx <- function(gfc_df) {
+  if (base::is.null(gfc_df) || !base::is.data.frame(gfc_df) || base::ncol(gfc_df) == 0) {
+    return(base::integer())
+  }
+  gene_idx <- base::which(base::colnames(gfc_df) %in% "Gene")
+  if (base::length(gene_idx) == 0) {
+    stop("`GFC_all_layers` must contain a `Gene` column.")
+  }
+  base::setdiff(base::seq_len(base::ncol(gfc_df)), gene_idx)
+}
+
+#' Return GFC condition names without triggering name repair on duplicates
+#' @noRd
+.hc_gfc_condition_names <- function(gfc_df) {
+  idx <- .hc_gfc_value_col_idx(gfc_df)
+  if (base::length(idx) == 0) {
+    return(base::character())
+  }
+  base::colnames(gfc_df)[idx]
+}
+
+#' Extract the numeric GFC value frame without the `Gene` column
+#' @noRd
+.hc_gfc_value_frame <- function(gfc_df) {
+  idx <- .hc_gfc_value_col_idx(gfc_df)
+  if (base::length(idx) == 0) {
+    return(base::data.frame())
+  }
+  out <- gfc_df[, idx, drop = FALSE]
+  if (inherits(out, "DataFrame")) {
+    return(.hc_to_base_data_frame_preserve_names(out))
+  }
+  base::data.frame(base::lapply(out, base::identity), check.names = FALSE)
+}
+
+#' Compute mean GFC values for a gene set while preserving duplicate condition names
+#' @noRd
+.hc_gfc_colmeans_for_genes <- function(gfc_df, genes) {
+  if (base::is.null(gfc_df) || !base::is.data.frame(gfc_df) || !"Gene" %in% base::colnames(gfc_df)) {
+    stop("`GFC_all_layers` must be a data.frame with a `Gene` column.")
+  }
+  cond_names <- .hc_gfc_condition_names(gfc_df)
+  sub_df <- gfc_df[gfc_df[["Gene"]] %in% genes, , drop = FALSE]
+  val_df <- .hc_gfc_value_frame(sub_df)
+  if (base::ncol(val_df) == 0) {
+    return(stats::setNames(base::numeric(), base::character()))
+  }
+  if (base::nrow(val_df) == 0) {
+    return(stats::setNames(base::rep(NA_real_, base::ncol(val_df)), cond_names))
+  }
+  val_mat <- base::as.matrix(val_df)
+  storage.mode(val_mat) <- "numeric"
+  stats::setNames(base::colMeans(val_mat, na.rm = TRUE), cond_names)
+}
+
+.hc_group_values_from_annotation_for_gfc <- function(anno_df, voi = NULL) {
+  if (base::is.null(anno_df) || !base::is.data.frame(anno_df) || base::nrow(anno_df) == 0) {
+    return(base::character())
+  }
+
+  candidate_cols <- base::intersect(base::as.character(voi), base::colnames(anno_df))
+  grp <- if (base::length(candidate_cols) > 1) {
+    do.call(base::paste, base::c(anno_df[, candidate_cols, drop = FALSE], sep = "-"))
+  } else if (base::length(candidate_cols) == 1) {
+    anno_df[[candidate_cols[[1]]]]
+  } else {
+    anno_df[[1]]
+  }
+
+  grp <- base::trimws(base::as.character(grp))
+  grp[grp %in% c("", "NA", "<NA>", "[NA]", "[<NA>]")] <- NA_character_
+  grp[!base::is.na(grp) & base::nzchar(grp)]
+}
+
+.hc_layer_name_map <- function(hcobject) {
+  layer_ids <- base::names(hcobject[["layers"]])
+  if (base::is.null(layer_ids) || base::length(layer_ids) == 0) {
+    anno_keys <- base::grep("_anno$", base::names(hcobject[["data"]]), value = TRUE)
+    layer_ids <- base::sub("_anno$", "", anno_keys)
+  }
+  if (base::is.null(layer_ids) || base::length(layer_ids) == 0) {
+    return(stats::setNames(base::character(), base::character()))
+  }
+
+  layer_names <- hcobject[["layers_names"]]
+  if (base::is.null(layer_names) || base::length(layer_names) != base::length(layer_ids)) {
+    layer_names <- layer_ids
+  }
+  stats::setNames(base::as.character(layer_names), base::as.character(layer_ids))
+}
+
+.hc_gfc_layer_source_rows <- function(hcobject) {
+  layer_map <- .hc_layer_name_map(hcobject)
+  layer_ids <- base::names(layer_map)
+  if (base::length(layer_ids) == 0) {
+    return(base::data.frame())
+  }
+
+  voi <- tryCatch(hcobject[["global_settings"]][["voi"]], error = function(e) NULL)
+  layer_specific <- hcobject[["layer_specific_outputs"]]
+  out_rows <- base::vector("list", base::length(layer_ids))
+
+  for (i in base::seq_along(layer_ids)) {
+    lid <- layer_ids[[i]]
+    layer_label <- layer_map[[lid]]
+    anno_df <- hcobject[["data"]][[base::paste0(lid, "_anno")]]
+
+    gfc_layer <- NULL
+    if (!base::is.null(layer_specific) && base::length(layer_specific) > 0) {
+      gfc_layer <- tryCatch(layer_specific[[lid]][["part2"]][["GFC_all_genes"]], error = function(e) NULL)
+      if (base::is.null(gfc_layer) && base::length(layer_specific) >= i) {
+        gfc_layer <- tryCatch(layer_specific[[i]][["part2"]][["GFC_all_genes"]], error = function(e) NULL)
+      }
+    }
+
+    cond_cols <- if (!base::is.null(gfc_layer) && base::is.data.frame(gfc_layer)) {
+      .hc_gfc_condition_names(gfc_layer)
+    } else {
+      base::sort(base::unique(.hc_group_values_from_annotation_for_gfc(anno_df, voi = voi)))
+    }
+    cond_cols <- base::as.character(cond_cols)
+    cond_cols <- cond_cols[!base::is.na(cond_cols) & base::nzchar(cond_cols)]
+
+    grp_vals <- .hc_group_values_from_annotation_for_gfc(anno_df, voi = voi)
+    grp_tbl <- if (base::length(grp_vals) > 0) base::table(grp_vals) else base::integer()
+    sample_count <- suppressWarnings(base::as.integer(grp_tbl[cond_cols]))
+    sample_count[base::is.na(sample_count)] <- 0L
+
+    out_rows[[i]] <- base::data.frame(
+      raw_condition = cond_cols,
+      layer_id = lid,
+      layer_name = layer_label,
+      sample_count = sample_count,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  out_rows <- out_rows[base::vapply(out_rows, function(x) base::is.data.frame(x) && base::nrow(x) > 0, FUN.VALUE = base::logical(1))]
+  if (base::length(out_rows) == 0) {
+    return(base::data.frame())
+  }
+
+  out <- base::do.call(base::rbind, out_rows)
+  out$occurrence <- stats::ave(base::seq_len(base::nrow(out)), out$raw_condition, FUN = base::seq_along)
+  base::rownames(out) <- NULL
+  out
+}
+
+.hc_gfc_column_display_metadata <- function(hcobject, cols) {
+  cols <- base::as.character(cols)
+  out <- base::data.frame(
+    raw_condition = cols,
+    display_label = cols,
+    count_label = cols,
+    layer_id = NA_character_,
+    layer_name = NA_character_,
+    sample_count = NA_integer_,
+    stringsAsFactors = FALSE
+  )
+  if (base::length(cols) == 0) {
+    return(out)
+  }
+
+  dup_raw <- base::duplicated(cols) | base::duplicated(cols, fromLast = TRUE)
+  source <- .hc_gfc_layer_source_rows(hcobject)
+  if (base::nrow(source) == 0) {
+    return(out)
+  }
+
+  if (base::nrow(source) == base::length(cols) &&
+      base::all(base::as.character(source$raw_condition) == cols)) {
+    mapped <- source
+  } else {
+    occ <- stats::ave(base::seq_along(cols), cols, FUN = base::seq_along)
+    mapped_idx <- base::vapply(
+      base::seq_along(cols),
+      function(i) {
+        hit <- base::which(source$raw_condition == cols[[i]] & source$occurrence == occ[[i]])
+        if (base::length(hit) > 0) hit[[1]] else NA_integer_
+      },
+      FUN.VALUE = base::integer(1)
+    )
+    mapped <- source[mapped_idx, , drop = FALSE]
+  }
+
+  has_map <- !base::is.na(mapped$layer_name) & base::nzchar(mapped$layer_name)
+  display <- cols
+  display[dup_raw & has_map] <- base::paste0(mapped$layer_name[dup_raw & has_map], ": ", cols[dup_raw & has_map])
+
+  count_label <- display
+  has_count <- !base::is.na(mapped$sample_count) & mapped$sample_count > 0L
+  count_label[has_count] <- base::paste0(display[has_count], "  [", mapped$sample_count[has_count], "]")
+
+  out$display_label <- display
+  out$count_label <- count_label
+  out$layer_id <- mapped$layer_id
+  out$layer_name <- mapped$layer_name
+  out$sample_count <- mapped$sample_count
+  out
+}
+
+.hc_gfc_display_col_labels <- function(hcobject, cols) {
+  .hc_gfc_column_display_metadata(hcobject, cols)$display_label
+}
+
+.hc_gfc_display_count_labels <- function(hcobject, cols) {
+  .hc_gfc_column_display_metadata(hcobject, cols)$count_label
+}
+
+.hc_gfc_duplicate_condition_width_scale <- function(hcobject, cols) {
+  meta <- .hc_gfc_column_display_metadata(hcobject, cols)
+  if (!base::is.data.frame(meta) || base::nrow(meta) <= 1) {
+    return(1)
+  }
+
+  raw_labels <- base::as.character(meta$raw_condition)
+  display_labels <- base::as.character(meta$display_label)
+  keep <- !base::is.na(raw_labels) & base::nzchar(raw_labels)
+  raw_labels <- raw_labels[keep]
+  display_labels <- display_labels[keep]
+  if (base::length(raw_labels) <= 1) {
+    return(1)
+  }
+
+  has_layer_prefixed_duplicates <- base::any(
+    !base::is.na(display_labels) &
+      base::nzchar(display_labels) &
+      display_labels != raw_labels
+  )
+  if (!isTRUE(has_layer_prefixed_duplicates)) {
+    return(1)
+  }
+
+  unique_n <- base::length(base::unique(raw_labels))
+  total_n <- base::length(raw_labels)
+  if (unique_n <= 0 || unique_n >= total_n) {
+    return(1)
+  }
+
+  dup_factor <- total_n / unique_n
+  width_scale <- 1 + (0.12 * (dup_factor - 1))
+  width_scale <- base::max(1, base::min(1.25, width_scale))
+  as.numeric(width_scale[[1]])
+}
+
+.hc_parse_heatmap_col_layer_suffix <- function(hcobject, cols) {
+  cols <- base::as.character(cols)
+  if (base::length(cols) == 0) {
+    return(NULL)
+  }
+
+  layer_names <- base::unique(base::unname(.hc_layer_name_map(hcobject)))
+  layer_names <- base::as.character(layer_names)
+  layer_names <- layer_names[!base::is.na(layer_names) & base::nzchar(layer_names)]
+  if (base::length(layer_names) == 0) {
+    return(NULL)
+  }
+
+  layer_names <- layer_names[base::order(base::nchar(layer_names), decreasing = TRUE)]
+  parsed_layer <- base::rep(NA_character_, base::length(cols))
+  parsed_prefix <- base::rep(NA_character_, base::length(cols))
+
+  for (i in base::seq_along(cols)) {
+    current_col <- cols[[i]]
+    suffix_hits <- layer_names[base::endsWith(current_col, base::paste0("_", layer_names))]
+    if (base::length(suffix_hits) == 0) {
+      next
+    }
+    matched_layer <- suffix_hits[[1]]
+    suffix_txt <- base::paste0("_", matched_layer)
+    prefix_txt <- base::substr(
+      current_col,
+      1,
+      base::nchar(current_col) - base::nchar(suffix_txt)
+    )
+    parsed_layer[[i]] <- matched_layer
+    parsed_prefix[[i]] <- if (base::nzchar(prefix_txt)) prefix_txt else NA_character_
+  }
+
+  if (!base::any(!base::is.na(parsed_layer) & base::nzchar(parsed_layer))) {
+    return(NULL)
+  }
+
+  list(
+    layer_name = parsed_layer,
+    prefix = parsed_prefix
+  )
+}
+
+.hc_heatmap_column_gap_spec <- function(hcobject,
+                                        cols,
+                                        cluster_columns = FALSE,
+                                        gap_mm = 0.6) {
+  cols <- base::as.character(cols)
+  empty_out <- list(
+    column_split = NULL,
+    column_gap = NULL,
+    total_gap_mm = 0,
+    source = NULL,
+    slice_count = 1L,
+    slice_titles = NULL
+  )
+  if (base::length(cols) <= 3 || isTRUE(cluster_columns)) {
+    return(empty_out)
+  }
+
+  add_candidate <- function(store, keys, source, priority) {
+    keys <- base::as.character(keys)
+    if (base::length(keys) != base::length(cols)) {
+      return(store)
+    }
+    keys[base::is.na(keys) | !base::nzchar(keys)] <- NA_character_
+    if (base::any(base::is.na(keys))) {
+      return(store)
+    }
+    runs <- base::rle(keys)
+    if (base::length(runs$lengths) <= 1 || base::all(runs$lengths == 1)) {
+      return(store)
+    }
+    if (base::length(base::unique(keys)) <= 1) {
+      return(store)
+    }
+
+    store[[base::length(store) + 1]] <- list(
+      keys = keys,
+      source = source,
+      priority = as.integer(priority[[1]]),
+      max_run = base::max(runs$lengths),
+      mean_run = base::mean(runs$lengths),
+      covered_cols = base::sum(runs$lengths[runs$lengths > 1]),
+      n_runs = base::length(runs$lengths)
+    )
+    store
+  }
+
+  candidates <- list()
+  meta <- .hc_gfc_column_display_metadata(hcobject, cols)
+  parsed_layer_suffix <- .hc_parse_heatmap_col_layer_suffix(hcobject, cols)
+
+  if (!base::is.null(parsed_layer_suffix)) {
+    candidates <- add_candidate(candidates, parsed_layer_suffix$prefix, "prefix_before_layer", 1L)
+    candidates <- add_candidate(candidates, parsed_layer_suffix$layer_name, "layer_suffix", 4L)
+  }
+  if (base::is.data.frame(meta) && base::nrow(meta) == base::length(cols)) {
+    candidates <- add_candidate(candidates, meta$raw_condition, "raw_condition", 2L)
+    candidates <- add_candidate(candidates, meta$layer_name, "layer_name", 3L)
+  }
+  generic_prefix <- ifelse(base::grepl("_", cols), base::sub("_[^_]+$", "", cols), NA_character_)
+  candidates <- add_candidate(candidates, generic_prefix, "prefix_before_last_underscore", 5L)
+
+  if (base::length(candidates) == 0) {
+    return(empty_out)
+  }
+
+  ordering <- base::order(
+    -base::vapply(candidates, `[[`, numeric(1), "max_run"),
+    -base::vapply(candidates, `[[`, numeric(1), "mean_run"),
+    -base::vapply(candidates, `[[`, numeric(1), "covered_cols"),
+    base::vapply(candidates, `[[`, integer(1), "n_runs"),
+    base::vapply(candidates, `[[`, integer(1), "priority")
+  )
+  best <- candidates[[ordering[[1]]]]
+  runs <- base::rle(best$keys)
+  slice_count <- base::length(runs$lengths)
+  if (slice_count <= 1) {
+    return(empty_out)
+  }
+
+  slice_titles <- base::as.character(runs$values)
+  slice_titles[base::is.na(slice_titles) | !base::nzchar(slice_titles)] <- base::paste0("Part ", base::seq_len(slice_count))
+  if (best$source %in% c("layer_name", "layer_suffix")) {
+    split_values <- base::make.unique(slice_titles, sep = " ")
+    split_ids <- base::inverse.rle(list(
+      values = split_values,
+      lengths = runs$lengths
+    ))
+    split_ids <- base::factor(split_ids, levels = split_values)
+  } else {
+    slice_titles[] <- ""
+    split_ids <- base::inverse.rle(list(
+      values = base::seq_len(slice_count),
+      lengths = runs$lengths
+    ))
+    split_ids <- base::factor(split_ids, levels = base::seq_len(slice_count))
+  }
+  gap_mm_use <- as.numeric(gap_mm[[1]])
+  if (!base::is.finite(gap_mm_use) || gap_mm_use <= 0) {
+    gap_mm_use <- 0.6
+  }
+  gap_mm_use <- base::min(1.2, base::max(0.35, gap_mm_use))
+
+  list(
+    column_split = split_ids,
+    column_gap = grid::unit(base::rep(gap_mm_use, slice_count - 1L), "mm"),
+    total_gap_mm = (slice_count - 1L) * gap_mm_use,
+    source = best$source,
+    slice_count = as.integer(slice_count),
+    slice_titles = slice_titles
+  )
+}
+
+.hc_heatmap_add_column_gap_args <- function(hm_args,
+                                            column_gap_spec,
+                                            title_gp = NULL) {
+  if (base::is.null(hm_args) || !base::is.list(hm_args)) {
+    return(hm_args)
+  }
+  if (base::is.null(column_gap_spec) ||
+      base::is.null(column_gap_spec$column_split) ||
+      base::is.null(column_gap_spec$column_gap) ||
+      base::length(column_gap_spec$column_split) == 0) {
+    return(hm_args)
+  }
+
+  hm_args$column_split <- column_gap_spec$column_split
+  hm_args$column_gap <- column_gap_spec$column_gap
+  hm_args$cluster_column_slices <- FALSE
+  hm_args$column_title <- column_gap_spec$slice_titles
+  if (!base::is.null(title_gp) &&
+      !base::is.null(column_gap_spec$slice_titles) &&
+      base::any(base::nzchar(base::as.character(column_gap_spec$slice_titles)))) {
+    hm_args$column_title_gp <- title_gp
+  }
+  hm_args
+}
+
+.hc_heatmap_ggplot_column_layout <- function(cols,
+                                             column_gap_spec = NULL,
+                                             default_cell_mm = 5) {
+  cols <- base::as.character(cols)
+  n_cols <- base::length(cols)
+  if (n_cols == 0) {
+    return(list(
+      x = base::numeric(0),
+      limits = c(0.5, 0.5),
+      slice_df = base::data.frame(
+        title = base::character(0),
+        x = base::numeric(0),
+        stringsAsFactors = FALSE
+      )
+    ))
+  }
+
+  has_gap <- !base::is.null(column_gap_spec) &&
+    !base::is.null(column_gap_spec$column_split) &&
+    base::length(column_gap_spec$column_split) == n_cols
+  if (!isTRUE(has_gap)) {
+    x <- base::seq_len(n_cols)
+    return(list(
+      x = x,
+      limits = c(0.5, n_cols + 0.5),
+      slice_df = base::data.frame(
+        title = base::character(0),
+        x = base::numeric(0),
+        stringsAsFactors = FALSE
+      )
+    ))
+  }
+
+  split_chr <- base::as.character(column_gap_spec$column_split)
+  runs <- base::rle(split_chr)
+  if (base::length(runs$lengths) <= 1) {
+    x <- base::seq_len(n_cols)
+    return(list(
+      x = x,
+      limits = c(0.5, n_cols + 0.5),
+      slice_df = base::data.frame(
+        title = base::character(0),
+        x = base::numeric(0),
+        stringsAsFactors = FALSE
+      )
+    ))
+  }
+
+  default_cell_mm <- suppressWarnings(base::as.numeric(default_cell_mm[[1]]))
+  if (!base::is.finite(default_cell_mm) || default_cell_mm <= 0) {
+    default_cell_mm <- 5
+  }
+  total_gap_mm <- suppressWarnings(base::as.numeric(column_gap_spec$total_gap_mm[[1]]))
+  gap_mm_each <- if (base::is.finite(total_gap_mm) && (base::length(runs$lengths) > 1)) {
+    total_gap_mm / (base::length(runs$lengths) - 1L)
+  } else {
+    0.6
+  }
+  gap_units <- base::max(0.08, base::min(0.24, gap_mm_each / default_cell_mm))
+
+  x <- base::numeric(n_cols)
+  slice_centers <- base::numeric(base::length(runs$lengths))
+  idx_start <- 1L
+  cursor <- 1
+  for (i in base::seq_along(runs$lengths)) {
+    len_i <- runs$lengths[[i]]
+    idx_end <- idx_start + len_i - 1L
+    pos_i <- cursor + base::seq.int(0, len_i - 1L)
+    x[idx_start:idx_end] <- pos_i
+    slice_centers[[i]] <- base::mean(pos_i)
+    cursor <- base::max(pos_i) + 1 + if (i < base::length(runs$lengths)) gap_units else 0
+    idx_start <- idx_end + 1L
+  }
+
+  slice_titles <- column_gap_spec$slice_titles
+  if (base::is.null(slice_titles) || base::length(slice_titles) != base::length(runs$lengths)) {
+    slice_titles <- base::as.character(runs$values)
+  } else {
+    slice_titles <- base::as.character(slice_titles)
+  }
+  keep_titles <- !base::is.na(slice_titles) & base::nzchar(slice_titles)
+
+  list(
+    x = x,
+    limits = c(base::min(x) - 0.5, base::max(x) + 0.5),
+    slice_df = base::data.frame(
+      title = slice_titles[keep_titles],
+      x = slice_centers[keep_titles],
+      stringsAsFactors = FALSE
+    )
+  )
+}
+
 #'Internal Function Used In cluster_calculation()
 #' @noRd
 
 gfc_mean_clustergene <- function(rownum, cluster_df, gfc_dat){
 
-  d1 <- cluster_df[rownum,]
+  d1 <- cluster_df[rownum, , drop = FALSE]
   gene_names <- d1["gene_n"] %>%
     stringi::stri_split_regex(pattern = ",") %>%
     base::unlist()
 
-  gfc_means <- gfc_dat[gfc_dat$Gene %in% gene_names,] %>%
-    dplyr::select(-Gene) %>%
-    base::colMeans()
+  gfc_means <- .hc_gfc_colmeans_for_genes(gfc_dat, genes = gene_names)
 
   d1$conditions <- base::paste0(base::names(gfc_means), collapse = "#")
   d1$grp_means <- base::paste0(base::round(gfc_means,3) , collapse = ",")
@@ -443,11 +1050,10 @@ pwcorr <- function(dd2,
       base::rownames(correlation_matrix[["P"]]) <- base::colnames(correlation_matrix[["P"]])
     }else{
       if(corr_method == 'rho'){
-        if (!requireNamespace("propr", quietly = TRUE)) {
-          stop("Package `propr` is required for `corr_method = 'rho'`. Install it or choose another method.")
-        }
+        .hc_require_namespace("propr", "`corr_method = 'rho'`")
+        propr_fun <- getExportedValue("propr", "propr")
         correlation_matrix <- list()
-        correlation_matrix[["r"]] <- propr::propr(
+        correlation_matrix[["r"]] <- propr_fun(
           counts = base::as.matrix(dd2),
           metric = "rho",
           select = colnames(dd2)
@@ -476,11 +1082,10 @@ pwcorr <- function(dd2,
     base::rownames(correlation_matrix[["P"]]) <- base::colnames(correlation_matrix[["P"]])
   }else{
     if(corr_method == 'rho'){
-      if (!requireNamespace("propr", quietly = TRUE)) {
-        stop("Package `propr` is required for `corr_method = 'rho'`. Install it or choose another method.")
-      }
+      .hc_require_namespace("propr", "`corr_method = 'rho'`")
+      propr_fun <- getExportedValue("propr", "propr")
       correlation_matrix <- list()
-      correlation_matrix[["r"]] <- propr::propr(
+      correlation_matrix[["r"]] <- propr_fun(
         counts = base::as.matrix(dd2),
         metric = "rho",
         select = colnames(dd2)
@@ -875,9 +1480,15 @@ rsquaredfun <- function(graph_df, cutoff, print.all.plots, min_nodes = hcobject[
           ggplot2::geom_smooth(method="lm") +
           ggplot2::theme_bw()
         
-        ggplot2::ggsave(path = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], degree_distribution_wd),
-               filename = base::paste0("Degree_distribution_plot_", cutoff,"_set_", x, ".pdf"),
-               dd_plot, device = cairo_pdf)
+        .hc_export_ggplot_file(
+          file = .hc_output_file(
+            base::paste0("Degree_distribution_plot_", cutoff, "_set_", x, ".pdf"),
+            degree_distribution_wd
+          ),
+          plot = dd_plot,
+          width = 7,
+          height = 7
+        )
         
         
       }
@@ -928,16 +1539,9 @@ rsquaredfun <- function(graph_df, cutoff, print.all.plots, min_nodes = hcobject[
 }
 
 # Default GFC palette used across heatmaps.
-# RdBu-based with slightly darker end points for stronger +/- range contrast.
+# Matches the saved heatmap snapshot appearance.
 .hc_default_gfc_colors <- function() {
-  cols <- base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))
-  cols[[1]] <- "#000418"
-  cols[[2]] <- "#12386F"
-  cols[[3]] <- "#2E5E99"
-  cols[[base::length(cols) - 2L]] <- "#A53858"
-  cols[[base::length(cols) - 1L]] <- "#7A0F2E"
-  cols[[base::length(cols)]] <- "#1A0008"
-  cols
+  base::rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))
 }
 
 #' Weighted sum over normalized criteria
@@ -1091,7 +1695,7 @@ heatmap_network_genes <- function(x, plot_HM, method, additional_anno, title, co
   filt_cutoff_counts <- hcobject[["layer_specific_outputs"]][[base::paste0("set",x)]][["part1"]][["ds"]][base::row.names(hcobject[["layer_specific_outputs"]][[base::paste0("set",x)]][["part1"]][["ds"]]) %in% 
                                                                                                            base::names(igraph::V(filt_cutoff_graph)),]
   corresp_info = info_dataset[base::rownames(base::t(hcobject[["layer_specific_outputs"]][[base::paste0("set", x)]][["part1"]][["topvar"]])) %in% base::rownames(info_dataset),]
-  
+
   output[["filt_cutoff_graph"]] <- filt_cutoff_graph
   output[["filt_cutoff_data"]] <- filt_cutoff_data
   
@@ -1116,12 +1720,16 @@ heatmap_network_genes <- function(x, plot_HM, method, additional_anno, title, co
     col_list <- cols
   }
   
+  # Large matrices are rasterized explicitly to avoid the default
+  # magick-based temp-file roundtrip, which can fail on some Windows setups.
+  hm_use_raster <- base::nrow(filt_cutoff_counts) > 2000
+  hm_raster_device <- if (isTRUE(base::capabilities("cairo"))) "CairoPNG" else "png"
 
   # filter annotation for pheatmap:
   anno_df <- dplyr::select(hcobject[["data"]][[base::paste0("set", x, "_anno")]], tidyselect::all_of(all_conditions))
   
   heatmap_filtered_counts <- ComplexHeatmap::pheatmap(mat = base::as.matrix(filt_cutoff_counts) ,
-                                                      color = base::rev(RColorBrewer::brewer.pal(11, "RdBu")), 
+                                                      color = .hc_default_gfc_colors(),
                                                       scale = "row", 
                                                       cluster_rows = TRUE,
                                                       cluster_cols = TRUE,
@@ -1134,6 +1742,9 @@ heatmap_network_genes <- function(x, plot_HM, method, additional_anno, title, co
                                                       annotation_names_col = TRUE, 
                                                       clustering_distance_cols = "euclidean", 
                                                       clustering_method = method, 
+                                                      use_raster = hm_use_raster,
+                                                      raster_by_magick = FALSE,
+                                                      raster_device = hm_raster_device,
                                                       heatmap_legend_param = list(title = "scaled expr."))
   
   if(plot_HM){
@@ -1141,11 +1752,23 @@ heatmap_network_genes <- function(x, plot_HM, method, additional_anno, title, co
   }
   
   output[["heatmap"]] <- heatmap_filtered_counts
-  
-  Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", "Heatmap_topvar_genes_", title,".pdf"),
-                  width = 7, height = 10)
-  ComplexHeatmap::plot.Heatmap(heatmap_filtered_counts)
-  grDevices::dev.off()
+
+  heatmap_export_file <- base::paste0(
+    hcobject[["working_directory"]][["dir_output"]],
+    hcobject[["global_settings"]][["save_folder"]],
+    "/",
+    "Heatmap_topvar_genes_",
+    title,
+    ".pdf"
+  )
+  output[["files"]] <- .hc_export_single_page_plot(
+    file = heatmap_export_file,
+    width = 7,
+    height = 10,
+    draw_fun = function() {
+      ComplexHeatmap::plot.Heatmap(heatmap_filtered_counts)
+    }
+  )
   
   return(output)
 }
@@ -2147,8 +2770,7 @@ plot_cutoffs_internal_interactive <- function(cutoff_stats,
   }
 
   ord <- ord[!is.na(ord) & nzchar(ord) & ord %in% axis_ids]
-  ord <- unique(ord)
-  c(ord, setdiff(as.character(axis_ids), ord))
+  .hc_match_axis_order_with_duplicates(as.character(axis_ids), ord)
 }
 
 .hc_heatmap_cache_info <- function(cluster_calc) {
@@ -2450,8 +3072,12 @@ boxplot_from_df <- function(data, it = NULL, log_2, bool_plot){
       ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5),
             text = ggplot2::element_text(size = 10))
     
-    ggplot2::ggsave(filename = base::paste0("Sample_distribution_bp_", it,".pdf"), plot = p, device = cairo_pdf,
-           path = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]],"/"), width = 17, height = 7.8,  units = "in")
+    .hc_export_ggplot_file(
+      file = .hc_output_file(base::paste0("Sample_distribution_bp_", it, ".pdf")),
+      plot = p,
+      width = 17,
+      height = 7.8
+    )
     
     return(p)
     
@@ -2491,8 +3117,12 @@ boxplot_from_df <- function(data, it = NULL, log_2, bool_plot){
         ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5),
               text = ggplot2::element_text(size = 10))
       
-      ggplot2::ggsave(filename = base::paste0("Sample_distribution_bp_", it, "_", x,".pdf"), plot = p, device = cairo_pdf,
-             path = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]],"/"), width = 10, height = 8,  units = "in")
+      .hc_export_ggplot_file(
+        file = .hc_output_file(base::paste0("Sample_distribution_bp_", it, "_", x, ".pdf")),
+        plot = p,
+        width = 10,
+        height = 8
+      )
       
       plts[[x]] <- p
       
@@ -2553,11 +3183,7 @@ freqdist_plot_from_df <- function(data, log_2, bool_plot, it = NULL){
   }
   
   plts <- list()
-  out_path <- base::paste0(
-    hcobject[["working_directory"]][["dir_output"]],
-    hcobject[["global_settings"]][["save_folder"]],
-    "/"
-  )
+  out_path <- .hc_output_dir()
   
   for (x in base::seq_len(base::ncol(data))) {
     sample_name <- base::colnames(data)[x]
@@ -2582,14 +3208,11 @@ freqdist_plot_from_df <- function(data, log_2, bool_plot, it = NULL){
       ggplot2::ggtitle(it)
     
     safe_sample <- gsub("[^A-Za-z0-9._-]+", "_", sample_name)
-    ggplot2::ggsave(
-      filename = base::paste0("Sample_distribution_freq_", it, "_", safe_sample, ".pdf"),
+    .hc_export_ggplot_file(
+      file = base::file.path(out_path, base::paste0("Sample_distribution_freq_", it, "_", safe_sample, ".pdf")),
       plot = p,
-      device = cairo_pdf,
-      path = out_path,
       width = 7,
-      height = 5,
-      units = "in"
+      height = 5
     )
     
     plts[[sample_name]] <- p
@@ -2775,7 +3398,10 @@ cluster_to_network <- function(cluster){
 get_hub_nodes <- function(network = hcobject[["integrated_output"]][["merged_net"]], top = 10, TF_only){
   
   rank_df <- combined_centrality(network = network)
-  rank_df$node <- base::rownames(rank_df)
+  if(!"node" %in% base::colnames(rank_df) ||
+     base::all(base::is.na(rank_df$node) | !base::nzchar(base::as.character(rank_df$node)))){
+    rank_df$node <- base::rownames(rank_df)
+  }
 
   if(TF_only == "all"){
     cn <- base::grep(hcobject[["global_settings"]][["organism"]], base::colnames(hcobject[["supplementary_data"]][["TF"]]), ignore.case=TRUE, value=TRUE)
@@ -2813,18 +3439,65 @@ combined_centrality <- function(network){
   dc <- weighted_DC(network)
   cc <- weighted_CC(network)
   bc <- weighted_BC(network)
+  node_names <- igraph::V(network)$name
+  if(base::is.null(node_names) || base::length(node_names) != igraph::vcount(network)){
+    node_names <- igraph::V(network) %>% base::as.character()
+  }
   
-  rank_df <- base::data.frame(dc = base::rank(dc, ties.method = "average"),
-                        cc = base::rank(cc, ties.method = "average"),
-                        bc = base::rank(bc, ties.method = "average")
-                        )
+  rank_df <- base::data.frame(dc = base::rank(base::unname(dc), ties.method = "average"),
+                        cc = base::rank(base::unname(cc), ties.method = "average"),
+                        bc = base::rank(base::unname(bc), ties.method = "average"),
+                        node = base::as.character(node_names),
+                        stringsAsFactors = FALSE)
   
-  rank_df$sum <-base::apply(rank_df, 1, base::sum)
+  rank_df$sum <- base::apply(rank_df[, c("dc", "cc", "bc"), drop = FALSE], 1, base::sum)
   rank_df$id <- igraph::V(network) %>% base::as.character()
   
   # order based on highest rank (strongest hub candidates):
   rank_df <- rank_df[base::order(rank_df$sum, decreasing = TRUE),]
+  base::rownames(rank_df) <- rank_df$node
   return(rank_df)
+}
+
+.hc_graph_edge_weights <- function(network, default = 1) {
+  edge_n <- igraph::ecount(network)
+  if (edge_n == 0) {
+    return(base::numeric())
+  }
+  w <- igraph::edge_attr(network, "weight", index = igraph::E(network))
+  if (base::is.null(w)) {
+    return(base::rep(default, edge_n))
+  }
+  w <- suppressWarnings(base::as.numeric(w))
+  if (base::length(w) != edge_n) {
+    w <- base::rep(default, edge_n)
+  }
+  w[!base::is.finite(w)] <- default
+  w
+}
+
+.hc_graph_distance_weights <- function(network,
+                                       weights = .hc_graph_edge_weights(network),
+                                       eps = 1e-8) {
+  if (base::length(weights) == 0) {
+    return(NULL)
+  }
+
+  if (base::all(weights >= 0, na.rm = TRUE) && base::all(weights <= 1, na.rm = TRUE)) {
+    dist_w <- 1 - weights
+  } else {
+    w_min <- suppressWarnings(base::min(weights, na.rm = TRUE))
+    w_max <- suppressWarnings(base::max(weights, na.rm = TRUE))
+    if (!base::is.finite(w_min) || !base::is.finite(w_max) || w_min == w_max) {
+      dist_w <- base::rep(1, base::length(weights))
+    } else {
+      scaled_w <- (weights - w_min) / (w_max - w_min)
+      dist_w <- 1 - scaled_w
+    }
+  }
+
+  dist_w[!base::is.finite(dist_w)] <- 1
+  base::pmax(dist_w, eps)
 }
 
 
@@ -2835,17 +3508,26 @@ combined_centrality <- function(network){
 
 weighted_DC <- function(network){
   message("Calculating weighted degree centrality.")
-  out <- base::lapply(igraph::V(network), function(node){
-            # get edges of node:
-            e <- igraph::incident(graph = network, v = node, mode = "all")
-            # get weights of edges:
-            w <- igraph::edge_attr(network, "weight", index = e)
-            # get all edge weights in the network:
-            wall <- igraph::edge_attr(network, "weight", index = igraph::E(network))
-            # return weighted degree centrality:
-            return(base::sum(w)/base::sum(wall))
-          }) %>% base::unlist()
-  return(out)
+  if (igraph::vcount(network) == 0) {
+    return(base::numeric())
+  }
+
+  weights <- .hc_graph_edge_weights(network)
+  total_weight <- base::sum(weights)
+  if (!base::is.finite(total_weight) || total_weight <= 0) {
+    total_weight <- base::max(1, igraph::ecount(network))
+    weights <- if (igraph::ecount(network) > 0) base::rep(1, igraph::ecount(network)) else base::numeric()
+  }
+
+  strengths <- igraph::strength(
+    graph = network,
+    vids = igraph::V(network),
+    mode = "all",
+    loops = FALSE,
+    weights = if (base::length(weights) == 0) NULL else weights
+  )
+  out <- strengths / total_weight
+  stats::setNames(base::as.numeric(out), base::as.character(igraph::V(network)))
 }
 
 
@@ -2857,28 +3539,29 @@ weighted_DC <- function(network){
 
 weighted_CC <- function(network){
   message("Calculating weighted closeness centrality.")
-  # get |v|x|v| distance table with weighted shortest distances between all nodes:
-  if(igraph::count_components(network) > 1){
-    message("Module consists of disconnected components. Values are set to 'number of module nodes + 1'.")
-    dt <- igraph::distances(network, 
-                            mode = "all", 
-                            weights = 1-igraph::edge_attr(network, "weight", index = igraph::E(network)))
-    dt <- base::apply(dt,2,function(x){
-      base::sapply(x, function(y){
-        if(!is.finite(y)) igraph::vcount(network)+1
-        else y
-      }) %>% base::invisible()
-    })
-  }else{
-    dt <- igraph::distances(network, 
-                            mode = "all", 
-                            weights = 1-igraph::edge_attr(network, "weight", index = igraph::E(network))) 
+  if (igraph::vcount(network) == 0) {
+    return(base::numeric())
   }
-  
-  # get sum of shortest distances for each node:
-  d_sum <- base::apply(dt,2,sum)
-  # return weighted closeness centrality for each node:
-  return(igraph::vcount(network)/d_sum)
+  if (igraph::vcount(network) == 1) {
+    return(stats::setNames(0, base::as.character(igraph::V(network))))
+  }
+
+  if (igraph::count_components(network) > 1) {
+    message("Module consists of disconnected components. Closeness is computed on reachable vertices only.")
+  }
+
+  dist_weights <- .hc_graph_distance_weights(network)
+  out <- suppressWarnings(
+    igraph::closeness(
+      graph = network,
+      vids = igraph::V(network),
+      mode = "all",
+      weights = dist_weights,
+      normalized = FALSE
+    )
+  )
+  out[!base::is.finite(out)] <- 0
+  stats::setNames(base::as.numeric(out), base::as.character(igraph::V(network)))
 }
 
 
@@ -2890,27 +3573,26 @@ weighted_CC <- function(network){
 
 weighted_BC <- function(network){
   message("Calculating weighted betweenness centrality.")
-  # find shortest path for all pairs of nodes:
-  out <- base::lapply(igraph::V(network), function(node){
-    igraph::all_shortest_paths(graph = network, 
-                                     from = node, 
-                                     to = igraph::V(network)[!igraph::V(network) == node], 
-                                     mode = "all",  
-                                     weights = 1-igraph::edge_attr(network, "weight", index = igraph::E(network))) %>% 
-      magrittr::extract2(1)
-  }) 
-  # combine list of lists into on long list:
-  out <- base::do.call(base::c, out)
-  # total number of shortest paths:
-  total_sp <- base::length(out)
-  # initialize counter for each node, set value to be zero:
-  counts <- base::rep(0, igraph::vcount(network))
-  # count number of shortest paths that pass each node:
-  base::lapply(out, function(x){
-    counts[x] <<- counts[x] + 1
-  })
-  # return weighted betweenness centrality per node:
-  return(counts/total_sp)
+  if (igraph::vcount(network) == 0) {
+    return(base::numeric())
+  }
+  if (igraph::ecount(network) == 0 || igraph::vcount(network) <= 2) {
+    out <- base::rep(0, igraph::vcount(network))
+    return(stats::setNames(out, base::as.character(igraph::V(network))))
+  }
+
+  dist_weights <- .hc_graph_distance_weights(network)
+  out <- suppressWarnings(
+    igraph::betweenness(
+      graph = network,
+      v = igraph::V(network),
+      directed = FALSE,
+      weights = dist_weights,
+      normalized = FALSE
+    )
+  )
+  out[!base::is.finite(out)] <- 0
+  stats::setNames(base::as.numeric(out), base::as.character(igraph::V(network)))
 }
 
 
@@ -3047,15 +3729,25 @@ network_with_labels <- function(network, gene_labels, gene_ranks, l, label_offse
     }
   }) %>% base::unlist()
   if(save == TRUE){
-    Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/Hub_genes_", title[1], "_module_network.pdf"), 
-                    width = 20, height = 15)
-    
-    igraph::plot.igraph(network2, vertex.size = vertex_size, vertex.label = new_labels, vertex.label.cex = 1.5,
-                        layout = l2, vertex.label.dist = 1, vertex.shape = vertex_shape,
-                        edge.color = new_edge_color, vertex.label.color = new_label_color)
-    graphics::title(plot_title, cex.main=3)
-    
-    grDevices::dev.off()
+    .hc_export_single_page_plot(
+      file = .hc_output_file(base::paste0("Hub_genes_", title[1], "_module_network.pdf")),
+      width = 20,
+      height = 15,
+      draw_fun = function() {
+        igraph::plot.igraph(
+          network2,
+          vertex.size = vertex_size,
+          vertex.label = new_labels,
+          vertex.label.cex = 1.5,
+          layout = l2,
+          vertex.label.dist = 1,
+          vertex.shape = vertex_shape,
+          edge.color = new_edge_color,
+          vertex.label.color = new_label_color
+        )
+        graphics::title(plot_title, cex.main = 3)
+      }
+    )
   }
   if(plot){
     igraph::plot.igraph(network2, vertex.size = vertex_size, vertex.label = new_labels, vertex.label.cex = 0.75,
@@ -3193,15 +3885,17 @@ plot_PCA_topvar <- function(PCA_save_folder, cols = cols){
 
 
       folder <- PCA_save_folder
-      if(!folder %in% base::list.dirs(base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]]))) {
+      .hc_output_dir(folder)
 
-        base::dir.create(base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/",  folder))
-
-      }
-
-    Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", folder, "/PCA_topvar_", hcobject[["layers_names"]][i], ".pdf"), width = 10, height = 7)
-    graphics::plot(p)
-    grDevices::dev.off()
+    .hc_export_ggplot_file(
+      file = .hc_output_file(
+        base::paste0("PCA_topvar_", hcobject[["layers_names"]][i], ".pdf"),
+        folder
+      ),
+      plot = p,
+      width = 10,
+      height = 7
+    )
     plotlist[[i]] <- p
     pca_list[[i]] <- pca
   }
@@ -3274,15 +3968,17 @@ plot_PCA_cluster <- function(gtc = NULL, algo = NULL, PCA_save_folder, cols = co
     pca_list[[l]] <- pca
 
     folder <- PCA_save_folder
-    if(!folder %in% base::list.dirs(base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]]))) {
+    .hc_output_dir(folder)
 
-      base::dir.create(base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", folder))
-
-    }
-
-    Cairo::CairoPDF(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/",  folder, "/PCA_module_", hcobject[["layers_names"]][l], "_", algo, ".pdf"), width = 10, height = 7)
-    graphics::plot(p)
-    grDevices::dev.off()
+    .hc_export_ggplot_file(
+      file = .hc_output_file(
+        base::paste0("PCA_module_", hcobject[["layers_names"]][l], "_", algo, ".pdf"),
+        folder
+      ),
+      plot = p,
+      width = 10,
+      height = 7
+    )
   }
   if(base::length(hcobject[["layers"]]) == 1){
     cp <- cowplot::plot_grid(plotlist = plotlist, ncol = 1)
@@ -3564,6 +4260,13 @@ replot_cluster_heatmap <- function(col_order = NULL,
       mat_heatmap <- mat_heatmap[, selected_col_order, drop = FALSE] %>% base::as.matrix()
     }
   }
+  column_labels_display <- .hc_gfc_display_col_labels(hcobject, base::colnames(mat_heatmap))
+  column_gap_spec <- .hc_heatmap_column_gap_spec(
+    hcobject = hcobject,
+    cols = base::colnames(mat_heatmap),
+    cluster_columns = cluster_columns,
+    gap_mm = 0.6
+  )
 
   enrich_mat1 <- list()
   enrich_count1 <- list()
@@ -3844,17 +4547,7 @@ replot_cluster_heatmap <- function(col_order = NULL,
   }
 
 
-  all_conditions <- NULL
-
-  # if(!is.null(column_anno_categorical) | !is.null(column_anno_numerical)){
-    for(setnum in 1:base::length(hcobject[["layers"]])){
-      all_conditions <- base::c(all_conditions, base::as.character(dplyr::pull(data[[base::paste0("set", setnum, "_anno")]], group)))
-    }
-    all_conditions <- base::table(all_conditions) %>%
-      base::as.data.frame() %>%
-      dplyr::filter(., all_conditions %in% base::colnames(mat_heatmap))
-    all_conditions <- all_conditions[base::match(base::colnames(mat_heatmap), base::as.character(all_conditions$all_conditions)),]
-    all_conditions <- base::paste0(all_conditions$all_conditions, "  [", all_conditions$Freq, "]")
+  all_conditions <- .hc_gfc_display_count_labels(hcobject, base::colnames(mat_heatmap))
 
     if(base::is.null(anno_list)){
         anno_list <- ComplexHeatmap::columnAnnotation(groups = ComplexHeatmap::anno_text(all_conditions))
@@ -3868,13 +4561,6 @@ replot_cluster_heatmap <- function(col_order = NULL,
 
 
 
-  Cairo::Cairo(file = paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/", file_name),
-        width = 50,
-        height = 30,
-        pointsize=11,
-        dpi=300,
-        type = "pdf",
-        units = "in")
   gfc_scale_limits <- suppressWarnings(base::as.numeric(hcobject[["integrated_output"]][["cluster_calc"]][["gfc_scale_limits"]]))
   if (base::length(gfc_scale_limits) == 1 && base::is.finite(gfc_scale_limits) && gfc_scale_limits > 0) {
     gfc_scale_limits <- c(-base::abs(gfc_scale_limits), base::abs(gfc_scale_limits))
@@ -3916,27 +4602,41 @@ replot_cluster_heatmap <- function(col_order = NULL,
     gfc_palette
   )
 
-  hm <- ComplexHeatmap::Heatmap(matrix = mat_heatmap,
-                                right_annotation = ha,
-                                col = gfc_col_fun,
-                                clustering_distance_rows = "euclidean",
-                                clustering_distance_columns = "euclidean",
-                                clustering_method_rows = "complete",
-                                clustering_method_columns = "complete",
-                                cluster_columns = cluster_columns,
-                                cluster_rows = cluster_rows,
-                                column_names_rot = 90,
-                                column_names_centered = FALSE,
-                                row_names_gp = grid::gpar(fontsize = 8),
-                                column_names_gp = grid::gpar(fontsize = 8),
-                                rect_gp = grid::gpar(col = "black"),
-                                heatmap_legend_param = list(
-                                  title = "",
-                                  at = gfc_scale_breaks,
-                                  labels = gfc_scale_labels,
-                                  labels_gp = grid::gpar(fontfamily = "mono"),
-                                  legend_height = grid::unit(3, "cm")
-                                ), column_km = k)
+  hm_args <- list(
+    matrix = mat_heatmap,
+    right_annotation = ha,
+    col = gfc_col_fun,
+    clustering_distance_rows = "euclidean",
+    clustering_distance_columns = "euclidean",
+    clustering_method_rows = "complete",
+    clustering_method_columns = "complete",
+    cluster_columns = cluster_columns,
+    cluster_rows = cluster_rows,
+    column_names_rot = 90,
+    column_labels = column_labels_display,
+    column_names_centered = FALSE,
+    row_names_gp = grid::gpar(fontsize = 8),
+    column_names_gp = grid::gpar(fontsize = 8),
+    rect_gp = grid::gpar(col = "black"),
+    heatmap_legend_param = list(
+      title = "",
+      at = gfc_scale_breaks,
+      labels = gfc_scale_labels,
+      title_gp = grid::gpar(fontsize = 7.6, fontface = "bold"),
+      labels_gp = grid::gpar(fontsize = 6.6),
+      legend_height = grid::unit(3, "cm")
+    ),
+    column_km = k
+  )
+  if (!base::is.null(column_gap_spec$column_split) &&
+      !base::is.null(column_gap_spec$column_gap) &&
+      (!base::is.numeric(k) || base::length(k) == 0 || base::all(k <= 0))) {
+    hm_args$column_split <- column_gap_spec$column_split
+    hm_args$column_gap <- column_gap_spec$column_gap
+    hm_args$cluster_column_slices <- FALSE
+    hm_args$column_title <- column_gap_spec$slice_titles
+  }
+  hm <- do.call(ComplexHeatmap::Heatmap, hm_args)
 
   if(base::is.null(anno_list)){
     anno_list <- hm
@@ -3945,12 +4645,30 @@ replot_cluster_heatmap <- function(col_order = NULL,
     anno_list <- ComplexHeatmap::add_heatmap(hm, anno_list, direction = c("vertical"))
   }
 
-  hm_w_lgd <- ComplexHeatmap::draw(object = anno_list, 
-                                   annotation_legend_list = lgd_list, 
-                                   merge_legends = TRUE,
-                                   padding = grid::unit(c(2, 2, 2, 30), "mm"))
+  export_draw_fun <- function() {
+    ComplexHeatmap::draw(
+      object = anno_list,
+      annotation_legend_list = lgd_list,
+      merge_legends = TRUE,
+      padding = grid::unit(c(2, 2, 2, 30), "mm")
+    )
+  }
+  .hc_export_single_page_plot(
+    file = paste0(
+      hcobject[["working_directory"]][["dir_output"]],
+      hcobject[["global_settings"]][["save_folder"]],
+      "/",
+      file_name
+    ),
+    width = 50,
+    height = 30,
+    pointsize = 11,
+    res = 300,
+    pdf_dpi = 300,
+    draw_fun = export_draw_fun
+  )
 
-  grDevices::dev.off()
+  hm_w_lgd <- export_draw_fun()
 
   print(hm_w_lgd)
   if(return_HM){

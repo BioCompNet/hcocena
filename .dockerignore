@@ -8,7 +8,11 @@ hcocena.BiocCheck
 *.zip
 *.7z
 *.tmp
+.tmp_llm_visual
+.tmp_llm_visual/
 .Rhistory
 Rplots.pdf
 *.RData
 *.html
+docker/project_data/*
+!docker/project_data/README.md

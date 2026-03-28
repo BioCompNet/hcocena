@@ -41,7 +41,9 @@ hc_plot_longitudinal_enrichment_meta_waves(
 \item{hc}{A \code{HCoCenaExperiment}.}
 
 \item{slot_name}{Satellite slot with \code{meta_cluster} results. Default:
-\code{"longitudinal_endotypes"}.}
+\code{"longitudinal_endotypes"}. Use a concrete slot name, a shared prefix
+such as \code{"longitudinal_endotypes"} to process matching suffixed slots, or
+\code{"all"} to run over every compatible step 2 slot in \code{hc@satellite}.}
 
 \item{databases}{Character vector of databases to visualize (e.g. \code{"Kegg"}).}
 
@@ -99,7 +101,10 @@ meta-cluster mean trajectories.}
 }
 \value{
 A list with \code{plots}, \code{top_terms}, \code{donor_trajectories},
-\code{mean_trajectories}, and \code{score_method_used}.
+\code{mean_trajectories}, and \code{score_method_used}. When multiple slots
+are processed, these top-level components are flattened with slot-prefixed
+names for convenient iteration, and nested per-slot outputs are also returned
+in \code{results_by_slot}, together with \code{slot_info}.
 }
 \description{
 Creates one plot per enrichment database. For each module, the top \code{x} terms

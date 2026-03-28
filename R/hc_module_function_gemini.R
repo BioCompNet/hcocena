@@ -1,4 +1,4 @@
-#' AI-assisted module function summary via Gemini, ChatGPT, or vLLM
+#' AI-assisted module function summary via Gemini, Claude, ChatGPT, or vLLM
 #'
 #' Uses a large language model API to summarize the likely overarching
 #' biological function of a module or free gene set. This is an AI-assisted
@@ -30,14 +30,17 @@
 #' @param label Optional label used for storing the result. Defaults to the
 #'   module name or `"custom_geneset"`. Can only be used for a single module or
 #'   a free gene set.
-#' @param llm LLM provider. Supported values are `"gemini"`, `"openai"`,
-#'   `"chatgpt"` (alias for `"openai"`), or `"vllm"` for a local
-#'   OpenAI-compatible vLLM server.
+#' @param llm LLM provider. Supported values are `"gemini"`, `"claude"`,
+#'   `"anthropic"` (alias for `"claude"`), `"openai"`, `"chatgpt"` (alias for
+#'   `"openai"`), or `"vllm"` for a local OpenAI-compatible vLLM server.
 #' @param api_key API key for the selected provider. If omitted, the function
-#'   uses `GEMINI_API_KEY` for Gemini, `OPENAI_API_KEY` for OpenAI, and
-#'   `VLLM_API_KEY` for vLLM. For local vLLM, the fallback is `"EMPTY"`.
+#'   uses `GEMINI_API_KEY` for Gemini, `ANTHROPIC_API_KEY` for Claude,
+#'   `OPENAI_API_KEY` for OpenAI, and `VLLM_API_KEY` for vLLM. For local vLLM,
+#'   the fallback is `"EMPTY"`.
 #' @param gemini_model Optional Gemini model code. Only used when
 #'   `llm = "gemini"`. Defaults to `"gemini-2.5-pro"`.
+#' @param claude_model Optional Claude model code. Only used when
+#'   `llm = "claude"`. Defaults to `"claude-sonnet-4-6"`.
 #' @param vllm_model Optional vLLM model code. Only used when `llm = "vllm"`.
 #'   Defaults to `"Qwen/Qwen2.5-VL-32B-Instruct"`.
 #' @param vllm_base_url Base URL for the local OpenAI-compatible vLLM server.
@@ -86,9 +89,10 @@ hc_module_function_llm <- function(hc = NULL,
                                    context = NULL,
                                    biological_context = NULL,
                                    label = NULL,
-                                   llm = c("gemini", "openai", "chatgpt", "vllm"),
+                                   llm = c("gemini", "claude", "openai", "chatgpt", "vllm"),
                                    api_key = NULL,
                                    gemini_model = NULL,
+                                   claude_model = NULL,
                                    vllm_model = NULL,
                                    vllm_base_url = NULL,
                                    model = NULL,
@@ -114,17 +118,23 @@ hc_module_function_llm <- function(hc = NULL,
   }
 
   llm <- base::tolower(base::as.character(llm[[1]]))
-  if (!(llm %in% c("gemini", "openai", "chatgpt", "vllm"))) {
-    stop("`llm` must be one of `gemini`, `openai`, `chatgpt`, or `vllm`.")
+  if (!(llm %in% c("gemini", "claude", "anthropic", "openai", "chatgpt", "vllm"))) {
+    stop("`llm` must be one of `gemini`, `claude`, `anthropic`, `openai`, `chatgpt`, or `vllm`.")
   }
   if (llm == "chatgpt") {
     llm <- "openai"
+  } else if (llm == "anthropic") {
+    llm <- "claude"
   }
 
   if (llm == "gemini" &&
       !base::is.null(gemini_model) &&
       base::nzchar(base::as.character(gemini_model[[1]]))) {
     model <- base::as.character(gemini_model[[1]])
+  } else if (llm == "claude" &&
+             !base::is.null(claude_model) &&
+             base::nzchar(base::as.character(claude_model[[1]]))) {
+    model <- base::as.character(claude_model[[1]])
   } else if (llm == "vllm" &&
              !base::is.null(vllm_model) &&
              base::nzchar(base::as.character(vllm_model[[1]]))) {
@@ -132,6 +142,8 @@ hc_module_function_llm <- function(hc = NULL,
   } else if (base::is.null(model) || !base::nzchar(base::as.character(model[[1]]))) {
     model <- if (llm == "gemini") {
       "gemini-2.5-pro"
+    } else if (llm == "claude") {
+      "claude-sonnet-4-6"
     } else if (llm == "vllm") {
       "Qwen/Qwen2.5-VL-32B-Instruct"
     } else {
@@ -417,6 +429,15 @@ hc_module_function_vllm <- function(...) {
       temperature = temperature,
       timeout_sec = timeout_sec
     )
+  } else if (llm == "claude") {
+    .hc_llm_request_claude(
+      api_key = api_key,
+      model = model,
+      prompt = prompt,
+      system_instruction = system_instruction,
+      temperature = temperature,
+      timeout_sec = timeout_sec
+    )
   } else if (llm == "vllm") {
     .hc_llm_request_vllm(
       api_key = api_key,
@@ -544,6 +565,15 @@ hc_module_function_vllm <- function(...) {
       prompt = prompt,
       system_instruction = system_instruction,
       response_schema = response_schema,
+      temperature = temperature,
+      timeout_sec = timeout_sec
+    )
+  } else if (llm == "claude") {
+    .hc_llm_request_claude(
+      api_key = api_key,
+      model = model,
+      prompt = prompt,
+      system_instruction = system_instruction,
       temperature = temperature,
       timeout_sec = timeout_sec
     )
@@ -719,6 +749,8 @@ hc_module_function_vllm <- function(...) {
   if (base::is.null(api_key) || !base::nzchar(base::as.character(api_key[[1]]))) {
     api_key <- if (llm == "gemini") {
       Sys.getenv("GEMINI_API_KEY", unset = "")
+    } else if (llm == "claude") {
+      Sys.getenv("ANTHROPIC_API_KEY", unset = "")
     } else if (llm == "vllm") {
       Sys.getenv("VLLM_API_KEY", unset = "EMPTY")
     } else {
@@ -731,6 +763,8 @@ hc_module_function_vllm <- function(...) {
   if (!base::nzchar(api_key)) {
     if (llm == "gemini") {
       stop("No Gemini API key found. Pass `api_key` or set `GEMINI_API_KEY`.")
+    } else if (llm == "claude") {
+      stop("No Claude API key found. Pass `api_key` or set `ANTHROPIC_API_KEY`.")
     } else if (llm == "vllm") {
       return("EMPTY")
     }
@@ -918,6 +952,48 @@ hc_module_function_vllm <- function(...) {
   result_text <- .hc_llm_strip_json_fences(result_text)
   if (!base::nzchar(result_text)) {
     stop("OpenAI response contained no text payload.", call. = FALSE)
+  }
+
+  list(
+    result_text = result_text,
+    raw_response_text = result_text
+  )
+}
+
+.hc_llm_request_claude <- function(api_key,
+                                   model,
+                                   prompt,
+                                   system_instruction,
+                                   temperature,
+                                   timeout_sec) {
+  .hc_llm_require_ellmer()
+
+  chat <- tryCatch(
+    ellmer::chat_anthropic(
+      system_prompt = system_instruction,
+      base_url = "https://api.anthropic.com/v1",
+      credentials = .hc_llm_api_key_credentials(api_key),
+      model = model,
+      api_args = list(
+        temperature = temperature
+      ),
+      echo = "none"
+    ),
+    error = function(e) {
+      stop("Could not initialize Claude chat via ellmer: ", base::conditionMessage(e), call. = FALSE)
+    }
+  )
+
+  result_text <- tryCatch(
+    .hc_llm_with_ellmer_timeout(timeout_sec, chat$chat(prompt)),
+    error = function(e) {
+      stop("Claude request failed via ellmer: ", base::conditionMessage(e), call. = FALSE)
+    }
+  )
+
+  result_text <- .hc_llm_strip_json_fences(result_text)
+  if (!base::nzchar(result_text)) {
+    stop("Claude response contained no text payload.", call. = FALSE)
   }
 
   list(

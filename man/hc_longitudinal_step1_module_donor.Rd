@@ -29,8 +29,8 @@ hc_longitudinal_step1_module_donor(
 
 \item{time_col}{Annotation column containing timepoint labels.}
 
-\item{layer}{Optional layer index, layer id, or layer name. \code{NULL} uses the
-first available layer.}
+\item{layer}{Optional layer index, layer id, layer name, or \code{"all"}.
+\code{NULL} uses the first available layer.}
 
 \item{time_levels}{Required explicit timepoint order vector.}
 
@@ -44,9 +44,8 @@ for more stable results.}
 \code{kml} clustering.}
 
 \item{impute_method}{Missing-value method passed to \code{mice}. Use \code{"rfcont"}
-to match the previous workflow most closely. For \code{"rfcont"}, attach
-\code{CALIBERrfimpute} first in the current session via
-\code{library(CALIBERrfimpute)}.}
+to match the previous workflow most closely. For \code{"rfcont"},
+\code{CALIBERrfimpute} must be installed; it is loaded automatically.}
 
 \item{ntree}{Number of trees for \code{rfcont} imputation.}
 
@@ -63,7 +62,9 @@ the \code{kml} score tables.}
 \item{output_slot}{Satellite slot for endotype outputs.}
 }
 \value{
-A list with updated \code{hc}, step plots, and diagnostics.
+A list with updated \code{hc}, step plots, and diagnostics. When
+\code{layer = "all"} (or multiple layers are supplied), returns per-layer plot
+and diagnostic lists keyed by layer id.
 }
 \description{
 Computes longitudinal module means, exact \code{kml} module/donor clustering, and

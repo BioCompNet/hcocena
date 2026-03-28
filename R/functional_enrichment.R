@@ -15,12 +15,14 @@
 #' @param heatmap_side Position of the hCoCena heatmap in the combined output.
 #'  Choose one of "left" (default) or "right".
 #' @param heatmap_cluster_rows A Boolean whether or not to cluster rows in the hCoCena heatmap.
-#' @param heatmap_cluster_columns A Boolean whether or not to cluster columns in the hCoCena heatmap.
+#' @param cluster_columns A Boolean whether or not to cluster columns in the hCoCena heatmap.
+#' @param heatmap_cluster_columns Legacy alias for `cluster_columns`.
 #' @param heatmap_show_row_dend A Boolean whether to show the row dendrogram when `heatmap_cluster_rows = TRUE`.
-#' @param heatmap_show_column_dend A Boolean whether to show the column dendrogram when `heatmap_cluster_columns = TRUE`.
-#' @param heatmap_col_order Optional character vector overriding the hCoCena
+#' @param heatmap_show_column_dend A Boolean whether to show the column dendrogram when `cluster_columns = TRUE`.
+#' @param col_order Optional character vector overriding the hCoCena
 #'   heatmap column order for this enrichment plot only. If `NULL` (default),
 #'   the column order from the main module heatmap is reused when available.
+#' @param heatmap_col_order Legacy alias for `col_order`.
 #' @param heatmap_order Optional character vector specifying module order in the hCoCena heatmap.
 #'  Entries can be module colors (e.g. "turquoise") or module labels from the main heatmap
 #'  (e.g. "M1", "M2", ...). Modules not listed are appended afterwards.
@@ -86,9 +88,11 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                                   qval = 0.05,
                                   heatmap_side = "left",
                                   heatmap_cluster_rows = FALSE,
-                                  heatmap_cluster_columns = FALSE,
+                                  cluster_columns = FALSE,
+                                  heatmap_cluster_columns = NULL,
                                   heatmap_show_row_dend = FALSE,
                                   heatmap_show_column_dend = FALSE,
+                                  col_order = NULL,
                                   heatmap_col_order = NULL,
                                   heatmap_order = NULL,
                                   heatmap_module_label_mode = "same",
@@ -194,8 +198,15 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   if (!base::is.logical(heatmap_cluster_rows) || base::length(heatmap_cluster_rows) != 1) {
     stop("`heatmap_cluster_rows` must be TRUE or FALSE.")
   }
-  if (!base::is.logical(heatmap_cluster_columns) || base::length(heatmap_cluster_columns) != 1) {
-    stop("`heatmap_cluster_columns` must be TRUE or FALSE.")
+  cluster_columns <- .hc_resolve_cluster_columns_alias(
+    cluster_columns = cluster_columns,
+    heatmap_cluster_columns = heatmap_cluster_columns,
+    cluster_columns_missing = missing(cluster_columns),
+    heatmap_cluster_columns_missing = missing(heatmap_cluster_columns),
+    context = "functional_enrichment()"
+  )
+  if (!base::is.logical(cluster_columns) || base::length(cluster_columns) != 1) {
+    stop("`cluster_columns` must be TRUE or FALSE.")
   }
   if (!base::is.logical(heatmap_show_row_dend) || base::length(heatmap_show_row_dend) != 1) {
     stop("`heatmap_show_row_dend` must be TRUE or FALSE.")
@@ -203,9 +214,13 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   if (!base::is.logical(heatmap_show_column_dend) || base::length(heatmap_show_column_dend) != 1) {
     stop("`heatmap_show_column_dend` must be TRUE or FALSE.")
   }
-  if (!base::is.null(heatmap_col_order)) {
-    heatmap_col_order <- base::as.character(heatmap_col_order)
-  }
+  col_order <- .hc_resolve_col_order_alias(
+    col_order = col_order,
+    heatmap_col_order = heatmap_col_order,
+    col_order_missing = missing(col_order),
+    heatmap_col_order_missing = missing(heatmap_col_order),
+    context = "functional_enrichment()"
+  )
   if (!base::is.logical(heatmap_show_gene_counts) || base::length(heatmap_show_gene_counts) != 1) {
     stop("`heatmap_show_gene_counts` must be TRUE or FALSE.")
   }
@@ -696,7 +711,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   # Keep condition order from the previously drawn main heatmap when available.
   selected_col_order <- .hc_select_heatmap_col_order(
     available_cols = base::colnames(m),
-    plot_order = heatmap_col_order,
+    plot_order = col_order,
     main_order = heatmap_info$col_order,
     context = "functional enrichment heatmap"
   )
@@ -1025,6 +1040,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   }
 
   module_color_map <- stats::setNames(cluster_order, cluster_order)
+  shared_heatmap_line_lwd <- 0.5
   module_box_anno <- ComplexHeatmap::anno_simple(
     cluster_order,
     col = module_color_map,
@@ -1032,7 +1048,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     pt_gp = grid::gpar(col = "white", fontsize = label_fontsize, fontface = "bold"),
     pt_size = grid::unit(module_label_pt_size, "snpc"),
     simple_anno_size = grid::unit(module_box_width_cm, "cm"),
-    gp = grid::gpar(col = "black"),
+    gp = grid::gpar(col = "black", lwd = shared_heatmap_line_lwd),
     which = "row"
   )
 
@@ -1085,7 +1101,13 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   )
 
   # Keep module-expression tiles square-like in the combined enrichment figure.
-  hc_body_w_mm <- base::max(18, n_hc_cols * hc_cell_mm)
+  column_gap_spec <- .hc_heatmap_column_gap_spec(
+    hcobject = hcobject,
+    cols = base::colnames(heatmap_mat),
+    cluster_columns = cluster_columns,
+    gap_mm = 0.6 * overall_plot_scale
+  )
+  hc_body_w_mm <- base::max(18, (n_hc_cols * hc_cell_mm) + column_gap_spec$total_gap_mm)
   hc_body_h_mm <- base::max(20, n_hc_rows * hc_cell_mm)
   heatmap_column_fontsize <- if (base::is.null(heatmap_column_label_fontsize)) {
     font_axis
@@ -1097,17 +1119,18 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     seq(gfc_scale_limits[1], gfc_scale_limits[2], length.out = base::length(gfc_palette)),
     gfc_palette
   )
+  heatmap_column_labels_display <- .hc_gfc_display_col_labels(hcobject, base::colnames(heatmap_mat))
 
   gfc_legend_param <- list(
     title = "GFC",
     at = gfc_scale_ticks$breaks,
     labels = gfc_scale_ticks$labels,
-    labels_gp = grid::gpar(fontfamily = "mono")
+    title_gp = grid::gpar(fontsize = 7.6 * overall_plot_scale, fontface = "bold"),
+    labels_gp = grid::gpar(fontsize = 6.6 * overall_plot_scale)
   )
   if (!base::is.null(legend_fontsize)) {
     gfc_legend_param$labels_gp <- grid::gpar(
-      fontsize = base::as.numeric(legend_fontsize),
-      fontfamily = "mono"
+      fontsize = base::as.numeric(legend_fontsize)
     )
     gfc_legend_param$title_gp <- grid::gpar(
       fontsize = base::as.numeric(legend_fontsize) + 0.8,
@@ -1115,8 +1138,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     )
   }
 
-  hc_ht <- ComplexHeatmap::Heatmap(
-    heatmap_mat,
+  hc_ht_args <- list(
+    matrix = heatmap_mat,
     name = "GFC",
     right_annotation = right_anno,
     col = gfc_col_fun,
@@ -1125,20 +1148,27 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     clustering_method_rows = "complete",
     clustering_method_columns = "complete",
     cluster_rows = heatmap_cluster_rows,
-    cluster_columns = heatmap_cluster_columns,
+    cluster_columns = cluster_columns,
     show_row_dend = heatmap_cluster_rows && heatmap_show_row_dend,
-    show_column_dend = heatmap_cluster_columns && heatmap_show_column_dend,
+    show_column_dend = cluster_columns && heatmap_show_column_dend,
     column_names_rot = 90,
+    column_labels = heatmap_column_labels_display,
     show_row_names = FALSE,
     row_names_side = "right",
     row_names_gp = grid::gpar(fontsize = font_axis),
     column_names_gp = grid::gpar(fontsize = heatmap_column_fontsize),
     width = grid::unit(hc_body_w_mm, "mm"),
     height = grid::unit(hc_body_h_mm, "mm"),
-    rect_gp = grid::gpar(col = "black"),
+    rect_gp = grid::gpar(col = "black", lwd = shared_heatmap_line_lwd),
     show_heatmap_legend = TRUE,
     heatmap_legend_param = gfc_legend_param
   )
+  hc_ht_args <- .hc_heatmap_add_column_gap_args(
+    hc_ht_args,
+    column_gap_spec = column_gap_spec,
+    title_gp = grid::gpar(fontsize = heatmap_column_fontsize, fontface = "bold")
+  )
+  hc_ht <- do.call(ComplexHeatmap::Heatmap, hc_ht_args)
 
   build_enrichment_export <- function(res_list,
                                       all_summary_tbl,
@@ -1619,7 +1649,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         show_heatmap_legend = FALSE,
         cluster_rows = FALSE,
         cluster_columns = FALSE,
-        border = TRUE,
+        border = FALSE,
         show_row_names = FALSE,
         show_column_names = TRUE,
         column_names_rot = 90,
@@ -1681,7 +1711,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       } else {
         enrichment_ht + hc_ht
       }
-      panel_border_gp <- grid::gpar(col = "black", fill = NA, lwd = 1)
+      panel_border_gp <- grid::gpar(col = "black", fill = NA, lwd = shared_heatmap_line_lwd)
       sig_legend_width_mm <- grid::convertWidth(
         grid::grobWidth(sig_legend@grob),
         "mm",
@@ -1710,7 +1740,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           show_heatmap_legend = TRUE,
           ...
         )
-        border_targets <- base::unique(base::c("GFC", "enrichment", panel_title_target))
+        border_targets <- base::unique(base::c("enrichment", panel_title_target))
         for (nm in border_targets) {
           try(
             ComplexHeatmap::decorate_heatmap_body(nm, {
@@ -1782,7 +1812,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         )
       )
 
-      Cairo::CairoPDF(
+      panel_export_files <- .hc_export_single_page_plot(
         file = base::paste0(
           hcobject[["working_directory"]][["dir_output"]],
           hcobject[["global_settings"]][["save_folder"]],
@@ -1794,16 +1824,18 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         ),
         width = resolve_pdf_device_dim(pdf_width_input, pdf_width),
         height = resolve_pdf_device_dim(pdf_height_input, pdf_height),
-        pointsize = pdf_pointsize
+        pointsize = pdf_pointsize,
+        res = 300,
+        draw_fun = function() {
+          draw_with_body_borders(
+            cp,
+            panel_title = base::paste0(i_title, " enrichment"),
+            panel_title_target = "enrichment",
+            panel_title_slice = 1L,
+            padding = draw_padding
+          )
+        }
       )
-      draw_with_body_borders(
-        cp,
-        panel_title = base::paste0(i_title, " enrichment"),
-        panel_title_target = "enrichment",
-        panel_title_slice = 1L,
-        padding = draw_padding
-      )
-      grDevices::dev.off()
       cp_w_lgd <- draw_with_body_borders(
         cp,
         panel_title = base::paste0(i_title, " enrichment"),
@@ -1849,6 +1881,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       output[["all_enrichments"]] <- all_summary
       output[["selected_enrichments"]] <- selected_summary
       output[["significant_enrichments"]] <- significant_summary
+      output[["files"]] <- panel_export_files
       hcobject[["satellite_outputs"]][["enrichments"]][[base::paste0("top_", i)]] <<- output
     } else {
       print(base::paste0("invalid database: ", i))
@@ -2047,6 +2080,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       term_db_levels <- base::as.character(term_db_map[base::colnames(enrich_mat_all)])
       db_order <- base::unique(base::as.character(combined_plot_df$database))
       term_db_levels <- base::factor(term_db_levels, levels = db_order)
+      panel_border_slices_all <- base::seq_len(base::nlevels(term_db_levels))
       all_db_title_slice <- base::max(1L, base::as.integer(base::ceiling(base::length(base::levels(term_db_levels)) / 2)))
 
       enrichment_ht_all <- ComplexHeatmap::Heatmap(
@@ -2058,6 +2092,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         cluster_rows = FALSE,
         cluster_columns = FALSE,
         border = TRUE,
+        border_gp = grid::gpar(col = "black", lwd = shared_heatmap_line_lwd),
         show_row_names = FALSE,
         show_column_names = TRUE,
         column_names_rot = 90,
@@ -2121,7 +2156,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
       } else {
         enrichment_ht_all + hc_ht
       }
-      panel_border_gp_all <- grid::gpar(col = "black", fill = NA, lwd = 1)
+      panel_border_gp_all <- grid::gpar(col = "black", fill = NA, lwd = shared_heatmap_line_lwd)
       sig_legend_width_mm_all <- grid::convertWidth(
         grid::grobWidth(sig_legend_all@grob),
         "mm",
@@ -2138,6 +2173,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                                              panel_title = NULL,
                                              panel_title_target = "enrichment_all",
                                              panel_title_slice = 1L,
+                                             panel_border_slices = NULL,
                                              ...) {
         drawn_ht <- ComplexHeatmap::draw(
           ht_obj,
@@ -2150,20 +2186,54 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           show_heatmap_legend = TRUE,
           ...
         )
-        border_targets <- base::unique(base::c("GFC", "enrichment_all", panel_title_target))
+        border_targets <- if (base::is.null(panel_border_slices) || base::length(panel_border_slices) == 0) {
+          base::unique(base::c("enrichment_all", panel_title_target))
+        } else {
+          base::character(0)
+        }
+        slices_use <- panel_border_slices
+        if (base::is.null(slices_use) || base::length(slices_use) == 0) {
+          slices_use <- 1L
+        }
+        slices_use <- suppressWarnings(base::as.integer(slices_use))
+        slices_use <- base::unique(slices_use[base::is.finite(slices_use) & slices_use >= 1L])
+        if (base::length(slices_use) == 0) {
+          slices_use <- 1L
+        }
+        first_slice_use <- base::min(slices_use)
+        last_slice_use <- base::max(slices_use)
         for (nm in border_targets) {
-          try(
-            ComplexHeatmap::decorate_heatmap_body(nm, {
-              grid::grid.rect(
-                x = grid::unit(0.5, "npc"),
-                y = grid::unit(0.5, "npc"),
-                width = grid::unit(0.996, "npc"),
-                height = grid::unit(0.996, "npc"),
-                gp = panel_border_gp_all
-              )
-            }),
-            silent = TRUE
-          )
+          for (slice_idx in slices_use) {
+            try(
+              ComplexHeatmap::decorate_heatmap_body(nm, slice = slice_idx, {
+                grid::grid.lines(
+                  x = base::c(grid::unit(0, "npc"), grid::unit(1, "npc")),
+                  y = base::c(grid::unit(1, "npc"), grid::unit(1, "npc")),
+                  gp = panel_border_gp_all
+                )
+                grid::grid.lines(
+                  x = base::c(grid::unit(0, "npc"), grid::unit(1, "npc")),
+                  y = base::c(grid::unit(0, "npc"), grid::unit(0, "npc")),
+                  gp = panel_border_gp_all
+                )
+                if (identical(slice_idx, first_slice_use)) {
+                  grid::grid.lines(
+                    x = base::c(grid::unit(0, "npc"), grid::unit(0, "npc")),
+                    y = base::c(grid::unit(0, "npc"), grid::unit(1, "npc")),
+                    gp = panel_border_gp_all
+                  )
+                }
+                if (identical(slice_idx, last_slice_use)) {
+                  grid::grid.lines(
+                    x = base::c(grid::unit(1, "npc"), grid::unit(1, "npc")),
+                    y = base::c(grid::unit(0, "npc"), grid::unit(1, "npc")),
+                    gp = panel_border_gp_all
+                  )
+                }
+              }),
+              silent = TRUE
+            )
+          }
         }
         if (!base::is.null(panel_title) &&
             base::is.character(panel_title) &&
@@ -2222,7 +2292,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         )
       )
 
-      Cairo::CairoPDF(
+      all_db_export_files <- .hc_export_single_page_plot(
         file = base::paste0(
           hcobject[["working_directory"]][["dir_output"]],
           hcobject[["global_settings"]][["save_folder"]],
@@ -2232,21 +2302,25 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         ),
         width = resolve_pdf_device_dim(pdf_width_input, pdf_width_all),
         height = resolve_pdf_device_dim(pdf_height_input, pdf_height_all),
-        pointsize = pdf_pointsize
+        pointsize = pdf_pointsize,
+        res = 300,
+        draw_fun = function() {
+          draw_with_body_borders_all(
+            cp_all,
+            panel_title = "Combined enrichment (all DBs)",
+            panel_title_target = "enrichment_all",
+            panel_title_slice = all_db_title_slice,
+            panel_border_slices = panel_border_slices_all,
+            padding = draw_padding_all
+          )
+        }
       )
-      draw_with_body_borders_all(
-        cp_all,
-        panel_title = "Combined enrichment (all DBs)",
-        panel_title_target = "enrichment_all",
-        panel_title_slice = all_db_title_slice,
-        padding = draw_padding_all
-      )
-      grDevices::dev.off()
       cp_all_w_lgd <- draw_with_body_borders_all(
         cp_all,
         panel_title = "Combined enrichment (all DBs)",
         panel_title_target = "enrichment_all",
         panel_title_slice = all_db_title_slice,
+        panel_border_slices = panel_border_slices_all,
         padding = draw_padding_all
       )
 
@@ -2258,7 +2332,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           panel_objects_stored = TRUE,
           panel_storage_mode = store_panel_objects,
           module_label_map = module_label_map_current,
-          result = combined_selected_summary
+          result = combined_selected_summary,
+          files = all_db_export_files
         )
       } else {
         hcobject[["satellite_outputs"]][["enrichments"]][["top_all_dbs"]] <<- list(
@@ -2268,7 +2343,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           panel_objects_stored = FALSE,
           panel_storage_mode = store_panel_objects,
           module_label_map = module_label_map_current,
-          result = combined_selected_summary
+          result = combined_selected_summary,
+          files = all_db_export_files
         )
       }
 
@@ -2327,7 +2403,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         show_heatmap_legend = FALSE,
         cluster_rows = FALSE,
         cluster_columns = FALSE,
-        border = TRUE,
+        border = FALSE,
         show_row_names = FALSE,
         show_column_names = TRUE,
         column_names_rot = 90,
@@ -2421,7 +2497,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         )
       )
 
-      Cairo::CairoPDF(
+      all_db_mixed_export_files <- .hc_export_single_page_plot(
         file = base::paste0(
           hcobject[["working_directory"]][["dir_output"]],
           hcobject[["global_settings"]][["save_folder"]],
@@ -2431,16 +2507,18 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         ),
         width = resolve_pdf_device_dim(pdf_width_input, pdf_width_all_mixed),
         height = resolve_pdf_device_dim(pdf_height_input, pdf_height_all_mixed),
-        pointsize = pdf_pointsize
+        pointsize = pdf_pointsize,
+        res = 300,
+        draw_fun = function() {
+          draw_with_body_borders_all(
+            cp_all_mixed,
+            panel_title = "Combined enrichment (all DBs, mixed)",
+            panel_title_target = "enrichment_all_mixed",
+            panel_title_slice = 1L,
+            padding = draw_padding_all
+          )
+        }
       )
-      draw_with_body_borders_all(
-        cp_all_mixed,
-        panel_title = "Combined enrichment (all DBs, mixed)",
-        panel_title_target = "enrichment_all_mixed",
-        panel_title_slice = 1L,
-        padding = draw_padding_all
-      )
-      grDevices::dev.off()
       cp_all_mixed_w_lgd <- draw_with_body_borders_all(
         cp_all_mixed,
         panel_title = "Combined enrichment (all DBs, mixed)",
@@ -2457,7 +2535,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           panel_objects_stored = TRUE,
           panel_storage_mode = store_panel_objects,
           module_label_map = module_label_map_current,
-          result = combined_selected_summary
+          result = combined_selected_summary,
+          files = all_db_mixed_export_files
         )
       } else {
         hcobject[["satellite_outputs"]][["enrichments"]][["top_all_dbs_mixed"]] <<- list(
@@ -2467,7 +2546,8 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           panel_objects_stored = FALSE,
           panel_storage_mode = store_panel_objects,
           module_label_map = module_label_map_current,
-          result = combined_selected_summary
+          result = combined_selected_summary,
+          files = all_db_mixed_export_files
         )
       }
     }
@@ -2514,9 +2594,11 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                                   qval = 0.05,
                                   heatmap_side = "left",
                                   heatmap_cluster_rows = FALSE,
-                                  heatmap_cluster_columns = FALSE,
+                                  cluster_columns = FALSE,
+                                  heatmap_cluster_columns = NULL,
                                   heatmap_show_row_dend = FALSE,
                                   heatmap_show_column_dend = FALSE,
+                                  col_order = NULL,
                                   heatmap_col_order = NULL,
                                   heatmap_order = NULL,
                                   heatmap_module_label_mode = "same",
@@ -2550,9 +2632,11 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     qval = qval,
     heatmap_side = heatmap_side,
     heatmap_cluster_rows = heatmap_cluster_rows,
+    cluster_columns = cluster_columns,
     heatmap_cluster_columns = heatmap_cluster_columns,
     heatmap_show_row_dend = heatmap_show_row_dend,
     heatmap_show_column_dend = heatmap_show_column_dend,
+    col_order = col_order,
     heatmap_col_order = heatmap_col_order,
     heatmap_order = heatmap_order,
     heatmap_module_label_mode = heatmap_module_label_mode,

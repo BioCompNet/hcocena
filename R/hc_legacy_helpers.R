@@ -254,7 +254,7 @@ hcobject <- NULL
   out <- .hc_default_object()
   out[["working_directory"]] <- .hc_row_to_list(hc@config@paths)
   out[["global_settings"]] <- .hc_row_to_list(hc@config@global)
-  out[["integrated_output"]][["GFC_all_layers"]] <- base::as.data.frame(hc@integration@gfc)
+  out[["integrated_output"]][["GFC_all_layers"]] <- .hc_to_base_data_frame_preserve_names(hc@integration@gfc)
   out[["integrated_output"]][["cluster_calc"]] <- as.list(hc@integration@cluster)
   out[["satellite_outputs"]] <- as.list(hc@satellite)
 
@@ -263,6 +263,16 @@ hcobject <- NULL
     layer_ids <- base::names(exps)
     if (is.null(layer_ids)) {
       layer_ids <- base::paste0("set", base::seq_along(exps))
+    }
+    out[["layers_names"]] <- layer_ids
+    if (base::nrow(hc@config@layer) > 0 &&
+        base::all(c("layer_id", "layer_name") %in% base::colnames(hc@config@layer))) {
+      cfg_ids <- base::as.character(hc@config@layer$layer_id)
+      cfg_names <- base::as.character(hc@config@layer$layer_name)
+      match_idx <- base::match(layer_ids, cfg_ids)
+      if (base::all(!base::is.na(match_idx))) {
+        out[["layers_names"]] <- cfg_names[match_idx]
+      }
     }
     out[["layers"]] <- stats::setNames(
       base::replicate(base::length(layer_ids), base::character(0), simplify = FALSE),
@@ -274,10 +284,29 @@ hcobject <- NULL
     }
   } else if (base::nrow(hc@config@layer) > 0 && "layer_id" %in% base::colnames(hc@config@layer)) {
     layer_ids <- base::as.character(hc@config@layer$layer_id)
+    if ("layer_name" %in% base::colnames(hc@config@layer)) {
+      out[["layers_names"]] <- base::as.character(hc@config@layer$layer_name)
+    } else {
+      out[["layers_names"]] <- layer_ids
+    }
     out[["layers"]] <- stats::setNames(
       base::replicate(base::length(layer_ids), base::character(0), simplify = FALSE),
       layer_ids
     )
+  }
+
+  if (base::length(hc@layer_results) > 0) {
+    for (nm in base::names(hc@layer_results)) {
+      lr <- hc@layer_results[[nm]]
+      if (inherits(lr, "HCoCenaLayerResult")) {
+        out[["layer_specific_outputs"]][[nm]] <- list(
+          part1 = as.list(lr@part1),
+          part2 = as.list(lr@part2)
+        )
+      } else {
+        out[["layer_specific_outputs"]][[nm]] <- as.list(lr)
+      }
+    }
   }
 
   out

@@ -225,6 +225,163 @@
   map
 }
 
+#' Natural ordering for module labels including split suffixes
+#' @noRd
+.hc_natural_module_order <- function(modules) {
+  modules <- base::unique(base::as.character(modules))
+  modules <- modules[!base::is.na(modules) & base::nzchar(base::trimws(modules))]
+  if (base::length(modules) <= 1) {
+    return(modules)
+  }
+
+  parsed <- lapply(modules, function(x) {
+    x <- base::as.character(x[[1]])
+    prefix <- if (base::grepl("[0-9]", x)) {
+      base::sub("^([^0-9]*).*", "\\1", x, perl = TRUE)
+    } else {
+      x
+    }
+    number_hits <- regmatches(x, gregexpr("[0-9]+", x, perl = TRUE))[[1]]
+    numbers <- suppressWarnings(base::as.integer(number_hits))
+    numbers <- numbers[base::is.finite(numbers)]
+    suffix <- base::tolower(gsub("[0-9]+", "", x, perl = TRUE))
+    list(
+      prefix = base::tolower(prefix),
+      numbers = numbers,
+      suffix = suffix
+    )
+  })
+
+  max_numbers <- base::max(vapply(parsed, function(x) base::length(x$numbers), integer(1)))
+  num_mat <- if (max_numbers > 0) {
+    base::matrix(-1, nrow = base::length(parsed), ncol = max_numbers)
+  } else {
+    NULL
+  }
+  if (!base::is.null(num_mat)) {
+    for (i in base::seq_along(parsed)) {
+      nums <- parsed[[i]]$numbers
+      if (base::length(nums) > 0) {
+        num_mat[i, base::seq_along(nums)] <- nums
+      }
+    }
+  }
+
+  order_args <- list(
+    base::vapply(parsed, function(x) x$prefix, FUN.VALUE = base::character(1))
+  )
+  if (!base::is.null(num_mat)) {
+    for (j in base::seq_len(base::ncol(num_mat))) {
+      order_args[[base::length(order_args) + 1L]] <- num_mat[, j]
+    }
+  }
+  order_args[[base::length(order_args) + 1L]] <- base::vapply(parsed, function(x) x$suffix, FUN.VALUE = base::character(1))
+  order_args[[base::length(order_args) + 1L]] <- base::tolower(modules)
+  order_args[[base::length(order_args) + 1L]] <- modules
+
+  ord <- base::do.call(base::order, order_args)
+  modules[ord]
+}
+
+#' Reorder module lookup by natural module order
+#' @noRd
+.hc_reorder_module_lookup_natural <- function(module_lookup) {
+  if (base::is.null(module_lookup) || !base::is.data.frame(module_lookup) || base::nrow(module_lookup) == 0) {
+    return(module_lookup)
+  }
+  module_lookup <- base::as.data.frame(module_lookup, stringsAsFactors = FALSE)
+  if (!"module" %in% base::colnames(module_lookup)) {
+    return(module_lookup)
+  }
+  module_lookup$module <- base::as.character(module_lookup$module)
+  ord_levels <- .hc_natural_module_order(module_lookup$module)
+  ord <- base::match(ord_levels, module_lookup$module)
+  ord <- ord[!base::is.na(ord)]
+  module_lookup[ord, , drop = FALSE]
+}
+
+#' Check whether labels look like structured module ids
+#' @noRd
+.hc_is_structured_module_label <- function(x) {
+  x <- base::as.character(x)
+  !base::is.na(x) &
+    base::nzchar(base::trimws(x)) &
+    !.hc_is_color_token(x) &
+    base::grepl("^[A-Za-z]+[0-9]+(?:\\.[0-9]+)*$", x)
+}
+
+#' Normalize longitudinal module labels while preserving split suffixes
+#' @noRd
+.hc_normalize_longitudinal_module_labels <- function(module_labels,
+                                                     module_colors) {
+  module_labels <- base::as.character(module_labels)
+  module_colors <- base::as.character(module_colors)
+  label_ok <- .hc_is_structured_module_label(module_labels)
+  if (base::all(label_ok)) {
+    return(module_labels)
+  }
+
+  prefix <- "M"
+  if (base::any(label_ok)) {
+    pref_guess <- base::sub(
+      "^([A-Za-z]+)[0-9]+(?:\\.[0-9]+)*$",
+      "\\1",
+      module_labels[label_ok][[1]]
+    )
+    if (base::length(pref_guess) == 1 && base::nzchar(pref_guess)) {
+      prefix <- pref_guess
+    }
+  }
+
+  base::paste0(prefix, base::seq_along(module_colors))
+}
+
+#' Resolve module label map orientation for a given set of module colors
+#' @noRd
+.hc_resolve_module_label_map_for_colors <- function(label_map,
+                                                    module_colors = NULL) {
+  if (base::is.null(label_map) || base::length(label_map) == 0) {
+    return(NULL)
+  }
+
+  out <- base::as.character(label_map)
+  map_names <- base::names(label_map)
+  if (!base::is.null(map_names) && base::length(map_names) == base::length(out)) {
+    base::names(out) <- base::as.character(map_names)
+  }
+
+  if (base::is.null(module_colors) || base::length(module_colors) == 0 || base::is.null(base::names(out))) {
+    return(out)
+  }
+
+  module_colors <- base::as.character(module_colors)
+  missing_before <- base::setdiff(module_colors, base::names(out))
+  if (base::length(missing_before) > 0) {
+    inverse_map <- stats::setNames(base::names(out), base::as.character(out))
+    if (base::all(module_colors %in% base::names(inverse_map))) {
+      out <- inverse_map
+    }
+  }
+
+  out
+}
+
+#' Preserve module color order from cluster information
+#' @noRd
+.hc_module_colors_in_cluster_order <- function(cluster_info,
+                                               module_genes = NULL) {
+  if (!"color" %in% base::colnames(cluster_info)) {
+    stop("Cluster information must contain a `color` column.")
+  }
+
+  out <- base::unique(base::as.character(cluster_info$color))
+  out <- out[!base::is.na(out) & base::nzchar(base::trimws(out))]
+  if (!base::is.null(module_genes)) {
+    out <- out[out %in% base::names(module_genes)]
+  }
+  out
+}
+
 #' Align module labels/colors with observed enrichment tables
 #' @noRd
 .hc_harmonize_module_lookup_with_enrichment <- function(module_lookup,
@@ -1600,11 +1757,17 @@ hc_longitudinal_module_means <- function(hc,
   }
 
   module_genes <- .hc_module_gene_map(cluster_info = cluster_info)
-  module_colors <- base::names(module_genes)
+  module_colors <- .hc_module_colors_in_cluster_order(
+    cluster_info = cluster_info,
+    module_genes = module_genes
+  )
 
   label_map <- cluster_obj[["module_label_map"]]
   label_map <- if (is.null(label_map)) NULL else base::unlist(label_map)
-  label_map <- if (is.null(label_map)) NULL else base::as.character(label_map)
+  label_map <- .hc_resolve_module_label_map_for_colors(
+    label_map = label_map,
+    module_colors = module_colors
+  )
 
   module_labels <- module_colors
   if (isTRUE(use_module_labels) && !is.null(label_map) && base::length(label_map) > 0) {
@@ -1613,17 +1776,15 @@ hc_longitudinal_module_means <- function(hc,
     module_labels[ok] <- label_map[idx[ok]]
   }
   if (isTRUE(use_module_labels)) {
-    label_ok <- grepl("^[A-Za-z]+[0-9]+$", module_labels) & !.hc_is_color_token(module_labels)
-    if (!base::all(label_ok)) {
-      prefix <- "M"
-      if (base::any(label_ok)) {
-        pref_guess <- sub("^([A-Za-z]+)[0-9]+$", "\\1", module_labels[label_ok][[1]])
-        if (base::length(pref_guess) == 1 && base::nzchar(pref_guess)) {
-          prefix <- pref_guess
-        }
-      }
-      module_labels <- base::paste0(prefix, base::seq_along(module_colors))
-    }
+    module_labels <- .hc_normalize_longitudinal_module_labels(
+      module_labels = module_labels,
+      module_colors = module_colors
+    )
+    natural_labels <- .hc_natural_module_order(module_labels)
+    ord <- base::match(natural_labels, module_labels)
+    ord <- ord[!base::is.na(ord)]
+    module_labels <- module_labels[ord]
+    module_colors <- module_colors[ord]
   }
 
   module_lookup <- base::data.frame(
@@ -1973,6 +2134,7 @@ hc_longitudinal_endotype_clustering <- function(hc,
       stringsAsFactors = FALSE
     )
   }
+  module_lookup <- .hc_reorder_module_lookup_natural(module_lookup)
   if (!"module_color" %in% base::colnames(module_lookup)) {
     module_lookup$module_color <- "grey60"
   }
@@ -2229,6 +2391,7 @@ hc_plot_longitudinal_module_means <- function(hc,
 
   df <- base::as.data.frame(obj$donor_time_module, stringsAsFactors = FALSE)
   module_lookup <- base::as.data.frame(obj$module_lookup, stringsAsFactors = FALSE)
+  module_lookup <- .hc_reorder_module_lookup_natural(module_lookup)
   module_levels <- base::as.character(module_lookup$module)
   mod_col <- .hc_module_color_map(
     module_lookup = module_lookup,
@@ -2385,6 +2548,7 @@ hc_plot_longitudinal_module_clusters <- function(hc,
   }
 
   module_lookup <- base::as.data.frame(obj$module_lookup, stringsAsFactors = FALSE)
+  module_lookup <- .hc_reorder_module_lookup_natural(module_lookup)
   mod_levels <- base::as.character(module_lookup$module)
   mod_col <- .hc_module_color_map(
     module_lookup = module_lookup,
@@ -2851,10 +3015,11 @@ hc_plot_longitudinal_endotypes <- function(hc,
   module_lookup <- NULL
   if (!is.null(obj$module_lookup) && "module" %in% base::colnames(obj$module_lookup)) {
     module_lookup <- base::as.data.frame(obj$module_lookup, stringsAsFactors = FALSE)
+    module_lookup <- .hc_reorder_module_lookup_natural(module_lookup)
     ml <- base::as.character(module_lookup$module)
     module_levels <- ml[ml %in% module_levels]
     if (base::length(module_levels) == 0) {
-      module_levels <- base::sort(base::unique(base::as.character(tr$module)))
+      module_levels <- .hc_natural_module_order(base::unique(base::as.character(tr$module)))
     }
   }
   if (is.null(module_lookup) || base::nrow(module_lookup) == 0) {
@@ -3689,6 +3854,7 @@ hc_plot_longitudinal_cap <- function(hc,
   }
 
   module_lookup <- base::as.data.frame(obj$module_lookup, stringsAsFactors = FALSE)
+  module_lookup <- .hc_reorder_module_lookup_natural(module_lookup)
   module_lookup$module_color <- ifelse(
     base::is.na(module_lookup$module_color) | !base::nzchar(module_lookup$module_color),
     "grey60",
@@ -4504,6 +4670,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
   module_lookup <- NULL
   if (!is.null(obj$module_lookup) && "module" %in% base::colnames(obj$module_lookup)) {
     module_lookup <- base::as.data.frame(obj$module_lookup, stringsAsFactors = FALSE)
+    module_lookup <- .hc_reorder_module_lookup_natural(module_lookup)
     ml <- base::as.character(module_lookup$module)
     module_levels <- ml[ml %in% module_levels]
   }
@@ -5769,7 +5936,9 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
 #'
 #' @param hc A `HCoCenaExperiment`.
 #' @param slot_name Satellite slot with `meta_cluster` results. Default:
-#'   `"longitudinal_endotypes"`.
+#'   `"longitudinal_endotypes"`. Use a concrete slot name, a shared prefix
+#'   such as `"longitudinal_endotypes"` to process matching suffixed slots, or
+#'   `"all"` to run over every compatible step 2 slot in `hc@satellite`.
 #' @param databases Character vector of databases to visualize (e.g. `"Kegg"`).
 #' @param top Integer number of top terms per module.
 #' @param custom_terms Optional custom term filter (character vector or named
@@ -5803,7 +5972,10 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
 #' @param export_excel Logical; export tables per database.
 #'
 #' @return A list with `plots`, `top_terms`, `donor_trajectories`,
-#'   `mean_trajectories`, and `score_method_used`.
+#'   `mean_trajectories`, and `score_method_used`. When multiple slots are
+#'   processed, these top-level components are flattened with slot-prefixed
+#'   names for convenient iteration, and nested per-slot outputs are also
+#'   returned in `results_by_slot`, together with `slot_info`.
 #' @export
 hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
                                                        slot_name = "longitudinal_endotypes",
@@ -5851,6 +6023,95 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
   }
   if (!base::is.finite(ci_alpha) || ci_alpha < 0 || ci_alpha > 1) {
     stop("`ci_alpha` must be a numeric value between 0 and 1.")
+  }
+
+  target_slots <- .hc_longitudinal_step3_target_slots(hc = hc, slot_name = slot_name)
+  if (base::length(target_slots) > 1) {
+    slot_results <- list()
+    slot_info <- base::vector("list", base::length(target_slots))
+
+    flatten_component <- function(results, field) {
+      out <- list()
+      for (nm in base::names(results)) {
+        comp <- results[[nm]][[field]]
+        if (base::is.null(comp)) {
+          next
+        }
+        comp_names <- base::names(comp)
+        if (base::is.null(comp_names) || base::any(!base::nzchar(comp_names))) {
+          comp_names <- base::paste0(field, "_", base::seq_along(comp))
+        }
+        base::names(comp) <- base::paste0(nm, "__", comp_names)
+        out <- base::c(out, comp)
+      }
+      out
+    }
+
+    for (i in base::seq_along(target_slots)) {
+      slot_i <- target_slots[[i]]
+      slot_ctx <- .hc_longitudinal_step2_slot_context(
+        hc = hc,
+        slot_name = slot_i,
+        requested_slot_name = slot_name
+      )
+      output_name <- slot_ctx$output_name
+      if (!base::nzchar(output_name) || output_name %in% base::names(slot_results)) {
+        output_name <- slot_i
+      }
+
+      res_i <- hc_plot_longitudinal_enrichment_meta_waves(
+        hc = hc,
+        slot_name = slot_i,
+        databases = databases,
+        top = top,
+        custom_terms = custom_terms,
+        term_match = term_match,
+        enrichment_table = enrichment_table,
+        score_method = score_method,
+        score_scale = score_scale,
+        layer = layer,
+        donor_col = donor_col,
+        time_col = time_col,
+        time_levels = time_levels,
+        min_term_genes = min_term_genes,
+        impute_missing = impute_missing,
+        qvalue_max = qvalue_max,
+        show_donor_lines = show_donor_lines,
+        donor_alpha = donor_alpha,
+        donor_linewidth = donor_linewidth,
+        mean_linewidth = mean_linewidth,
+        mean_point_size = mean_point_size,
+        show_ci = show_ci,
+        ci_level = ci_level,
+        ci_alpha = ci_alpha,
+        free_y = free_y,
+        save_pdf = save_pdf,
+        file_prefix = base::paste0(file_prefix, "_", slot_ctx$file_suffix),
+        save_width = save_width,
+        save_height = save_height,
+        export_excel = export_excel
+      )
+
+      slot_results[[output_name]] <- res_i
+      slot_info[[i]] <- base::data.frame(
+        output_name = output_name,
+        slot_name = slot_i,
+        layer_id = slot_ctx$layer_id,
+        layer_name = slot_ctx$layer_name,
+        source_slot = slot_ctx$source_slot,
+        stringsAsFactors = FALSE
+      )
+    }
+
+    return(list(
+      plots = flatten_component(slot_results, "plots"),
+      top_terms = flatten_component(slot_results, "top_terms"),
+      donor_trajectories = flatten_component(slot_results, "donor_trajectories"),
+      mean_trajectories = flatten_component(slot_results, "mean_trajectories"),
+      score_method_used = flatten_component(slot_results, "score_method_used"),
+      results_by_slot = slot_results,
+      slot_info = base::do.call(base::rbind, slot_info)
+    ))
   }
 
   sq_size <- suppressWarnings(base::max(

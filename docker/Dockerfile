@@ -35,25 +35,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /opt/hcocena
 COPY . /opt/hcocena
 
-RUN R -q -e "install.packages(c('remotes', 'BiocManager'), repos='https://cloud.r-project.org')" && \
+RUN R -q -e "install.packages(c('remotes', 'BiocManager', 'graphlayouts', 'ellmer'), repos='https://cloud.r-project.org')" && \
     R -q -e "remotes::install_local('/opt/hcocena', dependencies = NA, upgrade = 'never')" && \
     R -q -e "BiocManager::install(c('CALIBERrfimpute', 'decoupleR', 'dorothea', 'mice', 'progeny', 'RCy3', 'SpatialExperiment', 'GSVA'), ask = FALSE, update = FALSE)" && \
-    R -q -e "status <- vapply(c('CALIBERrfimpute', 'decoupleR', 'dorothea', 'mice', 'progeny', 'RCy3', 'SpatialExperiment', 'GSVA'), requireNamespace, logical(1), quietly = TRUE); print(status); if (!all(status)) stop('Missing optional Docker packages: ', paste(names(status)[!status], collapse = ', '))" && \
+    R -q -e "status <- vapply(c('graphlayouts', 'ellmer', 'CALIBERrfimpute', 'decoupleR', 'dorothea', 'mice', 'progeny', 'RCy3', 'SpatialExperiment', 'GSVA'), requireNamespace, logical(1), quietly = TRUE); print(status); if (!all(status)) stop('Missing optional Docker packages: ', paste(names(status)[!status], collapse = ', '))" && \
     R -q -e "packageVersion('hcocena')"
 
-RUN mkdir -p /home/rstudio/hcocena && \
-    mkdir -p /home/rstudio/hcocena/count_data && \
-    mkdir -p /home/rstudio/hcocena/annotation_data && \
-    mkdir -p /home/rstudio/hcocena/output && \
-    cp /opt/hcocena/README.md /home/rstudio/hcocena/ && \
-    cp -r /opt/hcocena/github_workflows /home/rstudio/hcocena/github_workflows && \
-    cp /opt/hcocena/github_workflows/hcocena_main.Rmd /home/rstudio/hcocena/01_hcocena_main.Rmd && \
-    cp /opt/hcocena/github_workflows/hcocena_satellite.Rmd /home/rstudio/hcocena/02_hcocena_satellite.Rmd && \
-    cp /opt/hcocena/github_workflows/hcocena_main_seq_only.Rmd /home/rstudio/hcocena/03_hcocena_main_seq_only.Rmd && \
-    cp -r /opt/hcocena/docker/reference_files /home/rstudio/hcocena/reference_files && \
+RUN mkdir -p /home/rstudio/count_data && \
+    mkdir -p /home/rstudio/annotation_data && \
+    mkdir -p /home/rstudio/project_data && \
+    mkdir -p /home/rstudio/output && \
+    mkdir -p /home/rstudio/reference_files && \
+    cp /opt/hcocena/docker/README.md /home/rstudio/README_docker.md && \
+    cp /opt/hcocena/docker/project_workflows/hcocena_main.Rmd /home/rstudio/01_hcocena_main.Rmd && \
+    cp /opt/hcocena/docker/project_workflows/hcocena_satellite.Rmd /home/rstudio/02_hcocena_satellite.Rmd && \
+    cp /opt/hcocena/github_workflows/hcocena_main_seq_only.Rmd /home/rstudio/03_hcocena_main_seq_only.Rmd && \
+    cp -r /opt/hcocena/docker/reference_files/. /home/rstudio/reference_files/ && \
+    cp /opt/hcocena/docker/project_data/README.md /home/rstudio/project_data/README.md && \
     chown -R rstudio:rstudio /home/rstudio
 
-WORKDIR /home/rstudio/hcocena
+WORKDIR /home/rstudio
 
 EXPOSE 8787
 CMD ["/init"]

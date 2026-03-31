@@ -26,14 +26,14 @@ LLM-assisted module interpretation.
 - Upstream inference with DoRothEA and PROGENy via `decoupleR`
 - Cell-type annotation helpers and reference-data preview utilities
 - Longitudinal module and endotype analyses
-- A Docker workflow with bundled `reference_files` for a ready-to-run setup
+- A Docker workflow with a prepared `reference_files` folder for a ready-to-run setup
 
 ## Repository structure
 
 - Package source is at the repository root and follows a Bioconductor-style
   layout
-- Docker support lives in [`docker/`](docker), including bundled
-  `reference_files`
+- Docker support lives in [`docker/`](docker), including a prepared
+  `reference_files` folder
 - GitHub-only workflow notebooks are kept in [`github_workflows/`](github_workflows/)
 - CI for package checks is defined in
   [`.github/workflows/bioc-check.yaml`](.github/workflows/bioc-check.yaml)
@@ -72,7 +72,7 @@ docker run --rm -p 8787:8787 -e PASSWORD=hcocena hcocena
 The container prepares a workspace at `/home/rstudio/hcocena` and includes:
 
 - the local `hcocena` installation
-- bundled `reference_files/`
+- a prepared `reference_files/` folder with setup notes
 - visible workflow notebooks under `/home/rstudio/hcocena/github_workflows/`
   including `hcocena_main.Rmd` and `hcocena_satellite.Rmd`
 - preinstalled optional packages for common workflows, including

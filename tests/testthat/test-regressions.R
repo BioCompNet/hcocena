@@ -1599,6 +1599,13 @@ test_that("regression: claude provider is accepted and resolves api key/model se
   )
 })
 
+test_that("regression: NAMESPACE does not export removed Claude wrapper alias", {
+  ns_lines <- readLines(test_path("..", "..", "NAMESPACE"), warn = FALSE)
+
+  expect_false(any(grepl("^export\\(hc_module_function_claude\\)$", ns_lines)))
+  expect_true(any(grepl("^export\\(hc_module_function_llm\\)$", ns_lines)))
+})
+
 
 test_that("regression: llm request helpers use ellmer backends", {
   gemini_src <- paste(deparse(get(".hc_llm_request_gemini", asNamespace("hcocena"))), collapse = "\n")
@@ -1732,6 +1739,31 @@ test_that("regression: plot heatmaps default to main order unless clustering is 
   expect_identical(formals(hcocena:::replot_cluster_heatmap)$cluster_columns, FALSE)
   expect_identical(formals(hcocena:::change_grouping_parameter)$cluster_columns, FALSE)
   expect_identical(formals(hcocena::hc_change_grouping_parameter)$cluster_columns, FALSE)
+})
+
+test_that("regression: duplicate heatmap column names keep layer-specific values when reordered", {
+  prepare_cols <- get(".hc_prepare_plot_heatmap_columns", asNamespace("hcocena"))
+
+  mat <- matrix(
+    c(0.5, 1.5, -0.5, -1.5,
+      0.2, 1.2, -0.2, -1.2),
+    nrow = 2,
+    byrow = TRUE,
+    dimnames = list(c("M1", "M2"), c("Moderate", "Severe", "Moderate", "Severe"))
+  )
+
+  ordered <- prepare_cols(
+    mat = mat,
+    cluster_columns = FALSE,
+    plot_order = c("Moderate", "Severe", "Moderate", "Severe"),
+    main_order = NULL,
+    fallback_order = NULL,
+    context = "duplicate condition heatmap"
+  )
+
+  expect_equal(as.numeric(ordered$mat["M1", ]), c(0.5, 1.5, -0.5, -1.5))
+  expect_equal(as.numeric(ordered$mat["M2", ]), c(0.2, 1.2, -0.2, -1.2))
+  expect_equal(colnames(ordered$mat), c("Moderate", "Severe", "Moderate", "Severe"))
 })
 
 test_that("regression: heatmap API alias helpers prefer new names and keep legacy aliases working", {

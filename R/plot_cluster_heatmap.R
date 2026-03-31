@@ -776,7 +776,10 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       context = "cluster heatmap"
     )
     if (base::length(selected_col_order) > 0) {
-      mat_heatmap <- mat_heatmap[, selected_col_order, drop = FALSE] %>% base::as.matrix()
+      mat_heatmap <- .hc_subset_matrix_cols_with_duplicates(
+        mat_heatmap,
+        selected_col_order
+      ) %>% base::as.matrix()
     }
   }
   

@@ -716,7 +716,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     context = "functional enrichment heatmap"
   )
   if (base::length(selected_col_order) > 0) {
-    m <- m[, selected_col_order, drop = FALSE]
+    m <- .hc_subset_matrix_cols_with_duplicates(m, selected_col_order)
   }
 
   module_order <- module_colors

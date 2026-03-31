@@ -12,14 +12,14 @@ get_cluster_colours <- function(){
   
 }
 
-.hc_match_axis_order_with_duplicates <- function(axis_ids, requested_order) {
+.hc_match_axis_indices_with_duplicates <- function(axis_ids, requested_order) {
   axis_ids <- base::as.character(axis_ids)
   requested_order <- base::as.character(requested_order)
   if (base::length(axis_ids) == 0) {
-    return(axis_ids)
+    return(base::integer())
   }
   if (base::length(requested_order) == 0) {
-    return(axis_ids)
+    return(base::seq_along(axis_ids))
   }
 
   source_idx <- base::split(base::seq_along(axis_ids), axis_ids)
@@ -39,7 +39,23 @@ get_cluster_colours <- function(){
   }
 
   remaining_idx <- base::seq_along(axis_ids)[!(base::seq_along(axis_ids) %in% out_idx)]
-  axis_ids[base::c(out_idx, remaining_idx)]
+  base::c(out_idx, remaining_idx)
+}
+
+.hc_match_axis_order_with_duplicates <- function(axis_ids, requested_order) {
+  axis_ids <- base::as.character(axis_ids)
+  axis_ids[.hc_match_axis_indices_with_duplicates(axis_ids, requested_order)]
+}
+
+.hc_subset_matrix_cols_with_duplicates <- function(mat, requested_order = NULL) {
+  if (base::is.null(mat)) {
+    return(mat)
+  }
+  if (base::is.null(base::colnames(mat)) || base::ncol(mat) == 0) {
+    return(mat)
+  }
+  idx <- .hc_match_axis_indices_with_duplicates(base::colnames(mat), requested_order)
+  mat[, idx, drop = FALSE]
 }
 
 .hc_resolve_heatmap_col_order <- function(mat_cols,
@@ -2887,7 +2903,7 @@ plot_cutoffs_internal_interactive <- function(cutoff_stats,
       context = context
     )
     if (base::length(selected_col_order) > 0) {
-      mat <- mat[, selected_col_order, drop = FALSE]
+      mat <- .hc_subset_matrix_cols_with_duplicates(mat, selected_col_order)
     }
     return(list(
       mat = mat,
@@ -2904,9 +2920,10 @@ plot_cutoffs_internal_interactive <- function(cutoff_stats,
   clustered <- tryCatch(
     {
       hc <- stats::hclust(stats::dist(base::t(mat_num)), method = "complete")
-      ord <- base::colnames(mat_num)[hc$order]
+      ord_idx <- hc$order
+      ord <- base::colnames(mat_num)[ord_idx]
       list(
-        mat = mat[, ord, drop = FALSE],
+        mat = mat[, ord_idx, drop = FALSE],
         col_order = ord,
         col_dend = stats::as.dendrogram(hc),
         clustered = TRUE
@@ -2927,7 +2944,7 @@ plot_cutoffs_internal_interactive <- function(cutoff_stats,
     context = context
   )
   if (base::length(selected_col_order) > 0) {
-    mat <- mat[, selected_col_order, drop = FALSE]
+    mat <- .hc_subset_matrix_cols_with_duplicates(mat, selected_col_order)
   }
   warning(
     "Could not cluster heatmap columns for ", context, ". Falling back to explicit/stored order.",
@@ -4257,7 +4274,10 @@ replot_cluster_heatmap <- function(col_order = NULL,
       context = "regrouped cluster heatmap"
     )
     if (base::length(selected_col_order) > 0) {
-      mat_heatmap <- mat_heatmap[, selected_col_order, drop = FALSE] %>% base::as.matrix()
+      mat_heatmap <- .hc_subset_matrix_cols_with_duplicates(
+        mat_heatmap,
+        selected_col_order
+      ) %>% base::as.matrix()
     }
   }
   column_labels_display <- .hc_gfc_display_col_labels(hcobject, base::colnames(mat_heatmap))

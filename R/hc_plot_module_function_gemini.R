@@ -537,8 +537,8 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
     return(display_labels)
   }
 
-  source_occ <- ave(base::seq_along(source_ids), source_ids, FUN = base::seq_along)
-  target_occ <- ave(base::seq_along(target_ids), target_ids, FUN = base::seq_along)
+  source_occ <- stats::ave(base::seq_along(source_ids), source_ids, FUN = base::seq_along)
+  target_occ <- stats::ave(base::seq_along(target_ids), target_ids, FUN = base::seq_along)
   out <- base::vapply(
     base::seq_along(target_ids),
     function(i) {

@@ -186,14 +186,20 @@ test_that("regression: heatmap gets subtle smart column gaps only at useful grou
 
 
 test_that("regression: additional heatmap paths reuse layer gap and layer-title logic", {
+  fun_enrich_path <- test_path("..", "..", "R", "functional_enrichment.R")
+  knowledge_path <- test_path("..", "..", "R", "plot_enrichment_upstream_network.R")
+  if (!file.exists(fun_enrich_path) || !file.exists(knowledge_path)) {
+    skip("Source files are not available in the installed-package test context.")
+  }
+
   fun_enrich_src <- paste(
-    readLines(test_path("..", "..", "R", "functional_enrichment.R"), warn = FALSE),
+    readLines(fun_enrich_path, warn = FALSE),
     collapse = "\n"
   )
   llm_src <- paste(deparse(get(".hc_llm_capture_combined_heatmap_grob", asNamespace("hcocena"))), collapse = "\n")
   upstream_src <- paste(deparse(get(".hc_ui_build_upstream_combined_heatmap", asNamespace("hcocena"))), collapse = "\n")
   knowledge_src <- paste(
-    readLines(test_path("..", "..", "R", "plot_enrichment_upstream_network.R"), warn = FALSE),
+    readLines(knowledge_path, warn = FALSE),
     collapse = "\n"
   )
 
@@ -1110,8 +1116,13 @@ test_that("regression: enrichment-related heatmap legends use standard font sett
 
 
 test_that("regression: enrichment plot body borders use the same thin line style as the main heatmap", {
+  fun_enrich_path <- test_path("..", "..", "R", "functional_enrichment.R")
+  if (!file.exists(fun_enrich_path)) {
+    skip("Source files are not available in the installed-package test context.")
+  }
+
   fun_enrich_src <- paste(
-    readLines(test_path("..", "..", "R", "functional_enrichment.R"), warn = FALSE),
+    readLines(fun_enrich_path, warn = FALSE),
     collapse = "\n"
   )
 
@@ -1600,10 +1611,10 @@ test_that("regression: claude provider is accepted and resolves api key/model se
 })
 
 test_that("regression: NAMESPACE does not export removed Claude wrapper alias", {
-  ns_lines <- readLines(test_path("..", "..", "NAMESPACE"), warn = FALSE)
+  exports <- getNamespaceExports("hcocena")
 
-  expect_false(any(grepl("^export\\(hc_module_function_claude\\)$", ns_lines)))
-  expect_true(any(grepl("^export\\(hc_module_function_llm\\)$", ns_lines)))
+  expect_false("hc_module_function_claude" %in% exports)
+  expect_true("hc_module_function_llm" %in% exports)
 })
 
 

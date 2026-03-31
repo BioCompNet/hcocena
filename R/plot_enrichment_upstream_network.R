@@ -1360,10 +1360,11 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
       ) +
       {
         if (base::nrow(column_layout$slice_df) > 0) {
-          ggplot2::geom_text(
-            data = transform(column_layout$slice_df, y = n_r + 0.72),
-            ggplot2::aes(x = x, y = y, label = title),
-            inherit.aes = FALSE,
+          ggplot2::annotate(
+            "text",
+            x = column_layout$slice_df$x,
+            y = n_r + 0.72,
+            label = column_layout$slice_df$title,
             fontface = "bold",
             size = base::max(3.2, 3.7 * overall_plot_scale)
           )

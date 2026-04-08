@@ -4,6 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    cmake \
     gcc \
     g++ \
     gfortran \
@@ -29,16 +30,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglpk-dev \
     libgmp-dev \
     libmagick++-dev \
+    libnlopt-dev \
+    libuv1-dev \
     libzmq3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/hcocena
 COPY . /opt/hcocena
 
-RUN R -q -e "install.packages(c('remotes', 'BiocManager', 'graphlayouts', 'ellmer'), repos='https://cloud.r-project.org')" && \
-    R -q -e "remotes::install_local('/opt/hcocena', dependencies = NA, upgrade = 'never')" && \
-    R -q -e "BiocManager::install(c('CALIBERrfimpute', 'decoupleR', 'dorothea', 'mice', 'progeny', 'RCy3', 'SpatialExperiment', 'GSVA'), ask = FALSE, update = FALSE)" && \
-    R -q -e "status <- vapply(c('graphlayouts', 'ellmer', 'CALIBERrfimpute', 'decoupleR', 'dorothea', 'mice', 'progeny', 'RCy3', 'SpatialExperiment', 'GSVA'), requireNamespace, logical(1), quietly = TRUE); print(status); if (!all(status)) stop('Missing optional Docker packages: ', paste(names(status)[!status], collapse = ', '))" && \
+RUN R -q -e "options(timeout = 1200); install.packages(c('remotes', 'BiocManager', 'graphlayouts', 'ellmer'), repos = 'https://cloud.r-project.org')" && \
+    R -q -e "options(timeout = 1200); repos <- BiocManager::repositories(); repos['CRAN'] <- 'https://cloud.r-project.org'; options(repos = repos); pkgs <- c('ape', 'treeio', 'ggtree', 'GO.db', 'GOSemSim', 'DOSE', 'enrichplot', 'clusterProfiler', 'CALIBERrfimpute', 'decoupleR', 'dorothea', 'mice', 'progeny', 'RCy3', 'SpatialExperiment', 'GSVA'); for (attempt in seq_len(3)) { missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]; if (!length(missing)) break; message('Docker dependency install attempt ', attempt, ': ', paste(missing, collapse = ', ')); BiocManager::install(missing, ask = FALSE, update = FALSE) }; status <- vapply(pkgs, requireNamespace, logical(1), quietly = TRUE); print(status); if (!all(status)) stop('Missing Docker dependency packages: ', paste(names(status)[!status], collapse = ', '))" && \
+    R -q -e "options(timeout = 1200); repos <- BiocManager::repositories(); repos['CRAN'] <- 'https://cloud.r-project.org'; options(repos = repos); remotes::install_local('/opt/hcocena', dependencies = NA, upgrade = 'never')" && \
+    R -q -e "status <- vapply(c('graphlayouts', 'ellmer', 'clusterProfiler', 'CALIBERrfimpute', 'decoupleR', 'dorothea', 'mice', 'progeny', 'RCy3', 'SpatialExperiment', 'GSVA', 'hcocena'), requireNamespace, logical(1), quietly = TRUE); print(status); if (!all(status)) stop('Missing Docker packages: ', paste(names(status)[!status], collapse = ', '))" && \
     R -q -e "packageVersion('hcocena')"
 
 RUN mkdir -p /home/rstudio/count_data && \

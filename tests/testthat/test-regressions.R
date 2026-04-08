@@ -4,20 +4,11 @@ test_that("regression: utils no longer references working_director", {
 })
 
 
-test_that("regression: rho path now guards optional propr dependency", {
+test_that("regression: rho support is removed from the correlation path", {
   src <- paste(deparse(get("pwcorr", asNamespace("hcocena"))), collapse = "\n")
-  expect_true(grepl(".hc_require_namespace(\"propr\"", src, fixed = TRUE))
-  expect_true(grepl("getExportedValue(\"propr\", \"propr\")", src, fixed = TRUE))
-  expect_false(grepl("propr::propr", src, fixed = TRUE))
-})
-
-
-test_that("regression: legacy longitudinal kml path uses optional dynamic access", {
-  src <- paste(deparse(get(".hc_legacy_kml_cluster_one", asNamespace("hcocena"))), collapse = "\n")
-  expect_true(grepl("getExportedValue(\"kml\", \"cld\")", src, fixed = TRUE))
-  expect_true(grepl("getExportedValue(\"kml\", \"parALGO\")", src, fixed = TRUE))
-  expect_true(grepl("getExportedValue(\"kml\", \"kml\")", src, fixed = TRUE))
-  expect_false(grepl("kml::", src, fixed = TRUE))
+  expect_false(grepl(".hc_require_namespace(\"propr\"", src, fixed = TRUE))
+  expect_false(grepl("getExportedValue(\"propr\", \"propr\")", src, fixed = TRUE))
+  expect_false(grepl("corr_method == 'rho'", src, fixed = TRUE))
 })
 
 
@@ -215,11 +206,12 @@ test_that("regression: additional heatmap paths reuse layer gap and layer-title 
 
 
 test_that("regression: regrouped heatmap uses the modern heatmap renderer and compact gene-count text mode", {
-  regroup_src <- paste(deparse(get(".hc_change_grouping_parameter_legacy_driver", asNamespace("hcocena"))), collapse = "\n")
+  regroup_src <- paste(deparse(get(".hc_change_grouping_parameter_driver", asNamespace("hcocena"))), collapse = "\n")
 
   expect_true(grepl("plot_cluster_heatmap_new", regroup_src, fixed = TRUE))
   expect_true(grepl("gene_count_mode = \"text\"", regroup_src, fixed = TRUE))
-  expect_true(grepl("[[\"voi\"]] <<- \"regrouped\"", regroup_src, fixed = TRUE))
+  expect_true(grepl("c(\"global_settings\", \"voi\")", regroup_src, fixed = TRUE))
+  expect_true(grepl("\"regrouped\"", regroup_src, fixed = TRUE))
   expect_false(grepl("replot_cluster_heatmap", regroup_src, fixed = TRUE))
 })
 
@@ -266,7 +258,7 @@ test_that("regression: longitudinal step1 can loop all layers with unique slots 
       hc@satellite <- S4Vectors::SimpleList(sat)
       hc
     },
-    .hc_run_legacy_step1_exact = function(hc, means_slot, output_slot, ...) {
+    .hc_run_direct_step1_exact = function(hc, means_slot, output_slot, ...) {
       sat <- as.list(hc@satellite)
       sat[[output_slot]] <- list(
         module_cluster_score = paste0("score_", output_slot),
@@ -314,11 +306,14 @@ test_that("regression: longitudinal step1 can loop all layers with unique slots 
     layer = "all",
     time_levels = c("1"),
     k = 2,
-    rerolls = 1,
+    method = "kmeans",
+    nstart = 1,
+    cap_runs = 1,
     impute = FALSE,
     ntree = 10,
     min_cluster_fraction = 0.1,
-    score_method = "median",
+    score_method = "calinski_harabasz",
+    scale_features = FALSE,
     seed = 42
   )
 
@@ -333,6 +328,319 @@ test_that("regression: longitudinal step1 can loop all layers with unique slots 
   expect_equal(vapply(cap_calls, `[[`, character(1), "file_prefix"), c("Longitudinal_CAP_RNA_layer", "Longitudinal_CAP_Protein_layer"))
   expect_equal(out$diagnostics$set1$module_cluster_score, "score_longitudinal_endotypes_set1")
   expect_equal(out$diagnostics$set2$module_cluster_best_k, 2L)
+})
+
+
+test_that("regression: longitudinal direct step1 can loop all layers with unique slots and file prefixes", {
+  hc <- hc_init()
+  se1 <- SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = matrix(1, nrow = 1, ncol = 1, dimnames = list("g1", "s1"))),
+    colData = S4Vectors::DataFrame(PatID = "p1", Timepoint_rough_num = "1", row.names = "s1")
+  )
+  se2 <- SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = matrix(2, nrow = 1, ncol = 1, dimnames = list("g2", "s2"))),
+    colData = S4Vectors::DataFrame(PatID = "p2", Timepoint_rough_num = "1", row.names = "s2")
+  )
+  hc@mae <- MultiAssayExperiment::MultiAssayExperiment(
+    experiments = S4Vectors::SimpleList(set1 = se1, set2 = se2)
+  )
+  hc@config@layer <- S4Vectors::DataFrame(
+    layer_id = c("set1", "set2"),
+    layer_name = c("RNA layer", "Protein layer")
+  )
+
+  means_calls <- list()
+  cluster_calls <- list()
+  cap_calls <- list()
+
+  testthat::local_mocked_bindings(
+    hc_longitudinal_module_means = function(hc,
+                                            donor_col,
+                                            time_col,
+                                            layer,
+                                            group_col,
+                                            use_module_labels,
+                                            time_levels,
+                                            impute_missing,
+                                            slot_name,
+                                            value_label = NULL) {
+      means_calls[[length(means_calls) + 1L]] <<- list(
+        layer = layer,
+        slot_name = slot_name
+      )
+      sat <- as.list(hc@satellite)
+      sat[[slot_name]] <- list(layer_id = layer)
+      hc@satellite <- S4Vectors::SimpleList(sat)
+      hc
+    },
+    .hc_run_direct_step1_exact = function(hc, means_slot, output_slot, ...) {
+      sat <- as.list(hc@satellite)
+      sat[[output_slot]] <- list(
+        module_cluster_score = paste0("direct_score_", output_slot),
+        module_cluster_best_k = 2L,
+        direct_module_filtering = data.frame(module = "M1", donors_used = 2, stringsAsFactors = FALSE)
+      )
+      hc@satellite <- S4Vectors::SimpleList(sat)
+      hc
+    },
+    hc_plot_longitudinal_module_means = function(hc, slot_name, save_pdf, file_prefix, ...) {
+      cluster_calls[[length(cluster_calls) + 1L]] <<- list(
+        type = "means",
+        slot_name = slot_name,
+        file_prefix = file_prefix
+      )
+      list(module_means = paste(slot_name, file_prefix, sep = "::"))
+    },
+    hc_plot_longitudinal_module_clusters = function(hc, slot_name, save_pdf, file_prefix, ...) {
+      cluster_calls[[length(cluster_calls) + 1L]] <<- list(
+        type = "clusters",
+        slot_name = slot_name,
+        file_prefix = file_prefix
+      )
+      list(
+        module_cluster_waves = paste(slot_name, file_prefix, sep = "::"),
+        module_cluster_heatmap = list(
+          data = data.frame(donor = factor("d1", levels = "d1"), stringsAsFactors = TRUE)
+        )
+      )
+    },
+    hc_plot_longitudinal_cap = function(hc, slot_name, save_pdf, file_prefix, show_values, donor_order = NULL, ...) {
+      cap_calls[[length(cap_calls) + 1L]] <<- list(
+        slot_name = slot_name,
+        file_prefix = file_prefix,
+        donor_order = donor_order
+      )
+      list(cap_heatmap = paste(slot_name, file_prefix, sep = "::"))
+    },
+    .package = "hcocena"
+  )
+
+  out <- hcocena::hc_longitudinal_step1_module_donor_direct(
+    hc,
+    donor_col = "PatID",
+    time_col = "Timepoint_rough_num",
+    layer = "all",
+    time_levels = c("1"),
+    k = 2,
+    method = "kmeans",
+    nstart = 5,
+    cap_runs = 3,
+    impute = FALSE,
+    ntree = 10,
+    min_cluster_fraction = 0.1,
+    score_method = "calinski_harabasz",
+    seed = 42
+  )
+
+  expect_named(out$plots, c("set1", "set2"))
+  expect_named(out$diagnostics, c("set1", "set2"))
+  expect_equal(out$layer_info$means_slot, c("longitudinal_module_means_direct_set1", "longitudinal_module_means_direct_set2"))
+  expect_equal(out$layer_info$output_slot, c("longitudinal_endotypes_direct_set1", "longitudinal_endotypes_direct_set2"))
+  expect_equal(vapply(means_calls, `[[`, character(1), "layer"), c("set1", "set2"))
+  expect_equal(vapply(means_calls, `[[`, character(1), "slot_name"), c("longitudinal_module_means_direct_set1", "longitudinal_module_means_direct_set2"))
+  expect_true(any(vapply(cluster_calls, function(x) identical(x$file_prefix, "Longitudinal_Direct_ModuleMeans_RNA_layer"), logical(1))))
+  expect_true(any(vapply(cluster_calls, function(x) identical(x$file_prefix, "Longitudinal_Direct_ModuleClusters_Protein_layer"), logical(1))))
+  expect_equal(vapply(cap_calls, `[[`, character(1), "file_prefix"), c("Longitudinal_Direct_CAP_RNA_layer", "Longitudinal_Direct_CAP_Protein_layer"))
+  expect_equal(out$diagnostics$set1$module_cluster_score, "direct_score_longitudinal_endotypes_direct_set1")
+  expect_equal(out$diagnostics$set2$module_cluster_best_k, 2L)
+})
+
+
+test_that("regression: longitudinal step1 keeps per-layer nesting for explicit layer='all' with one layer", {
+  hc <- hc_init()
+  se1 <- SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = matrix(1, nrow = 1, ncol = 1, dimnames = list("g1", "s1"))),
+    colData = S4Vectors::DataFrame(PatID = "p1", Timepoint_rough_num = "1", row.names = "s1")
+  )
+  hc@mae <- MultiAssayExperiment::MultiAssayExperiment(
+    experiments = S4Vectors::SimpleList(set1 = se1)
+  )
+  hc@config@layer <- S4Vectors::DataFrame(
+    layer_id = "set1",
+    layer_name = "RNA layer"
+  )
+
+  testthat::local_mocked_bindings(
+    hc_longitudinal_module_means = function(hc,
+                                            donor_col,
+                                            time_col,
+                                            layer,
+                                            group_col,
+                                            use_module_labels,
+                                            time_levels,
+                                            impute_missing,
+                                            slot_name,
+                                            value_label = NULL) {
+      sat <- as.list(hc@satellite)
+      sat[[slot_name]] <- list(layer_id = layer)
+      hc@satellite <- S4Vectors::SimpleList(sat)
+      hc
+    },
+    .hc_run_direct_step1_exact = function(hc, means_slot, output_slot, ...) {
+      sat <- as.list(hc@satellite)
+      sat[[output_slot]] <- list(
+        module_cluster_score = paste0("score_", output_slot),
+        module_cluster_best_k = 2L,
+        direct_module_filtering = data.frame(module = "M1", donors_used = 2, stringsAsFactors = FALSE)
+      )
+      hc@satellite <- S4Vectors::SimpleList(sat)
+      hc
+    },
+    hc_plot_longitudinal_module_means = function(hc, slot_name, save_pdf, file_prefix, ...) {
+      list(module_means = paste(slot_name, file_prefix, sep = "::"))
+    },
+    hc_plot_longitudinal_module_clusters = function(hc, slot_name, save_pdf, file_prefix, ...) {
+      list(
+        module_cluster_waves = paste(slot_name, file_prefix, sep = "::"),
+        module_cluster_heatmap = list(
+          data = data.frame(donor = factor("d1", levels = "d1"), stringsAsFactors = TRUE)
+        )
+      )
+    },
+    hc_plot_longitudinal_cap = function(hc, slot_name, save_pdf, file_prefix, show_values, donor_order = NULL, ...) {
+      list(cap_heatmap = paste(slot_name, file_prefix, sep = "::"))
+    },
+    .package = "hcocena"
+  )
+
+  out <- hcocena::hc_longitudinal_step1_module_donor(
+    hc,
+    donor_col = "PatID",
+    time_col = "Timepoint_rough_num",
+    layer = "all",
+    time_levels = c("1"),
+    k = 2,
+    method = "kmeans",
+    nstart = 1,
+    cap_runs = 1,
+    impute = FALSE,
+    ntree = 10,
+    min_cluster_fraction = 0.1,
+    score_method = "calinski_harabasz",
+    scale_features = FALSE,
+    seed = 42
+  )
+
+  expect_named(out$plots, "set1")
+  expect_named(out$diagnostics, "set1")
+  expect_equal(out$layer_info$means_slot, "longitudinal_module_means_set1")
+  expect_equal(out$layer_info$output_slot, "longitudinal_endotypes_set1")
+  expect_equal(out$plots$set1$module_means_waves, "longitudinal_module_means_set1::Longitudinal_ModuleMeans_RNA_layer")
+  expect_true(is.list(out$plots$set1$module_cluster_heatmap))
+  expect_equal(out$plots$set1$cap_heatmap, "longitudinal_endotypes_set1::Longitudinal_CAP_RNA_layer")
+})
+
+
+test_that("regression: longitudinal direct workflow nests the three quick steps", {
+  hc <- hc_init()
+
+  testthat::local_mocked_bindings(
+    hc_longitudinal_step1_module_donor_direct = function(hc, ..., output_slot = "longitudinal_endotypes_direct") {
+      sat <- as.list(hc@satellite)
+      sat[[output_slot]] <- list(cap_matrix = matrix(1, nrow = 1, dimnames = list("d1", "M1__1")))
+      hc@satellite <- S4Vectors::SimpleList(sat)
+      list(
+        hc = hc,
+        plots = list(module_cluster_heatmap = "step1_plot"),
+        diagnostics = list(module_cluster_best_k = data.frame(module = "M1", best_k = 2)),
+        layer_info = data.frame(layer_id = "set1", output_slot = output_slot, stringsAsFactors = FALSE)
+      )
+    },
+    hc_longitudinal_step2_meta_clustering = function(hc, slot_name, ...) {
+      list(
+        hc = hc,
+        plots = list(pca = paste0(slot_name, "::step2")),
+        diagnostics = list(cross_tab = paste0(slot_name, "::diag")),
+        slot_info = data.frame(slot_name = slot_name, stringsAsFactors = FALSE)
+      )
+    },
+    hc_longitudinal_step3_meta_module_trajectories = function(hc, slot_name, ...) {
+      list(
+        hc = hc,
+        plots = list(meta_module_waves = paste0(slot_name, "::step3")),
+        slot_info = data.frame(slot_name = slot_name, stringsAsFactors = FALSE)
+      )
+    },
+    .package = "hcocena"
+  )
+
+  out <- hcocena::hc_longitudinal_workflow_direct(
+    hc,
+    donor_col = "PatID",
+    time_col = "Timepoint_rough_num",
+    time_levels = c("1")
+  )
+
+  expect_equal(out$plots$step1_module_donor$module_cluster_heatmap, "step1_plot")
+  expect_equal(out$plots$step2_meta_clustering$pca, "longitudinal_endotypes_direct::step2")
+  expect_equal(out$plots$step3_meta_module_trajectories$meta_module_waves, "longitudinal_endotypes_direct::step3")
+  expect_equal(out$slot_info$step2$slot_name, "longitudinal_endotypes_direct")
+  expect_equal(out$slot_info$step3$slot_name, "longitudinal_endotypes_direct")
+})
+
+
+test_that("regression: direct longitudinal step1 exact produces module clusters and CAP", {
+  hc <- hc_init()
+  sat <- list(
+    longitudinal_module_means_direct = list(
+      donor_col = "Subject",
+      time_col = "Time_token",
+      group_col = NULL,
+      time_levels = c("T1", "T2", "T3", "T4", "T5", "T6"),
+      module_lookup = data.frame(
+        module = c("M1", "M2"),
+        module_color = c("#1f77b4", "#d62728"),
+        stringsAsFactors = FALSE
+      ),
+      donor_time_module = data.frame(
+        donor = rep(paste0("D", 1:6), each = 12),
+        module = rep(rep(c("M1", "M2"), each = 6), times = 6),
+        time = rep(c("T1", "T2", "T3", "T4", "T5", "T6"), times = 12),
+        value = c(
+          1.0, 2.0, 3.0, 4.0, 4.4, 4.7, 4.5, 3.7, 2.6, 1.5, 1.0, 0.7,
+          1.1, 2.1, 3.0, 4.2, 4.1, 4.4, 4.3, 3.8, 2.8, 1.7, 1.2, 0.8,
+          0.9, 2.0, 3.2, 4.1, 4.0, 4.6, 4.7, 3.9, 2.7, 1.6, 1.1, 0.9,
+          4.2, 3.1, 2.0, 1.0, 0.8, 0.6, 0.8, 1.9, 3.0, 4.0, 4.4, 4.8,
+          4.0, 3.0, 1.9, 1.2, 1.0, 0.8, 1.0, 2.1, 3.1, 4.1, 4.5, 4.9,
+          4.1, 2.9, 2.1, 1.1, 0.9, 0.7, 0.9, 2.0, 3.2, 4.2, 4.6, 5.0
+        ),
+        stringsAsFactors = FALSE
+      ),
+      donor_feature_matrix = matrix(
+        0,
+        nrow = 6,
+        ncol = 12,
+        dimnames = list(
+          paste0("D", 1:6),
+          paste0(rep(c("M1", "M2"), each = 6), "__", rep(c("T1", "T2", "T3", "T4", "T5", "T6"), times = 2))
+        )
+      ),
+      value_label = "Scaled mean VST",
+      impute_missing = "none"
+    )
+  )
+  hc@satellite <- S4Vectors::SimpleList(sat)
+
+  hc2 <- hcocena:::.hc_run_direct_step1_exact(
+    hc,
+    means_slot = "longitudinal_module_means_direct",
+    output_slot = "longitudinal_endotypes_direct",
+    k = 2:3,
+    method = "kmeans",
+    nstart = 5,
+    cap_runs = 4,
+    impute = FALSE,
+    min_cluster_fraction = 0.1,
+    score_method = "calinski_harabasz",
+    seed = 42
+  )
+
+  obj <- hc2@satellite[["longitudinal_endotypes_direct"]]
+  expect_equal(as.integer(obj$module_cluster_best_k$best_k), c(2L, 2L))
+  expect_equal(dim(obj$cap_matrix), c(6L, 4L))
+  expect_equal(nrow(obj$module_cluster_assignments), 12L)
+  expect_equal(nrow(obj$module_cluster_score_table), 4L)
+  expect_true(all(rownames(obj$cap_matrix) == paste0("D", 1:6)))
 })
 
 
@@ -365,7 +673,7 @@ test_that("regression: longitudinal step2 can loop suffixed step1 slots with uni
   plot_calls <- list()
 
   testthat::local_mocked_bindings(
-    .hc_run_legacy_step2_exact = function(hc, slot_name, ...) {
+    .hc_run_longitudinal_step2_graph = function(hc, slot_name, ...) {
       run_calls[[length(run_calls) + 1L]] <<- slot_name
       sat <- as.list(hc@satellite)
       sat[[slot_name]]$meta_cluster <- data.frame(
@@ -462,6 +770,71 @@ test_that("regression: longitudinal step2 prefers suffixed family slots over sta
 })
 
 
+test_that("regression: longitudinal step2 keeps per-slot nesting for family slot_name with one matching slot", {
+  hc <- hc_init()
+  hc@config@layer <- S4Vectors::DataFrame(
+    layer_id = "set1",
+    layer_name = "RNA layer"
+  )
+  hc@satellite <- S4Vectors::SimpleList(list(
+    longitudinal_endotypes_set1 = list(
+      cap_matrix = matrix(
+        c(1, 2, 3, 4),
+        nrow = 2,
+        dimnames = list(c("d1", "d2"), c("m1", "m2"))
+      ),
+      source_slot = "longitudinal_module_means_set1"
+    )
+  ))
+
+  testthat::local_mocked_bindings(
+    .hc_run_longitudinal_step2_graph = function(hc, slot_name, ...) {
+      sat <- as.list(hc@satellite)
+      sat[[slot_name]]$meta_cluster <- data.frame(donor = "d1", meta_cluster = "MC1", stringsAsFactors = FALSE)
+      sat[[slot_name]]$meta_method_comparison <- data.frame(method = "graph_leiden", stringsAsFactors = FALSE)
+      sat[[slot_name]]$meta_score_table <- data.frame(k = 2L, stringsAsFactors = FALSE)
+      hc@satellite <- S4Vectors::SimpleList(sat)
+      hc
+    },
+    hc_plot_longitudinal_meta_embeddings = function(hc,
+                                                    slot_name,
+                                                    save_pdf,
+                                                    file_prefix,
+                                                    show_endotype_crosstab,
+                                                    show_cluster_labels,
+                                                    save_tables,
+                                                    table_format,
+                                                    table_detail) {
+      list(
+        pca = paste(slot_name, "pca", sep = "::"),
+        umap = paste(slot_name, "umap", sep = "::"),
+        cross_tab = paste(slot_name, "cross", sep = "::"),
+        tables = list(Method_Clusters = paste(slot_name, "table", sep = "::"))
+      )
+    },
+    .package = "hcocena"
+  )
+
+  out <- hcocena::hc_longitudinal_step2_meta_clustering(
+    hc,
+    slot_name = "longitudinal_endotypes",
+    dimensions = 4,
+    graph_method = "knn",
+    knn_method = "annoy",
+    graph_k = 7,
+    resolution = 0.3,
+    leiden_method = "RBConfigurationVertexPartition"
+  )
+
+  expect_named(out$plots, "set1")
+  expect_named(out$diagnostics, "set1")
+  expect_equal(out$slot_info$slot_name, "longitudinal_endotypes_set1")
+  expect_equal(out$slot_info$layer_id, "set1")
+  expect_equal(out$plots$set1$pca, "longitudinal_endotypes_set1::pca")
+  expect_equal(out$plots$set1$umap, "longitudinal_endotypes_set1::umap")
+})
+
+
 test_that("regression: longitudinal step3 can loop suffixed step2 slots with unique prefixes", {
   hc <- hc_init()
   hc@config@layer <- S4Vectors::DataFrame(
@@ -520,6 +893,118 @@ test_that("regression: longitudinal step3 can loop suffixed step2 slots with uni
   expect_equal(out$slot_info$slot_name, c("longitudinal_endotypes_set1", "longitudinal_endotypes_set2"))
   expect_equal(out$plots$set1$meta_module_waves, "longitudinal_endotypes_set1::Longitudinal_Meta_ModuleWaves_RNA_layer")
   expect_equal(out$plots$set2$meta_module_waves, "longitudinal_endotypes_set2::Longitudinal_Meta_ModuleWaves_Protein_layer")
+})
+
+
+test_that("regression: longitudinal step3 keeps per-slot nesting for family slot_name with one matching slot", {
+  hc <- hc_init()
+  hc@config@layer <- S4Vectors::DataFrame(
+    layer_id = "set1",
+    layer_name = "RNA layer"
+  )
+  hc@satellite <- S4Vectors::SimpleList(list(
+    longitudinal_endotypes_set1 = list(
+      meta_cluster = data.frame(donor = c("d1", "d2"), meta_cluster = c("MC1", "MC2"), stringsAsFactors = FALSE),
+      source_slot = "longitudinal_module_means_set1"
+    )
+  ))
+
+  testthat::local_mocked_bindings(
+    hc_plot_longitudinal_meta_module_waves = function(hc,
+                                                      slot_name,
+                                                      save_pdf,
+                                                      file_prefix,
+                                                      facet_ncol,
+                                                      free_y,
+                                                      square_panels,
+                                                      value_mode,
+                                                      value_range,
+                                                      save_width,
+                                                      save_height) {
+      list(meta_module_waves = paste(slot_name, file_prefix, sep = "::"))
+    },
+    .package = "hcocena"
+  )
+
+  out <- hcocena::hc_longitudinal_step3_meta_module_trajectories(
+    hc,
+    slot_name = "longitudinal_endotypes",
+    facet_ncol = 4,
+    free_y = FALSE,
+    square_panels = TRUE,
+    value_mode = "scaled_mean_vst",
+    value_range = c(-2, 2)
+  )
+
+  expect_named(out$plots, "set1")
+  expect_equal(out$slot_info$slot_name, "longitudinal_endotypes_set1")
+  expect_equal(out$slot_info$layer_id, "set1")
+  expect_equal(out$plots$set1$meta_module_waves, "longitudinal_endotypes_set1::Longitudinal_Meta_ModuleWaves_RNA_layer")
+})
+
+
+test_that("regression: longitudinal enrichment meta waves resolve family slot_name with one matching slot", {
+  hc <- hc_init()
+  hc@config@layer <- S4Vectors::DataFrame(
+    layer_id = "set1",
+    layer_name = "RNA layer"
+  )
+  hc@satellite <- S4Vectors::SimpleList(list(
+    longitudinal_endotypes_set1 = list(
+      meta_cluster = data.frame(
+        donor = c("d1", "d2"),
+        meta_cluster = c("MC1", "MC1"),
+        stringsAsFactors = FALSE
+      ),
+      source_slot = "longitudinal_module_means_set1"
+    )
+  ))
+
+  testthat::local_mocked_bindings(
+    hc_plot_longitudinal_enrichment_waves = function(hc, slot_name, ...) {
+      expect_equal(slot_name, "longitudinal_endotypes_set1")
+      list(
+        plots = list(Hallmark = "base_plot"),
+        top_terms = list(Hallmark = data.frame(
+          module = "M1",
+          module_color = "red",
+          term = "IFN signaling",
+          rank = 1,
+          qvalue = 0.01,
+          stringsAsFactors = FALSE
+        )),
+        donor_trajectories = list(Hallmark = data.frame(
+          donor = c("d1", "d2"),
+          module = c("M1", "M1"),
+          term = c("IFN signaling", "IFN signaling"),
+          time = c("T1", "T1"),
+          score = c(1, 2),
+          stringsAsFactors = FALSE
+        )),
+        mean_trajectories = list(),
+        score_method_used = list(Hallmark = "rank_mean")
+      )
+    },
+    .package = "hcocena"
+  )
+
+  out <- hcocena::hc_plot_longitudinal_enrichment_meta_waves(
+    hc,
+    slot_name = "longitudinal_endotypes",
+    databases = "Hallmark",
+    top = 1,
+    score_method = "rank_mean",
+    show_donor_lines = FALSE,
+    save_pdf = FALSE,
+    export_excel = FALSE,
+    donor_col = "PatID",
+    time_col = "Timepoint_rough_num",
+    time_levels = "T1"
+  )
+
+  expect_named(out$plots, "Hallmark")
+  expect_s3_class(out$plots$Hallmark, "ggplot")
+  expect_named(out$top_terms, "Hallmark")
 })
 
 
@@ -912,11 +1397,11 @@ test_that("regression: large result stores are no longer mirrored across legacy 
   upstream_src <- paste(deparse(get("upstream_inference", asNamespace("hcocena"))), collapse = "\n")
   knowledge_src <- paste(deparse(get("plot_enrichment_upstream_network", asNamespace("hcocena"))), collapse = "\n")
   network_plot_src <- paste(
-    deparse(get(".hc_plot_integrated_network_legacy_driver", asNamespace("hcocena"))),
+    deparse(get(".hc_plot_integrated_network_driver", asNamespace("hcocena"))),
     collapse = "\n"
   )
   gfc_network_src <- paste(
-    deparse(get(".hc_plot_GFC_network_legacy_driver", asNamespace("hcocena"))),
+    deparse(get(".hc_plot_GFC_network_driver", asNamespace("hcocena"))),
     collapse = "\n"
   )
 
@@ -936,19 +1421,19 @@ test_that("regression: large result stores are no longer mirrored across legacy 
     fixed = TRUE
   ))
   expect_true(grepl(
-    '[["heatmap_matrix"]] <<- mat_heatmap',
+    '\\.hc_set_bridge_hcobject_slot\\(c\\("integrated_output", "cluster_calc",\\s*"heatmap_matrix"\\)',
     heatmap_new_src,
-    fixed = TRUE
+    perl = TRUE
   ))
   expect_true(grepl(
-    '[["heatmap_row_order"]] <<- final_row_order',
+    '\\.hc_set_bridge_hcobject_slot\\(c\\("integrated_output", "cluster_calc",\\s*"heatmap_row_order"\\)',
     heatmap_new_src,
-    fixed = TRUE
+    perl = TRUE
   ))
   expect_true(grepl(
-    '[["heatmap_column_order"]] <<- final_col_order',
+    '\\.hc_set_bridge_hcobject_slot\\(c\\("integrated_output", "cluster_calc",\\s*"heatmap_column_order"\\)',
     heatmap_new_src,
-    fixed = TRUE
+    perl = TRUE
   ))
   expect_false(grepl(
     'hcobject[["integrated_output"]][["upstream_inference"]] <<- output',
@@ -990,7 +1475,7 @@ test_that("regression: large result stores are no longer mirrored across legacy 
 
 test_that("regression: duplicate GFC condition names survive S4-to-legacy conversion", {
   to_base_df <- get(".hc_to_base_data_frame_preserve_names", asNamespace("hcocena"))
-  cluster_plot_hco <- get(".hc_as_hcobject_for_cluster_plot", asNamespace("hcocena"))
+  cluster_plot_hco <- get(".hc_as_bridge_object_for_cluster_plot", asNamespace("hcocena"))
 
   dup_df <- data.frame(
     T1 = c(1, 2),
@@ -1003,7 +1488,7 @@ test_that("regression: duplicate GFC condition names survive S4-to-legacy conver
   hc <- hc_init()
   hc@integration@gfc <- S4Vectors::DataFrame(dup_df, check.names = FALSE)
 
-  legacy_full <- as_hcobject(hc)
+  legacy_full <- hcocena:::as_hcobject(hc)
   expect_identical(colnames(legacy_full$integrated_output$GFC_all_layers), c("T1", "T1", "Gene"))
 
   legacy_plot <- cluster_plot_hco(hc)
@@ -1198,6 +1683,7 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
   expect_identical(formals(plot_heatmap_new)$return_HM, FALSE)
   expect_identical(formals(plot_network)$store_plot, FALSE)
   expect_true("col_order" %in% names(formals(fun_enrich)))
+  expect_true("consistent_terms" %in% names(formals(fun_enrich)))
   expect_true("col_order" %in% names(formals(up_inf)))
   expect_true("col_order" %in% names(formals(knowledge_plot)))
   expect_true("col_order" %in% names(formals(llm_plot)))
@@ -1365,6 +1851,89 @@ test_that("regression: llm plot export writes pdf and png into configured output
 })
 
 
+test_that("regression: llm heatmap print reserves a separate title row", {
+  dummy <- grid::rectGrob(gp = grid::gpar(fill = "grey80", col = NA))
+  class(dummy) <- unique(c("hc_llm_heatmap_plot", class(dummy)))
+  attr(dummy, "llm_title") <- "AI-assisted module interpretation: General processes"
+  attr(dummy, "llm_text_size") <- 4
+
+  captured <- grid::grid.grabExpr(print(dummy))
+  title_child <- captured$children[[1]]
+  plot_child <- captured$children[[2]]
+
+  expect_s3_class(title_child, "text")
+  expect_match(title_child$label, "AI-assisted module interpretation")
+  expect_false(is.null(title_child$vp))
+  expect_false(is.null(plot_child$vp))
+  expect_false(identical(title_child$vp, plot_child$vp))
+})
+
+
+test_that("regression: llm heatmap plot body is top-aligned under the title", {
+  hc <- methods::new("HCoCenaExperiment")
+  hc@integration@cluster <- S4Vectors::SimpleList(
+    heatmap_matrix = matrix(
+      c(-1, 0.5, 1, -0.25),
+      nrow = 2,
+      dimnames = list(c("red", "blue"), c("T1", "T2"))
+    ),
+    heatmap_cluster_raw = ComplexHeatmap::add_heatmap(
+      ComplexHeatmap::Heatmap(
+        matrix(
+          c(-1, 0.5, 1, -0.25),
+          nrow = 2,
+          dimnames = list(c("red", "blue"), c("T1", "T2"))
+        ),
+        name = "GFC",
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        show_row_names = FALSE,
+        width = grid::unit(90, "mm"),
+        height = grid::unit(24, "mm")
+      ),
+      ComplexHeatmap::columnAnnotation(
+        groups = ComplexHeatmap::anno_text(c("T1", "T2"))
+      ),
+      direction = "vertical"
+    ),
+    heatmap_row_order = c("red", "blue"),
+    heatmap_column_order = c("T2", "T1"),
+    module_label_map = c(red = "M1", blue = "M2"),
+    module_label_fontsize = 9,
+    module_label_pt_size = 0.3,
+    module_box_width_cm = 0.9,
+    heatmap_cell_size_mm = 4.4,
+    gfc_colors = c("#112233", "#f7f7f7", "#cc3311"),
+    gfc_scale_limits = c(-3, 3),
+    overall_plot_scale = 1.25
+  )
+  hc@satellite <- S4Vectors::SimpleList(list(
+    llm_module_function = list(module_1 = list(status = "ok")),
+    llm_module_function_summary = data.frame(
+      module = c("M1", "M2"),
+      module_color = c("red", "blue"),
+      general_processes = c("alpha process", "beta process"),
+      contextual_state = c("state a", "state b"),
+      key_regulators = c("reg a", "reg b"),
+      stringsAsFactors = FALSE
+    )
+  ))
+
+  p <- hcocena::hc_plot_module_function_llm(
+    hc,
+    fields = "general_processes",
+    save = FALSE
+  )
+
+  captured <- grid::grid.grabExpr(print(p))
+  plot_child <- captured$children[[2]]
+  plot_parent_vp <- plot_child$childrenvp[[1]]$parent
+
+  expect_equal(grid::convertY(plot_parent_vp$y, "npc", valueOnly = TRUE), 1)
+  expect_equal(plot_parent_vp$justification, c(0.5, 1))
+})
+
+
 test_that("regression: llm heatmap plot ignores cached dendrograms with mismatched row count", {
   llm_capture <- get(".hc_llm_capture_combined_heatmap_grob", asNamespace("hcocena"))
 
@@ -1515,8 +2084,8 @@ test_that("regression: split suffix detection differs between unsplit and split 
 })
 
 
-test_that("regression: .hc_run_legacy resolves functions from the legacy env", {
-  run_legacy <- get(".hc_run_legacy", asNamespace("hcocena"))
+test_that("regression: .hc_run_driver resolves functions from the legacy env", {
+  run_legacy <- get(".hc_run_driver", asNamespace("hcocena"))
   hc <- methods::new("HCoCenaExperiment")
   legacy_env <- new.env(parent = baseenv())
   legacy_env$target_env <- legacy_env
@@ -1538,11 +2107,11 @@ test_that("regression: .hc_run_legacy resolves functions from the legacy env", {
   testthat::local_mocked_bindings(
     as_hcobject = function(hc) list(initial = TRUE),
     as_hcocena = function(x) x,
-    .hc_bind_legacy_hcobject = function(hcobject, envo = legacy_env) {
+    .hc_bind_bridge_hcobject = function(hcobject, envo = legacy_env) {
       base::assign("hcobject", hcobject, envir = envo)
       list(envo = envo, had_existing = FALSE, old_hcobject = NULL, binding_locked = FALSE)
     },
-    .hc_restore_legacy_hcobject = function(state) invisible(NULL),
+    .hc_restore_bridge_hcobject = function(state) invisible(NULL),
     .package = "hcocena"
   )
 
@@ -1862,4 +2431,118 @@ test_that("regression: celltype annotation matrix shows module labels instead of
   expect_equal(base::rownames(out$matrix), c("M1", "M2"))
   expect_setequal(base::unique(base::as.character(out$long_data$module_color)), c("yellow", "blue"))
   expect_true(inherits(out$plot, "ggplot"))
+})
+
+test_that("regression: longitudinal step2 and step3 accept prior step result lists", {
+  if (!requireNamespace("SingleCellExperiment", quietly = TRUE) ||
+      !requireNamespace("SummarizedExperiment", quietly = TRUE) ||
+      !requireNamespace("MultiAssayExperiment", quietly = TRUE) ||
+      !requireNamespace("S4Vectors", quietly = TRUE)) {
+    skip("longitudinal quick wrappers need Bioconductor core packages")
+  }
+
+  se <- SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = matrix(c(1, 2), nrow = 1, dimnames = list("g1", c("s1", "s2")))),
+    colData = S4Vectors::DataFrame(
+      Subject = c("d1", "d2"),
+      Time_token = c("T1", "T1"),
+      row.names = c("s1", "s2")
+    )
+  )
+  mae <- MultiAssayExperiment::MultiAssayExperiment(experiments = list(set1 = se))
+  hc <- methods::new("HCoCenaExperiment")
+  hc@mae <- mae
+  hc@config <- methods::new("HCoCenaConfig")
+  hc@satellite <- S4Vectors::SimpleList(list(
+    longitudinal_endotypes = list(
+      cap_matrix = matrix(
+        c(1, 0, 0, 1),
+        nrow = 2,
+        dimnames = list(c("d1", "d2"), c("M1__1", "M1__2"))
+      ),
+      module_cluster_matrix = matrix(
+        c(1, 2),
+        nrow = 2,
+        dimnames = list(c("d1", "d2"), c("M1"))
+      )
+    )
+  ))
+
+  with_mocked_bindings(
+    .hc_run_longitudinal_step2_graph = function(hc, slot_name, ...) {
+      sat <- as.list(hc@satellite)
+      sat[[slot_name]]$meta_cluster <- data.frame(
+        donor = c("d1", "d2"),
+        meta_cluster = c("MC1", "MC2"),
+        stringsAsFactors = FALSE
+      )
+      sat[[slot_name]]$meta_method_comparison <- data.frame(method = "knn", stringsAsFactors = FALSE)
+      sat[[slot_name]]$meta_score_table <- data.frame(k = 2, score = 1, stringsAsFactors = FALSE)
+      hc@satellite <- S4Vectors::SimpleList(sat)
+      hc
+    },
+    hc_plot_longitudinal_meta_embeddings = function(hc, ...) {
+      list(pca = "pca_plot", umap = "umap_plot", cross_tab = "cross_tab", tables = list())
+    },
+    hc_plot_longitudinal_meta_module_waves = function(hc, ...) {
+      list(meta_module_waves = "meta_waves_plot")
+    },
+    {
+      step1_res <- list(hc = hc, plots = list(), diagnostics = list())
+      step2_res <- hcocena::hc_longitudinal_step2_meta_clustering(step1_res)
+      expect_s4_class(step2_res$hc, "HCoCenaExperiment")
+      expect_named(step2_res$plots, "longitudinal_endotypes")
+      expect_equal(step2_res$plots$longitudinal_endotypes$pca, "pca_plot")
+
+      step3_res <- hcocena::hc_longitudinal_step3_meta_module_trajectories(step2_res)
+      expect_s4_class(step3_res$hc, "HCoCenaExperiment")
+      expect_named(step3_res$plots, "longitudinal_endotypes")
+      expect_equal(step3_res$plots$longitudinal_endotypes$meta_module_waves, "meta_waves_plot")
+    }
+  )
+})
+
+test_that("regression: longitudinal step1 accepts prior step result lists", {
+  if (!requireNamespace("SingleCellExperiment", quietly = TRUE) ||
+      !requireNamespace("SummarizedExperiment", quietly = TRUE) ||
+      !requireNamespace("MultiAssayExperiment", quietly = TRUE) ||
+      !requireNamespace("S4Vectors", quietly = TRUE)) {
+    skip("longitudinal quick wrappers need Bioconductor core packages")
+  }
+
+  se <- SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = matrix(c(1, 2), nrow = 1, dimnames = list("g1", c("s1", "s2")))),
+    colData = S4Vectors::DataFrame(
+      Subject = c("d1", "d2"),
+      Time_token = c("T1", "T2"),
+      row.names = c("s1", "s2")
+    )
+  )
+  mae <- MultiAssayExperiment::MultiAssayExperiment(experiments = list(set1 = se))
+  hc <- methods::new("HCoCenaExperiment")
+  hc@mae <- mae
+  hc@config <- methods::new("HCoCenaConfig")
+  hc@satellite <- S4Vectors::SimpleList()
+
+  with_mocked_bindings(
+    .hc_longitudinal_step1_run_single_direct = function(hc, ...) {
+      list(hc = hc, plots = list(ok = TRUE), diagnostics = list(ok = TRUE))
+    },
+    {
+      wrapped <- list(hc = hc, plots = list(), diagnostics = list())
+      out <- hcocena::hc_longitudinal_step1_module_donor(
+        wrapped,
+        donor_col = "Subject",
+        time_col = "Time_token",
+        time_levels = c("T1", "T2"),
+        method = "kmeans",
+        nstart = 1,
+        cap_runs = 1,
+        score_method = "calinski_harabasz",
+        scale_features = FALSE
+      )
+      expect_s4_class(out$hc, "HCoCenaExperiment")
+      expect_true(isTRUE(out$plots$ok))
+    }
+  )
 })

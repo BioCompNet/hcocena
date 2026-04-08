@@ -9,7 +9,7 @@ hc_meta_correlation_cat(hc, ...)
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{meta_correlation_cat()}.}
+\item{...}{Additional arguments for categorical metadata correlation.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -19,10 +19,5 @@ Correlate categorical metadata with modules (S4 API)
 }
 
 \examples{
-exists("hc_meta_correlation_cat", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

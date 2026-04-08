@@ -34,4 +34,3 @@ hc <- as_hcocena(hco)
 try(hc <- hc_unsplit_modules(hc), silent = TRUE)
 }
 }
-

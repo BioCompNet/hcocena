@@ -132,15 +132,15 @@ hc_plot_module_function_llm <- function(hc,
     stop("`text_rel_width` must be a single positive number.")
   }
   if (!is.null(module_label_fontsize) &&
-      (!is.numeric(module_label_fontsize) || length(module_label_fontsize) != 1 || is.na(module_label_fontsize) || module_label_fontsize <= 0)) {
+    (!is.numeric(module_label_fontsize) || length(module_label_fontsize) != 1 || is.na(module_label_fontsize) || module_label_fontsize <= 0)) {
     stop("`module_label_fontsize` must be NULL or a single positive number.")
   }
   if (!is.null(module_label_pt_size) &&
-      (!is.numeric(module_label_pt_size) || length(module_label_pt_size) != 1 || is.na(module_label_pt_size) || module_label_pt_size <= 0)) {
+    (!is.numeric(module_label_pt_size) || length(module_label_pt_size) != 1 || is.na(module_label_pt_size) || module_label_pt_size <= 0)) {
     stop("`module_label_pt_size` must be NULL or a single positive number.")
   }
   if (!is.null(module_box_width_cm) &&
-      (!is.numeric(module_box_width_cm) || length(module_box_width_cm) != 1 || is.na(module_box_width_cm) || module_box_width_cm <= 0)) {
+    (!is.numeric(module_box_width_cm) || length(module_box_width_cm) != 1 || is.na(module_box_width_cm) || module_box_width_cm <= 0)) {
     stop("`module_box_width_cm` must be NULL or a single positive number.")
   }
   if (!is.logical(save) || length(save) != 1 || is.na(save)) {
@@ -227,17 +227,17 @@ hc_plot_module_function_llm <- function(hc,
     plot_title <- paste0(title, ": ", title_map[[field_nm]])
 
     if (isTRUE(with_heatmap) && !is.null(heatmap_info) && isTRUE(heatmap_info$draw_supported)) {
-        combined_grob <- .hc_llm_capture_combined_heatmap_grob(
-          heatmap_info = heatmap_info,
-          summary_tbl = field_tbl,
-          max_chars = max_chars,
-          text_size = text_size,
-          module_label_fontsize = module_label_fontsize,
-          module_label_pt_size = module_label_pt_size,
-          module_box_width_cm = module_box_width_cm,
-          heatmap_col_order = col_order,
-          heatmap_cluster_columns = cluster_columns
-        )
+      combined_grob <- .hc_llm_capture_combined_heatmap_grob(
+        heatmap_info = heatmap_info,
+        summary_tbl = field_tbl,
+        max_chars = max_chars,
+        text_size = text_size,
+        module_label_fontsize = module_label_fontsize,
+        module_label_pt_size = module_label_pt_size,
+        module_box_width_cm = module_box_width_cm,
+        heatmap_col_order = col_order,
+        heatmap_cluster_columns = cluster_columns
+      )
       return(.hc_llm_add_title_grob(combined_grob, title = plot_title, text_size = text_size))
     }
 
@@ -310,7 +310,7 @@ hc_plot_module_function_llm <- function(hc,
         pointsize = 11,
         res = dpi,
         draw_fun = function() {
-          print(out[[field_nm]])
+          .hc_display_object(out[[field_nm]])
         }
       )
     })
@@ -376,7 +376,7 @@ hc_plot_module_function_gemini <- function(...) {
 }
 
 .hc_llm_title_wrap_width <- function(available_width_in = NA_real_) {
-  width_in <- suppressWarnings(base::as.numeric(available_width_in[[1]]))
+  width_in <- .hc_first_numeric_value(available_width_in[[1]])
   if (!base::is.finite(width_in) || width_in <= 0) {
     return(42L)
   }
@@ -384,43 +384,107 @@ hc_plot_module_function_gemini <- function(...) {
 }
 
 .hc_llm_add_title_grob <- function(grob, title, text_size) {
-  available_width_in <- tryCatch(
-    grid::convertWidth(grid::grobWidth(grob), "in", valueOnly = TRUE),
-    error = function(e) NA_real_
-  )
-  title_wrapped <- stringr::str_wrap(
-    title,
-    width = .hc_llm_title_wrap_width(available_width_in)
-  )
-  title_lines <- length(strsplit(title_wrapped, "\n", fixed = TRUE)[[1]])
-  title_grob <- grid::textGrob(
-    label = title_wrapped,
-    x = 0.5,
-    y = 0.5,
-    hjust = 0.5,
-    vjust = 0.5,
-    gp = grid::gpar(
-      fontface = "bold",
-      fontsize = max(10.5, text_size * 4),
-      lineheight = 1.05
-    )
-  )
-  out <- gridExtra::arrangeGrob(
-    grobs = list(title_grob, grob),
-    ncol = 1,
-    heights = grid::unit.c(
-      grid::unit(max(1.35, title_lines * 1.0), "lines"),
-      grid::unit(1, "null")
-    )
-  )
-  class(out) <- unique(c("hc_llm_heatmap_plot", class(out)))
-  out
+  class(grob) <- unique(c("hc_llm_heatmap_plot", class(grob)))
+  attr(grob, "llm_title") <- title
+  attr(grob, "llm_text_size") <- text_size
+  grob
+}
+
+.hc_llm_top_align_grob <- function(grob) {
+  if (is.null(grob) || !inherits(grob, "grob")) {
+    return(grob)
+  }
+
+  grob_vp <- tryCatch(grob$childrenvp[[1]]$parent, error = function(e) NULL)
+  if (is.null(grob_vp)) {
+    return(grob)
+  }
+
+  grob_vp$y <- grid::unit(1, "npc")
+  grob_vp$justification <- c(0.5, 1)
+  grob_vp$valid.just <- c(0.5, 1)
+  grob$childrenvp[[1]]$parent <- grob_vp
+  grob
 }
 
 #' @export
 print.hc_llm_heatmap_plot <- function(x, ...) {
+  title <- attr(x, "llm_title", exact = TRUE)
+  text_size <- attr(x, "llm_text_size", exact = TRUE)
+  inner_grob <- attr(x, "llm_inner_grob", exact = TRUE)
+
+  if (is.null(inner_grob)) {
+    inner_grob <- if (inherits(x, "gtable") && length(x$grobs) >= 2) x$grobs[[2]] else x
+  }
+  inner_grob <- .hc_llm_top_align_grob(inner_grob)
+  if (is.null(title) && inherits(x, "gtable") && length(x$grobs) >= 1) {
+    title <- tryCatch(x$grobs[[1]]$label, error = function(e) NULL)
+  }
+  if (is.null(text_size) || !is.numeric(text_size) || length(text_size) != 1 || is.na(text_size)) {
+    text_size <- 4
+  }
+
+  title_wrapped <- NULL
+  title_height_lines <- NULL
+  if (!is.null(title) && is.character(title) && base::nzchar(title)) {
+    device_width_in <- tryCatch(grDevices::dev.size("in")[[1]], error = function(e) NA_real_)
+    title_wrapped <- stringr::str_wrap(
+      title,
+      width = .hc_llm_title_wrap_width(device_width_in)
+    )
+    title_line_count <- base::length(base::strsplit(title_wrapped, "\n", fixed = TRUE)[[1]])
+    title_height_lines <- grid::unit(
+      base::max(2.2, (title_line_count * 1.15) + 0.8),
+      "lines"
+    )
+  }
+
   grid::grid.newpage()
-  grid::grid.draw(x)
+  if (!is.null(title_wrapped) && !is.null(title_height_lines)) {
+    grid::pushViewport(
+      grid::viewport(
+        layout = grid::grid.layout(
+          nrow = 2,
+          ncol = 1,
+          heights = grid::unit.c(
+            title_height_lines,
+            grid::unit(1, "null")
+          )
+        ),
+        clip = "off"
+      )
+    )
+    grid::pushViewport(grid::viewport(layout.pos.row = 1, layout.pos.col = 1, clip = "off"))
+    grid::grid.text(
+      label = title_wrapped,
+      x = 0.5,
+      y = 0.5,
+      just = c("center", "center"),
+      gp = grid::gpar(
+        fontface = "bold",
+        fontsize = base::max(10.5, text_size * 4),
+        lineheight = 1.05
+      )
+    )
+    grid::popViewport()
+    grid::pushViewport(
+      grid::viewport(
+        layout.pos.row = 2,
+        layout.pos.col = 1,
+        x = 0.5,
+        y = 1,
+        width = 1,
+        height = 1,
+        just = c("center", "top"),
+        clip = "off"
+      )
+    )
+    grid::grid.draw(inner_grob)
+    grid::popViewport()
+    grid::popViewport()
+  } else {
+    grid::grid.draw(inner_grob)
+  }
   invisible(x)
 }
 
@@ -487,7 +551,7 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
     raw_heatmap_obj = raw_heatmap_obj,
     heatmap_obj = heatmap_obj,
     draw_supported = !is.null(mat) && nrow(mat) > 0 && ncol(mat) > 0,
-    hcobject = tryCatch(.hc_as_hcobject_for_cluster_plot(hc), error = function(e) NULL),
+    hcobject = tryCatch(.hc_as_bridge_object_for_cluster_plot(hc), error = function(e) NULL),
     col_order = cache_info$col_order,
     col_labels_display = tryCatch(base::as.character(hc@integration@cluster[["heatmap_column_labels_display"]]), error = function(e) NULL),
     row_ids = row_ids,
@@ -498,7 +562,7 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
     stored_module_box_width_cm = tryCatch(as.numeric(hc@integration@cluster[["module_box_width_cm"]]), error = function(e) NA_real_),
     stored_heatmap_cell_size_mm = tryCatch(as.numeric(hc@integration@cluster[["heatmap_cell_size_mm"]]), error = function(e) NA_real_),
     stored_gfc_colors = tryCatch(base::as.character(hc@integration@cluster[["gfc_colors"]]), error = function(e) NULL),
-    stored_gfc_scale_limits = tryCatch(suppressWarnings(base::as.numeric(hc@integration@cluster[["gfc_scale_limits"]])), error = function(e) NULL),
+    stored_gfc_scale_limits = tryCatch(.hc_as_numeric_safely(hc@integration@cluster[["gfc_scale_limits"]]), error = function(e) NULL),
     stored_overall_plot_scale = tryCatch(as.numeric(hc@integration@cluster[["overall_plot_scale"]]), error = function(e) NA_real_)
   )
 }
@@ -558,7 +622,7 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
   if (is.null(x)) {
     return(NULL)
   }
-  x <- suppressWarnings(base::as.numeric(x))
+  x <- .hc_as_numeric_safely(x)
   if (base::length(x) == 1) {
     if (!base::is.finite(x) || x <= 0) {
       return(NULL)
@@ -637,23 +701,23 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
                                           module_label_fontsize = NULL,
                                           module_label_pt_size = NULL,
                                           module_box_width_cm = NULL) {
-  stored_module_label_fontsize <- suppressWarnings(as.numeric(heatmap_info$stored_module_label_fontsize[[1]]))
+  stored_module_label_fontsize <- .hc_first_numeric_value(heatmap_info$stored_module_label_fontsize[[1]])
   if (!base::is.finite(stored_module_label_fontsize) || stored_module_label_fontsize <= 0) {
     stored_module_label_fontsize <- NULL
   }
-  stored_module_label_pt_size <- suppressWarnings(as.numeric(heatmap_info$stored_module_label_pt_size[[1]]))
+  stored_module_label_pt_size <- .hc_first_numeric_value(heatmap_info$stored_module_label_pt_size[[1]])
   if (!base::is.finite(stored_module_label_pt_size) || stored_module_label_pt_size <= 0) {
     stored_module_label_pt_size <- NULL
   }
-  stored_module_box_width_cm <- suppressWarnings(as.numeric(heatmap_info$stored_module_box_width_cm[[1]]))
+  stored_module_box_width_cm <- .hc_first_numeric_value(heatmap_info$stored_module_box_width_cm[[1]])
   if (!base::is.finite(stored_module_box_width_cm) || stored_module_box_width_cm <= 0) {
     stored_module_box_width_cm <- NULL
   }
-  stored_heatmap_cell_size_mm <- suppressWarnings(as.numeric(heatmap_info$stored_heatmap_cell_size_mm[[1]]))
+  stored_heatmap_cell_size_mm <- .hc_first_numeric_value(heatmap_info$stored_heatmap_cell_size_mm[[1]])
   if (!base::is.finite(stored_heatmap_cell_size_mm) || stored_heatmap_cell_size_mm <= 0) {
     stored_heatmap_cell_size_mm <- NULL
   }
-  stored_overall_plot_scale <- suppressWarnings(as.numeric(heatmap_info$stored_overall_plot_scale[[1]]))
+  stored_overall_plot_scale <- .hc_first_numeric_value(heatmap_info$stored_overall_plot_scale[[1]])
   if (!base::is.finite(stored_overall_plot_scale) || stored_overall_plot_scale <= 0) {
     stored_overall_plot_scale <- 1
   }
@@ -661,12 +725,12 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
 
   stored_gfc_colors <- tryCatch(base::as.character(heatmap_info$stored_gfc_colors), error = function(e) NULL)
   if (is.null(stored_gfc_colors) || base::length(stored_gfc_colors) < 2 ||
-      any(base::is.na(stored_gfc_colors)) || any(stored_gfc_colors == "")) {
+    any(base::is.na(stored_gfc_colors)) || any(stored_gfc_colors == "")) {
     stored_gfc_colors <- .hc_default_gfc_colors()
   }
   stored_gfc_scale_limits <- .hc_llm_normalize_gfc_scale_limits(heatmap_info$stored_gfc_scale_limits)
   if (is.null(stored_gfc_scale_limits)) {
-    fallback_lim <- suppressWarnings(base::max(base::abs(mat_use), na.rm = TRUE))
+    fallback_lim <- .hc_max_finite(base::abs(mat_use))
     if (!base::is.finite(fallback_lim) || fallback_lim <= 0) {
       fallback_lim <- 2
     }
@@ -969,6 +1033,22 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
   )
   combined_ht <- do.call(ComplexHeatmap::Heatmap, combined_ht_args)
   right_pad_mm <- max(28, 6 + (gfc_label_width * 2.2))
+  capture_width_mm <- base::max(
+    120,
+    row_dend_width_mm +
+      heatmap_body_w_mm +
+      (module_box_width_cm * 10) +
+      (text_width_cm * 10) +
+      right_pad_mm +
+      38
+  )
+  capture_height_mm <- base::max(
+    70,
+    column_dend_height_mm +
+      heatmap_body_h_mm +
+      (shared_column_name_max_cm * 10) +
+      30
+  )
   grid::grid.grabExpr(
     ComplexHeatmap::draw(
       combined_ht,
@@ -979,7 +1059,9 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
       heatmap_legend_side = "right",
       annotation_legend_side = "right",
       padding = grid::unit(c(8, 18, 18, right_pad_mm) * overall_plot_scale, "mm")
-    )
+    ),
+    width = capture_width_mm / 25.4,
+    height = capture_height_mm / 25.4
   )
 }
 
@@ -992,7 +1074,7 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
     if (is.null(cell_mm_raw) || length(cell_mm_raw) == 0) {
       return(ht)
     }
-    cell_mm <- suppressWarnings(as.numeric(cell_mm_raw[[1]]))
+    cell_mm <- .hc_first_numeric_value(cell_mm_raw[[1]])
     if (!is.finite(cell_mm) || cell_mm <= 0) {
       return(ht)
     }
@@ -1040,9 +1122,7 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
 
 .hc_llm_extract_column_ids <- function(heatmap_obj, mat) {
   col_ids <- colnames(mat)
-  ord <- suppressWarnings(
-    tryCatch(ComplexHeatmap::column_order(heatmap_obj), error = function(e) NULL)
-  )
+  ord <- tryCatch(ComplexHeatmap::column_order(heatmap_obj), error = function(e) NULL)
   if (is.list(ord) && length(ord) > 0) {
     ord <- ord[[1]]
   }
@@ -1057,9 +1137,7 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
 .hc_llm_extract_dendrogram <- function(heatmap_obj, which = c("row", "column")) {
   which <- match.arg(which)
   fn <- if (identical(which, "row")) ComplexHeatmap::row_dend else ComplexHeatmap::column_dend
-  out <- suppressWarnings(
-    tryCatch(fn(heatmap_obj), error = function(e) NULL)
-  )
+  out <- tryCatch(fn(heatmap_obj), error = function(e) NULL)
   if (is.list(out) && length(out) > 0) {
     out <- out[[1]]
   }
@@ -1097,14 +1175,12 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
     return(NULL)
   }
 
-  dend_labels <- suppressWarnings(
-    tryCatch(base::as.character(labels(dend)), error = function(e) NULL)
-  )
+  dend_labels <- tryCatch(base::as.character(labels(dend)), error = function(e) NULL)
   if (!is.null(dend_labels) && base::length(dend_labels) > 0) {
     dend_labels <- dend_labels[!base::is.na(dend_labels) & base::nzchar(dend_labels)]
     axis_ids_chr <- base::as.character(axis_ids)
     if (base::length(dend_labels) > 0 &&
-        !base::setequal(base::unique(dend_labels), base::unique(axis_ids_chr))) {
+      !base::setequal(base::unique(dend_labels), base::unique(axis_ids_chr))) {
       return(NULL)
     }
   }

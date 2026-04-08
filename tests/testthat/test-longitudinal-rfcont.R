@@ -10,7 +10,7 @@ test_that("rfcont imputation works with CALIBERrfimpute installed but not attach
   expect_false(rf_pkg_search %in% search())
   set.seed(42)
   out <- suppressWarnings(
-    hcocena:::.hc_legacy_impute_time_data(
+    hcocena:::.hc_longitudinal_impute_time_data(
       time_data = data.frame(
         donor = c("d1", "d2", "d3", "d4"),
         `1` = c(1, 2, 3, 4),

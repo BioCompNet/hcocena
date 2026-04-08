@@ -101,10 +101,10 @@ meta-cluster mean trajectories.}
 }
 \value{
 A list with \code{plots}, \code{top_terms}, \code{donor_trajectories},
-\code{mean_trajectories}, and \code{score_method_used}. When multiple slots
-are processed, these top-level components are flattened with slot-prefixed
-names for convenient iteration, and nested per-slot outputs are also returned
-in \code{results_by_slot}, together with \code{slot_info}.
+\code{mean_trajectories}, and \code{score_method_used}. When multiple slots are
+processed, these top-level components are flattened with slot-prefixed
+names for convenient iteration, and nested per-slot outputs are also
+returned in \code{results_by_slot}, together with \code{slot_info}.
 }
 \description{
 Creates one plot per enrichment database. For each module, the top \code{x} terms
@@ -113,10 +113,5 @@ meta-cluster trajectories are drawn as longitudinal waves.
 }
 
 \examples{
-exists("hc_plot_longitudinal_enrichment_meta_waves", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

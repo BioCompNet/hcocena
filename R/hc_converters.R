@@ -372,7 +372,7 @@ as_hcobject <- function(hc) {
 
   out[["supplementary_data"]] <- as.list(hc@references@data)
   if (base::nrow(hc@references@registry) > 0 &&
-      all(c("name", "source") %in% base::colnames(hc@references@registry))) {
+    all(c("name", "source") %in% base::colnames(hc@references@registry))) {
     out[["supplement"]] <- stats::setNames(
       as.list(as.character(hc@references@registry$source)),
       as.character(hc@references@registry$name)

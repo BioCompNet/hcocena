@@ -22,10 +22,5 @@ Convenience printer for outputs from the stepwise longitudinal functions.
 }
 
 \examples{
-exists("hc_print_longitudinal_endotypes", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

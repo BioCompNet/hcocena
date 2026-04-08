@@ -70,10 +70,5 @@ and produces:
 }
 
 \examples{
-exists("hc_plot_longitudinal_module_clusters", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

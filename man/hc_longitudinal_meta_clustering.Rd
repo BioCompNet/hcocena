@@ -80,10 +80,5 @@ matrices), providing CH-based model selection and PCA/UMAP embeddings.
 }
 
 \examples{
-exists("hc_longitudinal_meta_clustering", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

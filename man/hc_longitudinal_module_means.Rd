@@ -35,7 +35,7 @@ first available layer.}
 \item{modules}{Optional subset of modules (module labels or color names).}
 
 \item{use_module_labels}{Logical. If \code{TRUE}, use \code{M}-style labels from
-\code{plot_cluster_heatmap()} when available; otherwise use color names.}
+\code{hc_plot_cluster_heatmap()} when available; otherwise use color names.}
 
 \item{time_levels}{Optional explicit timepoint order.}
 
@@ -64,10 +64,5 @@ feature matrix that can be used for longitudinal endotype discovery.
 }
 
 \examples{
-exists("hc_longitudinal_module_means", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

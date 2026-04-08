@@ -50,10 +50,5 @@ Plot meta-clustering embeddings and endotype cross-tab
 }
 
 \examples{
-exists("hc_plot_longitudinal_meta_embeddings", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

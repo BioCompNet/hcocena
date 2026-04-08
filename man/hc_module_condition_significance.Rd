@@ -9,7 +9,7 @@ hc_module_condition_significance(hc, ...)
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{module_condition_significance()}.}
+\item{...}{Additional arguments for module-condition significance testing.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -19,10 +19,5 @@ Test module differences between conditions (S4 API)
 }
 
 \examples{
-exists("hc_module_condition_significance", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

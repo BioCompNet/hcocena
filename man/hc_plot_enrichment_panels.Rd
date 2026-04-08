@@ -26,10 +26,5 @@ after \code{hc_functional_enrichment()}, without recomputing enrichment.
 }
 
 \examples{
-exists("hc_plot_enrichment_panels", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

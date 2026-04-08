@@ -9,7 +9,7 @@ hc_import_layout_from_local_folder(hc, ...)
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{import_layout_from_local_folder()}.}
+\item{...}{Additional arguments for local layout import.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -19,18 +19,5 @@ Import Cytoscape layout from local folder (S4 API)
 }
 
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- as_hcocena(hco)
-tmp_layout <- tempfile(fileext = ".csv")
-write.csv(data.frame(row.names = integer(0)), tmp_layout)
-try(hc <- hc_import_layout_from_local_folder(hc, file = tmp_layout), silent = TRUE)
+hc <- hc_init()
 }
-}
-

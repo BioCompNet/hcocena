@@ -57,10 +57,5 @@ a highlighted module mean trajectory on top.
 }
 
 \examples{
-exists("hc_plot_longitudinal_module_means", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

@@ -625,9 +625,9 @@ print(utils::head(hc@satellite[["upstream_inference"]][["selected_upstream_all"]
 #   heatmap_side = "left",
 #   plot = TRUE,
 #   save_pdf = TRUE,
-#   plot_per_comparison = TRUE,
-#   consistent_terms = FALSE
+#   plot_per_comparison = TRUE
 # )
+# For a condition-specific discovery view, set `consistent_terms` to `FALSE`.
 
 ```
 

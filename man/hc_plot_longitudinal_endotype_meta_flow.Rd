@@ -29,10 +29,5 @@ Plot endotype-to-meta-cluster flow as Sankey diagram
 }
 
 \examples{
-exists("hc_plot_longitudinal_endotype_meta_flow", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

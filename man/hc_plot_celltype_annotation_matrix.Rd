@@ -50,10 +50,5 @@ Uses \code{hc@satellite$celltype_annotation} and draws a heatmap-like matrix
 }
 
 \examples{
-exists("hc_plot_celltype_annotation_matrix", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

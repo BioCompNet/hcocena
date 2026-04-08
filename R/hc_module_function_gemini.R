@@ -128,16 +128,16 @@ hc_module_function_llm <- function(hc = NULL,
   }
 
   if (llm == "gemini" &&
-      !base::is.null(gemini_model) &&
-      base::nzchar(base::as.character(gemini_model[[1]]))) {
+    !base::is.null(gemini_model) &&
+    base::nzchar(base::as.character(gemini_model[[1]]))) {
     model <- base::as.character(gemini_model[[1]])
   } else if (llm == "claude" &&
-             !base::is.null(claude_model) &&
-             base::nzchar(base::as.character(claude_model[[1]]))) {
+    !base::is.null(claude_model) &&
+    base::nzchar(base::as.character(claude_model[[1]]))) {
     model <- base::as.character(claude_model[[1]])
   } else if (llm == "vllm" &&
-             !base::is.null(vllm_model) &&
-             base::nzchar(base::as.character(vllm_model[[1]]))) {
+    !base::is.null(vllm_model) &&
+    base::nzchar(base::as.character(vllm_model[[1]]))) {
     model <- base::as.character(vllm_model[[1]])
   } else if (base::is.null(model) || !base::nzchar(base::as.character(model[[1]]))) {
     model <- if (llm == "gemini") {
@@ -173,8 +173,9 @@ hc_module_function_llm <- function(hc = NULL,
       stop("`pause_sec` must be NULL or a single non-negative number.")
     }
   }
+  continue_flag_label <- "`continue_on_error`"
   if (!base::is.logical(continue_on_error) || base::length(continue_on_error) != 1 || base::is.na(continue_on_error)) {
-    stop("`continue_on_error` must be TRUE or FALSE.")
+    stop(continue_flag_label, " must be TRUE or FALSE.")
   }
   if (!base::is.logical(verbose) || base::length(verbose) != 1 || base::is.na(verbose)) {
     stop("`verbose` must be TRUE or FALSE.")
@@ -342,12 +343,12 @@ hc_module_function_vllm <- function(...) {
       .hc_llm_summarize_one(
         gene_info = gene_info,
         label = this_label,
-          context_text = context_text,
-          llm = llm,
-          api_key = api_key,
-          model = model,
-          vllm_base_url = vllm_base_url,
-          max_genes = max_genes,
+        context_text = context_text,
+        llm = llm,
+        api_key = api_key,
+        model = model,
+        vllm_base_url = vllm_base_url,
+        max_genes = max_genes,
         temperature = temperature,
         timeout_sec = timeout_sec,
         system_instruction = system_instruction,
@@ -540,13 +541,22 @@ hc_module_function_vllm <- function(...) {
   truncated <- base::length(genes_use) < base::length(genes_all)
 
   if (isTRUE(verbose)) {
-    message(
-      "LLM module summary: sending ",
-      base::length(genes_use),
-      if (truncated) base::paste0(" of ", base::length(genes_all)) else "",
-      " genes for `", label, "` using provider `", llm,
-      "` and model `", model, "`."
-    )
+    if (truncated) {
+      message(
+        "LLM module summary: sending ",
+        base::length(genes_use),
+        " of ", base::length(genes_all),
+        " genes for `", label, "` using provider `", llm,
+        "` and model `", model, "`."
+      )
+    } else {
+      message(
+        "LLM module summary: sending ",
+        base::length(genes_use),
+        " genes for `", label, "` using provider `", llm,
+        "` and model `", model, "`."
+      )
+    }
   }
 
   prompt <- .hc_gemini_build_prompt(
@@ -685,7 +695,7 @@ hc_module_function_vllm <- function(...) {
     if (base::length(parts) == 4) {
       return(list(
         prefix = base::tolower(parts[[2]]),
-        number = suppressWarnings(base::as.integer(parts[[3]])),
+        number = .hc_first_numeric_value(.hc_as_integer_safely(parts[[3]])),
         suffix = base::tolower(parts[[4]])
       ))
     }
@@ -862,8 +872,8 @@ hc_module_function_vllm <- function(...) {
   run_request <- function(include_temperature = TRUE) {
     api_args <- list()
     if (isTRUE(include_temperature) &&
-        !base::is.null(temperature) &&
-        base::is.finite(temperature)) {
+      !base::is.null(temperature) &&
+      base::is.finite(temperature)) {
       api_args$temperature <- temperature
     }
 
@@ -1519,9 +1529,9 @@ hc_module_function_vllm <- function(...) {
     return(val)
   }
   if (identical(mode, "integer")) {
-    val <- suppressWarnings(base::as.integer(val[[1]]))
+    val <- .hc_as_integer_safely(val[[1]])
     if (base::length(val) == 0 || base::is.na(val)) {
-      return(suppressWarnings(base::as.integer(default[[1]])))
+      return(.hc_as_integer_safely(default[[1]]))
     }
     return(val)
   }
@@ -1657,10 +1667,10 @@ hc_module_function_vllm <- function(...) {
   heatmap_info <- tryCatch(.hc_heatmap_cache_info(hc@integration@cluster), error = function(e) NULL)
   label_map <- tryCatch(hc@integration@cluster[["module_label_map"]], error = function(e) NULL)
   if (!base::is.null(heatmap_info) &&
-      !base::is.null(heatmap_info$row_order) &&
-      base::length(heatmap_info$row_order) > 0 &&
-      !base::is.null(label_map) &&
-      base::length(label_map) > 0) {
+    !base::is.null(heatmap_info$row_order) &&
+    base::length(heatmap_info$row_order) > 0 &&
+    !base::is.null(label_map) &&
+    base::length(label_map) > 0) {
     label_map <- base::as.character(label_map)
     map_names <- base::names(hc@integration@cluster[["module_label_map"]])
     if (!base::is.null(map_names) && base::length(map_names) == base::length(label_map)) {

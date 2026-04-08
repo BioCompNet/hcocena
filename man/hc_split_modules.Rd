@@ -82,4 +82,3 @@ mods <- mods[!is.na(mods) & mods != "white"]
 if (length(mods) > 0) try(hc <- hc_split_modules(hc, modules = mods[1]), silent = TRUE)
 }
 }
-

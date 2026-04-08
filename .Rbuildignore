@@ -9,6 +9,8 @@
 ^\.\.Rcheck$
 ^.*\.Rcheck$
 ^.*\.BiocCheck$
+^bioccheck_verify$
+^bioccheck_verify/
 ^hcocena_.*\.tar\.gz$
 ^Rplots\.pdf$
 ^\.tmp_llm_visual$

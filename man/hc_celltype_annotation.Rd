@@ -82,12 +82,12 @@ Set to \code{FALSE} to keep existing slots.}
 
 \item{excel_file}{Excel file name in the configured output folder.}
 
-\item{plot_heatmap}{Logical. If \code{TRUE}, run \code{\link[=plot_cluster_heatmap]{plot_cluster_heatmap()}} after
+\item{plot_heatmap}{Logical. If \code{TRUE}, run \code{\link[=hc_plot_cluster_heatmap]{hc_plot_cluster_heatmap()}} after
 updating annotation slots.}
 
 \item{heatmap_file_name}{File name used when \code{plot_heatmap = TRUE}.}
 
-\item{...}{Additional arguments passed to \code{\link[=plot_cluster_heatmap]{plot_cluster_heatmap()}}.}
+\item{...}{Additional arguments passed to \code{\link[=hc_plot_cluster_heatmap]{hc_plot_cluster_heatmap()}}.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.

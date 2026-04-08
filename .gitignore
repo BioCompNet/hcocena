@@ -7,8 +7,11 @@
 ..Rcheck/
 *.Rcheck/
 *.BiocCheck/
+bioccheck_verify/
+inst/doc/
 gh-check-artifact-*.zip
 github-job-*.html
 job-*-logs.zip
 job-*-logs/
 tests/testthat/Rplots.pdf
+docker/project_data/*.rds

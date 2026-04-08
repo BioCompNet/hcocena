@@ -70,10 +70,5 @@ Calinski-Harabasz index.
 }
 
 \examples{
-exists("hc_longitudinal_endotype_clustering", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

@@ -85,9 +85,9 @@ hc_auto_tune <- function(hc,
     resolution_unique <- unique(as.numeric(resolution_grid))
     resolution_unique <- resolution_unique[is.finite(resolution_unique)]
     if (uses_leiden &&
-        pt_norm == "modularityvertexpartition" &&
-        length(resolution_unique) > 1) {
-      resolution_single <- suppressWarnings(as.numeric(prefer_resolution)[1])
+      pt_norm == "modularityvertexpartition" &&
+      length(resolution_unique) > 1) {
+      resolution_single <- .hc_first_numeric_value(prefer_resolution)
       if (!is.finite(resolution_single)) {
         resolution_single <- resolution_unique[[1]]
       }
@@ -260,7 +260,7 @@ hc_auto_tune <- function(hc,
   }
 
   if ("cutoff" %in% base::colnames(hc@config@layer)) {
-    existing <- suppressWarnings(as.numeric(hc@config@layer$cutoff))
+    existing <- .hc_as_numeric_safely(hc@config@layer$cutoff)
     n <- base::min(base::length(existing), base::length(out))
     repl <- !base::is.finite(out[base::seq_len(n)]) & base::is.finite(existing[base::seq_len(n)])
     out[base::seq_len(n)][repl] <- existing[base::seq_len(n)][repl]
@@ -295,7 +295,7 @@ hc_auto_tune <- function(hc,
   }
   if (base::is.list(x)) {
     if ("optimal_cutoff" %in% base::names(x)) {
-      val <- suppressWarnings(as.numeric(x[["optimal_cutoff"]])[1])
+      val <- .hc_first_numeric_value(x[["optimal_cutoff"]])
       if (base::is.finite(val)) {
         return(val)
       }
@@ -413,7 +413,7 @@ hc_auto_tune <- function(hc,
   n_modules <- base::sum(keep, na.rm = TRUE)
   n_genes_in_modules <- 0L
   if ("gene_no" %in% base::colnames(cluster_info)) {
-    gene_no <- suppressWarnings(as.numeric(cluster_info$gene_no))
+    gene_no <- .hc_as_numeric_safely(cluster_info$gene_no)
     n_genes_in_modules <- base::sum(gene_no[keep], na.rm = TRUE)
   } else if ("gene_n" %in% base::colnames(cluster_info)) {
     genes <- unlist(
@@ -430,7 +430,7 @@ hc_auto_tune <- function(hc,
   }
 
   list(
-    modularity = suppressWarnings(as.numeric(modularity)[1]),
+    modularity = .hc_first_numeric_value(modularity),
     n_modules = as.integer(n_modules),
     n_genes_in_modules = as.integer(n_genes_in_modules)
   )
@@ -447,10 +447,8 @@ hc_auto_tune <- function(hc,
 
   cluster_id <- base::seq_len(base::nrow(cluster_info))
   if ("clusters" %in% base::colnames(cluster_info)) {
-    parsed <- suppressWarnings(
-      as.integer(
-        base::sub(".*?(\\d+)$", "\\1", as.character(cluster_info$clusters), perl = TRUE)
-      )
+    parsed <- .hc_as_integer_safely(
+      base::sub(".*?(\\d+)$", "\\1", as.character(cluster_info$clusters), perl = TRUE)
     )
     ok <- base::is.finite(parsed)
     cluster_id[ok] <- parsed[ok]

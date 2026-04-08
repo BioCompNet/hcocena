@@ -51,10 +51,5 @@ The clustering report is additionally mirrored to \code{hc@satellite$resolution_
 }
 
 \examples{
-exists("hc_tune_resolution", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

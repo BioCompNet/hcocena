@@ -59,7 +59,10 @@ test_that("extended S4 wrappers are exported", {
   )
 
   exported <- getNamespaceExports("hcocena")
-  expect_true(all(expected %in% exported))
+  public_exports <- exported[!grepl("^\\.__T__", exported)]
+
+  expect_true(all(expected %in% public_exports))
+  expect_true(all(grepl("^hc_", public_exports)))
 })
 
 test_that("output directory setup can create missing root and use it directly", {
@@ -81,7 +84,7 @@ test_that("output directory setup can create missing root and use it directly", 
   expect_true(dir.exists(out_dir))
 
   hc <- hc_init_save_folder(hc, name = "", use_output_dir = TRUE)
-  legacy <- as_hcobject(hc)
+  legacy <- hcocena:::as_hcobject(hc)
   expect_equal(legacy$global_settings$save_folder, "")
 })
 
@@ -129,7 +132,7 @@ test_that("hc_read_data auto-initializes output setup", {
     anno_has_rn = FALSE
   )
 
-  legacy <- as_hcobject(hc)
+  legacy <- hcocena:::as_hcobject(hc)
   expect_true(dir.exists(out_dir))
   expect_identical(legacy$global_settings$save_folder, "")
   expect_true(all(c("set1_counts", "set1_anno") %in% names(legacy$data)))
@@ -191,7 +194,7 @@ test_that("hc_read_data supports object sources with FALSE path settings", {
     NA
   )
 
-  legacy <- as_hcobject(hc)
+  legacy <- hcocena:::as_hcobject(hc)
   expect_true(all(c("set1_counts", "set1_anno") %in% names(legacy$data)))
   expect_identical(rownames(legacy$data$set1_counts), c("G1", "G2"))
   expect_identical(colnames(legacy$data$set1_counts), c("sample1", "sample2"))
@@ -235,7 +238,7 @@ test_that("hc_set_paths enforces scalar path-like inputs", {
     dir_output = fancy_path
   )
 
-  legacy <- as_hcobject(hc)
+  legacy <- hcocena:::as_hcobject(hc)
   expect_type(legacy$working_directory$dir_count_data, "character")
 
   expect_error(
@@ -307,7 +310,7 @@ test_that("hc_auto_set_paths applies overrides", {
     dir_annotation = FALSE
   )
 
-  legacy <- as_hcobject(hc)
+  legacy <- hcocena:::as_hcobject(hc)
   expect_identical(legacy$working_directory$dir_count_data, FALSE)
   expect_identical(legacy$working_directory$dir_annotation, FALSE)
   expect_true(grepl("/reference_files/$", legacy$working_directory$dir_reference_files))

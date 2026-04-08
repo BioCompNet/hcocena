@@ -19,16 +19,5 @@ Check TF targets (S4 API)
 }
 
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- as_hcocena(hco)
-try(hc <- hc_check_tf(hc, TF = "STAT1"), silent = TRUE)
+hc <- hc_init()
 }
-}
-

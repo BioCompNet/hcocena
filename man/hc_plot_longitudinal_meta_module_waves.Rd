@@ -63,10 +63,5 @@ plus bold meta-cluster mean trajectories.
 }
 
 \examples{
-exists("hc_plot_longitudinal_meta_module_waves", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

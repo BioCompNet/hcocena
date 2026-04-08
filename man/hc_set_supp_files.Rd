@@ -43,5 +43,5 @@ hc <- hc_set_supp_files(
   Hallmark = "hallmark.gmt",
   Go = "go.gmt"
 )
-sort(names(as_hcobject(hc)$supplement))
+sort(names(hcocena:::as_hcobject(hc)$supplement))
 }

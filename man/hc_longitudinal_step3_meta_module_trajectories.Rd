@@ -35,9 +35,9 @@ when \code{value_mode = "scaled_mean_vst"}. Default is \code{c(-2, 2)}. Use \cod
 for automatic scaling.}
 }
 \value{
-A list with unchanged \code{hc} and the step 3 plot. When multiple slots are
-processed, \code{plots} is returned as a named list keyed by layer/slot, plus
-a \code{slot_info} table describing the resolved slots.
+A list with unchanged \code{hc} and the step 3 plot. When multiple slots
+are processed, \code{plots} is returned as a named list keyed by layer/slot,
+plus a \code{slot_info} table describing the resolved slots.
 }
 \description{
 Plots module trajectories after meta-clustering using donor and meta-cluster
@@ -45,10 +45,5 @@ mean waves.
 }
 
 \examples{
-exists("hc_longitudinal_step3_meta_module_trajectories", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

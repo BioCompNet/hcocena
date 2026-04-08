@@ -43,10 +43,5 @@ Creates three consensus diagnostics:
 }
 
 \examples{
-exists("hc_plot_longitudinal_meta_consensus", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

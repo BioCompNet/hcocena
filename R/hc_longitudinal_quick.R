@@ -29,6 +29,18 @@
   base::unique(time_levels)
 }
 
+.hc_longitudinal_unwrap_hc <- function(hc, arg_name = "hc") {
+  if (inherits(hc, "HCoCenaExperiment")) {
+    return(hc)
+  }
+  if (base::is.list(hc) && !base::is.null(hc$hc) && inherits(hc$hc, "HCoCenaExperiment")) {
+    return(hc$hc)
+  }
+  stop(
+    "`", arg_name, "` must be a `HCoCenaExperiment` or a longitudinal-step result list containing `$hc`."
+  )
+}
+
 .hc_longitudinal_quick_preset_defaults <- function(preset = c("standard", "consensus")) {
   preset <- base::match.arg(preset)
   if (identical(preset, "standard")) {
@@ -91,7 +103,7 @@
 .hc_longitudinal_layer_label <- function(hc, layer_id) {
   cfg <- hc@config@layer
   if (base::nrow(cfg) > 0 &&
-      base::all(c("layer_id", "layer_name") %in% base::colnames(cfg))) {
+    base::all(c("layer_id", "layer_name") %in% base::colnames(cfg))) {
     idx <- base::which(base::as.character(cfg$layer_id) == base::as.character(layer_id))
     if (base::length(idx) > 0) {
       lbl <- base::as.character(cfg$layer_name[[idx[[1]]]])
@@ -113,127 +125,14 @@
   x
 }
 
-.hc_longitudinal_step1_run_single <- function(hc,
-                                              donor_col,
-                                              time_col,
-                                              layer_id,
-                                              time_levels,
-                                              k,
-                                              rerolls,
-                                              impute,
-                                              impute_method,
-                                              ntree,
-                                              min_cluster_fraction,
-                                              score_method,
-                                              seed,
-                                              means_slot,
-                                              output_slot,
-                                              module_means_prefix = "Longitudinal_ModuleMeans",
-                                              module_clusters_prefix = "Longitudinal_ModuleClusters",
-                                              cap_prefix = "Longitudinal_CAP") {
-  lmm_args <- list(
-    hc = hc,
-    donor_col = donor_col,
-    time_col = time_col,
-    layer = layer_id,
-    group_col = NULL,
-    use_module_labels = TRUE,
-    time_levels = time_levels,
-    impute_missing = "none",
-    slot_name = means_slot
-  )
-  if ("value_label" %in% base::names(base::formals(hc_longitudinal_module_means))) {
-    lmm_args$value_label <- NULL
-  }
-  hc <- do.call(hc_longitudinal_module_means, lmm_args)
-
-  hc <- .hc_run_legacy_step1_exact(
-    hc = hc,
-    means_slot = means_slot,
-    output_slot = output_slot,
-    k = k,
-    rerolls = rerolls,
-    impute = impute,
-    impute_method = impute_method,
-    ntree = ntree,
-    min_cluster_fraction = min_cluster_fraction,
-    score_method = score_method,
-    seed = seed
-  )
-
-  module_means <- hc_plot_longitudinal_module_means(
-    hc,
-    slot_name = means_slot,
-    save_pdf = TRUE,
-    file_prefix = module_means_prefix,
-    square_panels = TRUE,
-    save_width = 10,
-    save_height = 10
-  )
-
-  module_clusters <- hc_plot_longitudinal_module_clusters(
-    hc,
-    slot_name = output_slot,
-    save_pdf = TRUE,
-    file_prefix = module_clusters_prefix,
-    show_heatmap_numbers = TRUE,
-    square_panels = TRUE,
-    save_waves_width = 10,
-    save_waves_height = 10
-  )
-
-  donor_order <- NULL
-  heatmap_obj <- module_clusters$module_cluster_heatmap
-  if (!base::is.null(heatmap_obj) &&
-      !base::is.null(heatmap_obj$data) &&
-      "donor" %in% base::colnames(heatmap_obj$data)) {
-    donor_vec <- heatmap_obj$data$donor
-    donor_levels <- base::levels(donor_vec)
-    donor_order <- if (!base::is.null(donor_levels) && base::length(donor_levels) > 0) {
-      donor_levels
-    } else {
-      base::unique(base::as.character(donor_vec))
-    }
-  }
-
-  cap_args <- list(
-    hc = hc,
-    slot_name = output_slot,
-    save_pdf = TRUE,
-    file_prefix = cap_prefix,
-    show_values = FALSE
-  )
-  if (!base::is.null(donor_order)) {
-    cap_args$donor_order <- donor_order
-  }
-  cap <- do.call(hc_plot_longitudinal_cap, cap_args)
-
-  list(
-    hc = hc,
-    plots = list(
-      module_means_waves = module_means$module_means,
-      module_cluster_waves = module_clusters$module_cluster_waves,
-      module_cluster_heatmap = module_clusters$module_cluster_heatmap,
-      cap_heatmap = cap$cap_heatmap
-    ),
-    diagnostics = list(
-      k = k,
-      rerolls = as.integer(rerolls),
-      impute = isTRUE(impute),
-      impute_method = impute_method,
-      ntree = as.integer(ntree),
-      min_cluster_fraction = as.numeric(min_cluster_fraction),
-      score_method = score_method,
-      module_cluster_score = hc@satellite[[output_slot]]$module_cluster_score,
-      module_cluster_best_k = hc@satellite[[output_slot]]$module_cluster_best_k
-    )
-  )
-}
-
 #' Longitudinal step 1: module/donor clustering
 #'
-#' Computes longitudinal module means, exact `kml` module/donor clustering, and
-#' CAP, then returns the two wave plots and two heatmaps for this step.
+#' Computes longitudinal module means, then clusters donors separately within
+#' each module directly on the donor-by-time trajectory matrix. The downstream
+#' quick steps remain unchanged and can be run via
+#' [hc_longitudinal_step2_meta_clustering()],
+#' [hc_longitudinal_step3_meta_module_trajectories()], and
+#' [hc_plot_longitudinal_enrichment_meta_waves()].
 #'
 #' @param hc A `HCoCenaExperiment`.
 #' @param donor_col Annotation column containing donor IDs.
@@ -241,20 +140,28 @@
 #' @param layer Optional layer index, layer id, layer name, or `"all"`. `NULL`
 #'   uses the first available layer.
 #' @param time_levels Required explicit timepoint order vector.
-#' @param k Candidate donor-trajectory cluster numbers per module. This is the
-#'   main parameter controlling how many donor clusters each module may form.
-#' @param rerolls Number of repeated `kml` redrawings per module. Increase this
-#'   for more stable results.
+#' @param k Candidate donor-trajectory cluster numbers per module.
+#' @param method One of `"kmeans"` or `"hclust"` for direct clustering on the
+#'   donor-by-time matrix.
+#' @param nstart Number of random starts for direct `kmeans`.
+#' @param cap_runs Number of repeated clustering runs used to build CAP.
 #' @param impute Logical. If `TRUE`, impute missing donor-time values before
-#'   `kml` clustering.
-#' @param impute_method Missing-value method passed to `mice`. Use `"rfcont"`
-#'   to match the previous workflow most closely. For `"rfcont"`,
-#'   `CALIBERrfimpute` must be installed; it is loaded automatically.
+#'   direct clustering.
+#' @param impute_method Missing-value method passed to `mice`.
 #' @param ntree Number of trees for `rfcont` imputation.
 #' @param min_cluster_fraction Minimum allowed fraction of donors in the
-#'   smallest cluster when scoring candidate `k`.
-#' @param score_method Rule used to choose the final per-module clustering from
-#'   the `kml` score tables.
+#'   smallest module cluster.
+#' @param score_method One of `"calinski_harabasz"` or `"tot_withinss"` for
+#'   direct selection.
+#' @param scale_features Logical. If `TRUE`, z-score timepoint columns before
+#'   clustering.
+#' @param na_impute One of `"median"` or `"zero"` for final NA handling after
+#'   optional imputation.
+#' @param cap_scale_features Logical. If `TRUE`, z-score features for CAP
+#'   reruns.
+#' @param cap_na_impute One of `"median"` or `"zero"` for CAP feature handling.
+#' @param cap_jitter_sd Optional Gaussian jitter SD added per CAP rerun when
+#'   `method = "kmeans"`.
 #' @param seed Random seed.
 #' @param means_slot Satellite slot for module means.
 #' @param output_slot Satellite slot for endotype outputs.
@@ -269,21 +176,36 @@ hc_longitudinal_step1_module_donor <- function(hc,
                                                layer = NULL,
                                                time_levels,
                                                k = 2:6,
-                                               rerolls = 1000,
+                                               method = c("kmeans", "hclust"),
+                                               nstart = 50,
+                                               cap_runs = 50,
                                                impute = TRUE,
                                                impute_method = "rfcont",
                                                ntree = 10,
                                                min_cluster_fraction = 0.1,
-                                               score_method = "median",
+                                               score_method = c("calinski_harabasz", "tot_withinss"),
+                                               scale_features = FALSE,
+                                               na_impute = c("median", "zero"),
+                                               cap_scale_features = scale_features,
+                                               cap_na_impute = na_impute,
+                                               cap_jitter_sd = 0,
                                                seed = 42,
                                                means_slot = "longitudinal_module_means",
                                                output_slot = "longitudinal_endotypes") {
+  hc <- .hc_longitudinal_unwrap_hc(hc)
   time_levels <- .hc_normalize_time_levels(time_levels)
   k <- .hc_normalize_longitudinal_k(k, "k")
-  if (!base::is.numeric(rerolls) || base::length(rerolls) != 1 || !base::is.finite(rerolls) || rerolls < 1) {
-    stop("`rerolls` must be a single integer >= 1.")
+  method <- base::match.arg(method)
+  score_method <- base::match.arg(score_method)
+  na_impute <- base::match.arg(na_impute)
+  cap_na_impute <- base::match.arg(cap_na_impute)
+
+  if (!base::is.numeric(nstart) || base::length(nstart) != 1 || !base::is.finite(nstart) || nstart < 1) {
+    stop("`nstart` must be a single integer >= 1.")
   }
-  rerolls <- as.integer(rerolls)
+  if (!base::is.numeric(cap_runs) || base::length(cap_runs) != 1 || !base::is.finite(cap_runs) || cap_runs < 1) {
+    stop("`cap_runs` must be a single integer >= 1.")
+  }
   if (!base::is.logical(impute) || base::length(impute) != 1 || base::is.na(impute)) {
     stop("`impute` must be TRUE or FALSE.")
   }
@@ -297,33 +219,52 @@ hc_longitudinal_step1_module_donor <- function(hc,
     stop("`ntree` must be a single integer >= 1.")
   }
   if (!base::is.numeric(min_cluster_fraction) || base::length(min_cluster_fraction) != 1 ||
-      !base::is.finite(min_cluster_fraction) || min_cluster_fraction < 0 || min_cluster_fraction > 1) {
+    !base::is.finite(min_cluster_fraction) || min_cluster_fraction < 0 || min_cluster_fraction > 1) {
     stop("`min_cluster_fraction` must be between 0 and 1.")
   }
-  if (!score_method %in% c("max", "mean", "median", "z_max", "z_mean", "z_median")) {
-    stop("`score_method` must be one of `max`, `mean`, `median`, `z_max`, `z_mean`, `z_median`.")
+  if (!base::is.logical(scale_features) || base::length(scale_features) != 1 || base::is.na(scale_features)) {
+    stop("`scale_features` must be TRUE or FALSE.")
+  }
+  if (!base::is.logical(cap_scale_features) || base::length(cap_scale_features) != 1 || base::is.na(cap_scale_features)) {
+    stop("`cap_scale_features` must be TRUE or FALSE.")
+  }
+  if (!base::is.numeric(cap_jitter_sd) || base::length(cap_jitter_sd) != 1 || !base::is.finite(cap_jitter_sd) || cap_jitter_sd < 0) {
+    stop("`cap_jitter_sd` must be a single numeric value >= 0.")
   }
 
+  requested_all_layers <- base::is.character(layer) &&
+    base::length(layer) == 1 &&
+    identical(layer, "all")
   target_layers <- .hc_longitudinal_step1_target_layers(hc = hc, layer = layer)
   multi_layer <- base::length(target_layers) > 1
 
-  if (!isTRUE(multi_layer)) {
-    return(.hc_longitudinal_step1_run_single(
+  if (!isTRUE(multi_layer) && !isTRUE(requested_all_layers)) {
+    return(.hc_longitudinal_step1_run_single_direct(
       hc = hc,
       donor_col = donor_col,
       time_col = time_col,
       layer_id = target_layers[[1]],
       time_levels = time_levels,
       k = k,
-      rerolls = rerolls,
+      method = method,
+      nstart = base::as.integer(nstart),
+      cap_runs = base::as.integer(cap_runs),
       impute = impute,
       impute_method = impute_method,
-      ntree = ntree,
+      ntree = base::as.integer(ntree),
       min_cluster_fraction = min_cluster_fraction,
       score_method = score_method,
+      scale_features = scale_features,
+      na_impute = na_impute,
+      cap_scale_features = cap_scale_features,
+      cap_na_impute = cap_na_impute,
+      cap_jitter_sd = cap_jitter_sd,
       seed = seed,
       means_slot = means_slot,
-      output_slot = output_slot
+      output_slot = output_slot,
+      module_means_prefix = "Longitudinal_ModuleMeans",
+      module_clusters_prefix = "Longitudinal_ModuleClusters",
+      cap_prefix = "Longitudinal_CAP"
     ))
   }
 
@@ -339,19 +280,26 @@ hc_longitudinal_step1_module_donor <- function(hc,
     output_slot_i <- base::paste0(output_slot, "_", layer_suffix)
     file_suffix <- .hc_longitudinal_safe_suffix(layer_label)
 
-    res_i <- .hc_longitudinal_step1_run_single(
+    res_i <- .hc_longitudinal_step1_run_single_direct(
       hc = hc,
       donor_col = donor_col,
       time_col = time_col,
       layer_id = lid,
       time_levels = time_levels,
       k = k,
-      rerolls = rerolls,
+      method = method,
+      nstart = base::as.integer(nstart),
+      cap_runs = base::as.integer(cap_runs),
       impute = impute,
       impute_method = impute_method,
-      ntree = ntree,
+      ntree = base::as.integer(ntree),
       min_cluster_fraction = min_cluster_fraction,
       score_method = score_method,
+      scale_features = scale_features,
+      na_impute = na_impute,
+      cap_scale_features = cap_scale_features,
+      cap_na_impute = cap_na_impute,
+      cap_jitter_sd = cap_jitter_sd,
       seed = seed,
       means_slot = means_slot_i,
       output_slot = output_slot_i,
@@ -433,6 +381,19 @@ hc_longitudinal_step1_module_donor <- function(hc,
   )
 }
 
+.hc_longitudinal_requested_slot_family <- function(slot_name) {
+  if (base::is.null(slot_name) || base::length(slot_name) != 1) {
+    return(FALSE)
+  }
+  slot_name <- base::as.character(slot_name[[1]])
+  if (!base::nzchar(slot_name)) {
+    return(FALSE)
+  }
+  identical(slot_name, "all") ||
+    identical(slot_name, "longitudinal_endotypes") ||
+    base::startsWith(slot_name, "longitudinal_endotypes_")
+}
+
 .hc_longitudinal_step2_slot_context <- function(hc, slot_name, requested_slot_name = NULL) {
   sat <- as.list(hc@satellite)
   obj <- sat[[slot_name]]
@@ -444,8 +405,8 @@ hc_longitudinal_step1_module_donor <- function(hc,
 
   suffix_candidates <- base::character(0)
   if (!base::is.null(requested_slot_name) &&
-      !identical(requested_slot_name, "all") &&
-      base::length(requested_slot_name) == 1) {
+    !identical(requested_slot_name, "all") &&
+    base::length(requested_slot_name) == 1) {
     requested_slot_name <- base::as.character(requested_slot_name[[1]])
     req_prefix <- base::paste0(requested_slot_name, "_")
     if (base::startsWith(slot_name, req_prefix)) {
@@ -498,7 +459,7 @@ hc_longitudinal_step1_module_donor <- function(hc,
                                               umap_min_dist,
                                               seed,
                                               file_prefix = "Longitudinal_Meta") {
-  hc <- .hc_run_legacy_step2_exact(
+  hc <- .hc_run_longitudinal_step2_graph(
     hc = hc,
     slot_name = slot_name,
     dimensions = as.integer(dimensions),
@@ -675,6 +636,7 @@ hc_longitudinal_step2_meta_clustering <- function(hc,
                                                   umap_neighbors = 15,
                                                   umap_min_dist = 0.3,
                                                   seed = 42) {
+  hc <- .hc_longitudinal_unwrap_hc(hc)
   graph_method <- base::match.arg(graph_method)
   knn_method <- base::match.arg(knn_method)
   if (!base::is.numeric(dimensions) || base::length(dimensions) != 1 || !base::is.finite(dimensions) || dimensions < 1) {
@@ -688,7 +650,8 @@ hc_longitudinal_step2_meta_clustering <- function(hc,
   }
 
   target_slots <- .hc_longitudinal_step2_target_slots(hc = hc, slot_name = slot_name)
-  if (base::length(target_slots) == 1) {
+  requested_slot_family <- .hc_longitudinal_requested_slot_family(slot_name)
+  if (base::length(target_slots) == 1 && !isTRUE(requested_slot_family)) {
     return(.hc_longitudinal_step2_run_single(
       hc = hc,
       slot_name = target_slots[[1]],
@@ -790,9 +753,11 @@ hc_longitudinal_step3_meta_module_trajectories <- function(hc,
                                                            square_panels = TRUE,
                                                            value_mode = c("scaled_mean_vst", "expression"),
                                                            value_range = c(-2, 2)) {
+  hc <- .hc_longitudinal_unwrap_hc(hc)
   value_mode <- base::match.arg(value_mode)
   target_slots <- .hc_longitudinal_step3_target_slots(hc = hc, slot_name = slot_name)
-  if (base::length(target_slots) == 1) {
+  requested_slot_family <- .hc_longitudinal_requested_slot_family(slot_name)
+  if (base::length(target_slots) == 1 && !isTRUE(requested_slot_family)) {
     return(.hc_longitudinal_step3_run_single(
       hc = hc,
       slot_name = target_slots[[1]],
@@ -881,41 +846,41 @@ hc_print_longitudinal_endotypes <- function(x, show_tables = TRUE) {
   }
 
   if (!base::is.null(base::names(p)) &&
-      base::length(p) > 0 &&
-      base::all(base::vapply(p, is_step1_plot_block, FUN.VALUE = base::logical(1)))) {
+    base::length(p) > 0 &&
+    base::all(base::vapply(p, is_step1_plot_block, FUN.VALUE = base::logical(1)))) {
     for (nm in base::names(p)) {
       layer_block <- p[[nm]]
-      if (!base::is.null(layer_block$module_means_waves)) print(layer_block$module_means_waves)
-      if (!base::is.null(layer_block$module_cluster_waves)) print(layer_block$module_cluster_waves)
-      if (!base::is.null(layer_block$module_cluster_heatmap)) print(layer_block$module_cluster_heatmap)
-      if (!base::is.null(layer_block$cap_heatmap)) print(layer_block$cap_heatmap)
+      if (!base::is.null(layer_block$module_means_waves)) .hc_display_object(layer_block$module_means_waves)
+      if (!base::is.null(layer_block$module_cluster_waves)) .hc_display_object(layer_block$module_cluster_waves)
+      if (!base::is.null(layer_block$module_cluster_heatmap)) .hc_display_object(layer_block$module_cluster_heatmap)
+      if (!base::is.null(layer_block$cap_heatmap)) .hc_display_object(layer_block$cap_heatmap)
     }
     return(base::invisible(x))
   }
   if (!base::is.null(base::names(p)) &&
-      base::length(p) > 0 &&
-      base::all(base::vapply(p, is_step2_plot_block, FUN.VALUE = base::logical(1)))) {
+    base::length(p) > 0 &&
+    base::all(base::vapply(p, is_step2_plot_block, FUN.VALUE = base::logical(1)))) {
     for (nm in base::names(p)) {
       slot_block <- p[[nm]]
       diag_block <- if (!base::is.null(x$diagnostics[[nm]])) x$diagnostics[[nm]] else NULL
-      if (!base::is.null(slot_block$pca)) print(slot_block$pca)
-      if (!base::is.null(slot_block$umap)) print(slot_block$umap)
-      if (!base::is.null(diag_block$cross_tab)) print(diag_block$cross_tab)
+      if (!base::is.null(slot_block$pca)) .hc_display_object(slot_block$pca)
+      if (!base::is.null(slot_block$umap)) .hc_display_object(slot_block$umap)
+      if (!base::is.null(diag_block$cross_tab)) .hc_display_object(diag_block$cross_tab)
       if (isTRUE(show_tables) && !base::is.null(diag_block$tables$Method_Clusters)) {
-        print(diag_block$tables$Method_Clusters)
+        .hc_display_object(diag_block$tables$Method_Clusters)
       }
       if (isTRUE(show_tables) && !base::is.null(diag_block$tables$Consensus_Decision)) {
-        print(diag_block$tables$Consensus_Decision)
+        .hc_display_object(diag_block$tables$Consensus_Decision)
       }
     }
     return(base::invisible(x))
   }
   if (!base::is.null(base::names(p)) &&
-      base::length(p) > 0 &&
-      base::all(base::vapply(p, is_step3_plot_block, FUN.VALUE = base::logical(1)))) {
+    base::length(p) > 0 &&
+    base::all(base::vapply(p, is_step3_plot_block, FUN.VALUE = base::logical(1)))) {
     for (nm in base::names(p)) {
       slot_block <- p[[nm]]
-      if (!base::is.null(slot_block$meta_module_waves)) print(slot_block$meta_module_waves)
+      if (!base::is.null(slot_block$meta_module_waves)) .hc_display_object(slot_block$meta_module_waves)
     }
     return(base::invisible(x))
   }
@@ -925,25 +890,25 @@ hc_print_longitudinal_endotypes <- function(x, show_tables = TRUE) {
   step3 <- p$step3_meta_module_trajectories
 
   if (base::is.null(step1) &&
-      base::any(base::c("module_means_waves", "module_cluster_waves", "module_cluster_heatmap", "cap_heatmap") %in% base::names(p))) {
+    base::any(base::c("module_means_waves", "module_cluster_waves", "module_cluster_heatmap", "cap_heatmap") %in% base::names(p))) {
     step1 <- p
   }
   if (base::is.null(step2) &&
-      base::any(base::c("pca", "umap") %in% base::names(p))) {
+    base::any(base::c("pca", "umap") %in% base::names(p))) {
     step2 <- p
   }
   if (base::is.null(step3) &&
-      "meta_module_waves" %in% base::names(p)) {
+    "meta_module_waves" %in% base::names(p)) {
     step3 <- p
   }
 
-  if (!base::is.null(step1$module_means_waves)) print(step1$module_means_waves)
-  if (!base::is.null(step1$module_cluster_waves)) print(step1$module_cluster_waves)
-  if (!base::is.null(step1$module_cluster_heatmap)) print(step1$module_cluster_heatmap)
-  if (!base::is.null(step1$cap_heatmap)) print(step1$cap_heatmap)
-  if (!base::is.null(step2$pca)) print(step2$pca)
-  if (!base::is.null(step2$umap)) print(step2$umap)
-  if (!base::is.null(step3$meta_module_waves)) print(step3$meta_module_waves)
+  if (!base::is.null(step1$module_means_waves)) .hc_display_object(step1$module_means_waves)
+  if (!base::is.null(step1$module_cluster_waves)) .hc_display_object(step1$module_cluster_waves)
+  if (!base::is.null(step1$module_cluster_heatmap)) .hc_display_object(step1$module_cluster_heatmap)
+  if (!base::is.null(step1$cap_heatmap)) .hc_display_object(step1$cap_heatmap)
+  if (!base::is.null(step2$pca)) .hc_display_object(step2$pca)
+  if (!base::is.null(step2$umap)) .hc_display_object(step2$umap)
+  if (!base::is.null(step3$meta_module_waves)) .hc_display_object(step3$meta_module_waves)
 
   meta_embeddings <- p$meta_embeddings
   if (base::is.null(meta_embeddings) && !base::is.null(x$diagnostics)) {
@@ -955,17 +920,17 @@ hc_print_longitudinal_endotypes <- function(x, show_tables = TRUE) {
   k_criterion <- if (!base::is.null(p$k_criterion)) p$k_criterion else x$diagnostics$k_criterion
   meta_consensus <- if (!base::is.null(p$meta_consensus)) p$meta_consensus else x$diagnostics$meta_consensus
 
-  if (!base::is.null(meta_embeddings$cross_tab)) print(meta_embeddings$cross_tab)
-  if (isTRUE(show_tables) && !base::is.null(k_criterion$global_k)) print(k_criterion$global_k)
-  if (isTRUE(show_tables) && !base::is.null(k_criterion$module_k)) print(k_criterion$module_k)
-  if (isTRUE(show_tables) && !base::is.null(meta_consensus$consensus_k)) print(meta_consensus$consensus_k)
-  if (isTRUE(show_tables) && !base::is.null(meta_consensus$stability)) print(meta_consensus$stability)
-  if (isTRUE(show_tables) && !base::is.null(meta_consensus$consensus_heatmap)) print(meta_consensus$consensus_heatmap)
+  if (!base::is.null(meta_embeddings$cross_tab)) .hc_display_object(meta_embeddings$cross_tab)
+  if (isTRUE(show_tables) && !base::is.null(k_criterion$global_k)) .hc_display_object(k_criterion$global_k)
+  if (isTRUE(show_tables) && !base::is.null(k_criterion$module_k)) .hc_display_object(k_criterion$module_k)
+  if (isTRUE(show_tables) && !base::is.null(meta_consensus$consensus_k)) .hc_display_object(meta_consensus$consensus_k)
+  if (isTRUE(show_tables) && !base::is.null(meta_consensus$stability)) .hc_display_object(meta_consensus$stability)
+  if (isTRUE(show_tables) && !base::is.null(meta_consensus$consensus_heatmap)) .hc_display_object(meta_consensus$consensus_heatmap)
   if (isTRUE(show_tables) && !base::is.null(meta_embeddings$tables$Method_Clusters)) {
-    print(meta_embeddings$tables$Method_Clusters)
+    .hc_display_object(meta_embeddings$tables$Method_Clusters)
   }
   if (isTRUE(show_tables) && !base::is.null(meta_embeddings$tables$Consensus_Decision)) {
-    print(meta_embeddings$tables$Consensus_Decision)
+    .hc_display_object(meta_embeddings$tables$Consensus_Decision)
   }
 
   base::invisible(x)
@@ -1044,11 +1009,13 @@ hc_add_meta_time_grouping <- function(hc,
 
   slot_contexts <- base::lapply(
     target_slots,
-    function(sn) .hc_longitudinal_step2_slot_context(
-      hc = hc,
-      slot_name = sn,
-      requested_slot_name = slot_name
-    )
+    function(sn) {
+      .hc_longitudinal_step2_slot_context(
+        hc = hc,
+        slot_name = sn,
+        requested_slot_name = slot_name
+      )
+    }
   )
   base::names(slot_contexts) <- target_slots
 
@@ -1116,8 +1083,10 @@ hc_add_meta_time_grouping <- function(hc,
       obs_meta <- base::sort(base::unique(meta_tbl$meta_cluster))
       miss_meta <- obs_meta[!obs_meta %in% meta_cluster_levels_use]
       if (base::length(miss_meta) > 0) {
-        warning("`meta_cluster_levels` missed observed clusters for layer `", lid, "`: ",
-                base::paste(miss_meta, collapse = ", "), ". Appending at the end.")
+        warning(
+          "`meta_cluster_levels` missed observed clusters for layer `", lid, "`: ",
+          base::paste(miss_meta, collapse = ", "), ". Appending at the end."
+        )
         meta_cluster_levels_use <- base::c(meta_cluster_levels_use, miss_meta)
       }
     }
@@ -1153,8 +1122,10 @@ hc_add_meta_time_grouping <- function(hc,
       obs_t <- base::unique(time_vec[!base::is.na(time_vec) & base::nzchar(time_vec)])
       miss_t <- obs_t[!obs_t %in% time_levels_use]
       if (base::length(miss_t) > 0) {
-        warning("Layer `", lid, "` has time values missing in `time_levels`: ",
-                base::paste(miss_t, collapse = ", "), ". Appending at the end.")
+        warning(
+          "Layer `", lid, "` has time values missing in `time_levels`: ",
+          base::paste(miss_t, collapse = ", "), ". Appending at the end."
+        )
         time_levels_use <- base::c(time_levels_use, miss_t)
       }
     }
@@ -1217,11 +1188,11 @@ hc_add_meta_time_grouping <- function(hc,
   hc@mae <- MultiAssayExperiment::MultiAssayExperiment(experiments = exps)
 
   used_slots <- base::unique(base::as.character(base::unlist(slot_used_by_layer, use.names = FALSE)))
-  store_info_for_slot <- function(slot_key, layer_ids) {
+  store_info_for_slot <- function(sat, slot_key, layer_ids) {
     if (base::is.null(sat[[slot_key]]) || !base::is.list(sat[[slot_key]])) {
-      sat[[slot_key]] <<- list()
+      sat[[slot_key]] <- list()
     }
-    sat[[slot_key]][["meta_time_grouping"]] <<- list(
+    sat[[slot_key]][["meta_time_grouping"]] <- list(
       grouping_col = grouping_col,
       donor_col = donor_col,
       time_col = time_col,
@@ -1241,14 +1212,15 @@ hc_add_meta_time_grouping <- function(hc,
       col_order_by_layer = col_order_by_layer[layer_ids],
       col_order = base::unlist(col_order_by_layer[layer_ids], use.names = FALSE)
     )
+    sat
   }
 
   for (slot_i in used_slots) {
     slot_layers <- base::names(slot_used_by_layer)[base::unlist(slot_used_by_layer, use.names = FALSE) == slot_i]
-    store_info_for_slot(slot_i, slot_layers)
+    sat <- store_info_for_slot(sat, slot_i, slot_layers)
   }
   if (!identical(slot_name, "all") && base::length(used_slots) > 1) {
-    store_info_for_slot(slot_name, target_layers)
+    sat <- store_info_for_slot(sat, slot_name, target_layers)
   }
   hc@satellite <- S4Vectors::SimpleList(sat)
 

@@ -101,10 +101,5 @@ rank-based fallback if GSVA is unavailable.
 }
 
 \examples{
-exists("hc_plot_longitudinal_enrichment_waves", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

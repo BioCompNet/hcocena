@@ -24,4 +24,3 @@ hc_get_reference_data <- function(hub_id, hub = NULL) {
 
   hub[[hub_id]]
 }
-

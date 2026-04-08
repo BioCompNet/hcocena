@@ -1,3 +1,21 @@
+# hcocena 0.99.6
+
+## Enrichment defaults
+
+- Switched functional-enrichment defaults to consistent term selection across
+  modules and wrappers.
+- Refreshed the Docker release metadata for the next public image tag.
+
+# hcocena 0.99.5
+
+## Bioconductor readiness and Docker release
+
+- Finalized the S4/legacy bridge cleanup, including removal of remaining
+  package-level `<<-` usage from the active R sources.
+- Hardened regression coverage for the updated heatmap and auto-tuning paths.
+- Refined package formatting and documentation metadata ahead of submission.
+- Refreshed the public Docker release metadata for the next image tag.
+
 # hcocena 0.99.1
 
 ## Bioconductor preparation

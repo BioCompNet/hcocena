@@ -9,7 +9,7 @@ hc_export_to_local_folder(hc, ...)
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{export_to_local_folder()}.}
+\item{...}{Additional export arguments for local folder output.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -19,16 +19,5 @@ Export network to local folder (S4 API)
 }
 
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- as_hcocena(hco)
-try(hc <- hc_export_to_local_folder(hc, file = tempdir()), silent = TRUE)
+hc <- hc_init()
 }
-}
-

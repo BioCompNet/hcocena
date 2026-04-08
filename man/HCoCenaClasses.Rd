@@ -9,17 +9,7 @@
 \alias{HCoCenaIntegration-class}
 \alias{HCoCenaExperiment-class}
 \title{hCoCena S4 Classes}
-\value{
-Instances of the documented S4 classes returned by the object-oriented hCoCena API.
-}
 \description{
 S4 container classes used by the object-oriented hCoCena API.
-}
-\examples{
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-class(hc)
-slotNames(hc)
-}
 }
 \keyword{classes}

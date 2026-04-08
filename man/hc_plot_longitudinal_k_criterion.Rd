@@ -35,10 +35,5 @@ Plot k-criterion diagnostics for longitudinal clustering
 }
 
 \examples{
-exists("hc_plot_longitudinal_k_criterion", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

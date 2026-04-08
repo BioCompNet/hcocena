@@ -29,5 +29,5 @@ hc <- hc_set_paths(
 )
 hc <- hc_set_supp_files(hc, Hallmark = "hallmark.gmt")
 hc <- hc_read_supplementary(hc)
-names(as_hcobject(hc)$supplementary_data)
+names(hcocena:::as_hcobject(hc)$supplementary_data)
 }

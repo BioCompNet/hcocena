@@ -114,8 +114,7 @@ a colored module box on the left and the inferred overarching function on the
 right.
 }
 \examples{
-exists("hc_plot_module_function_llm", mode = "function")
-
+hc <- hc_init()
 \donttest{
 hc <- hc_init()
 methods::slot(hc, "satellite")[["llm_module_function"]] <- list(

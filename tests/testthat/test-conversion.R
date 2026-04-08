@@ -26,10 +26,10 @@ test_that("legacy <-> S4 conversion roundtrip preserves key content", {
     satellite_outputs = list()
   )
 
-  hc <- as_hcocena(legacy)
+  hc <- hcocena:::as_hcocena(legacy)
   expect_s4_class(hc, "HCoCenaExperiment")
 
-  legacy2 <- as_hcobject(hc)
+  legacy2 <- hcocena:::as_hcobject(hc)
   expect_true("set1_counts" %in% names(legacy2$data))
   expect_equal(legacy2$global_settings$voi, "group")
   expect_equal(legacy2$cutoff_vec[[1]], 0.95)
@@ -56,7 +56,7 @@ test_that("conversion handles NULL entries in supplement registry", {
     satellite_outputs = list()
   )
 
-  hc <- as_hcocena(legacy)
+  hc <- hcocena:::as_hcocena(legacy)
   reg <- as.data.frame(hc@references@registry)
 
   expect_s4_class(hc, "HCoCenaExperiment")

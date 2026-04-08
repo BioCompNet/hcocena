@@ -90,7 +90,7 @@ hc_auto_tune_cutoff_tiered <- function(hc,
     }
   }
   if (!is.null(max_no_networks) && !is.null(max_components) &&
-      abs(as.numeric(max_no_networks) - as.numeric(max_components)) > .Machine$double.eps^0.5) {
+    abs(as.numeric(max_no_networks) - as.numeric(max_components)) > .Machine$double.eps^0.5) {
     stop("Please set only one of `max_no_networks` or `max_components` (deprecated alias), or set both to the same value.")
   }
   if (is.null(max_no_networks) && !is.null(max_components)) {
@@ -99,12 +99,12 @@ hc_auto_tune_cutoff_tiered <- function(hc,
   }
   if (!is.null(min_node_fraction)) {
     if (!is.numeric(min_node_fraction) || length(min_node_fraction) != 1 || !is.finite(min_node_fraction) ||
-        min_node_fraction <= 0 || min_node_fraction > 1) {
+      min_node_fraction <= 0 || min_node_fraction > 1) {
       stop("`min_node_fraction` must be NULL or a numeric scalar in (0, 1].")
     }
   }
   if (!is.logical(fallback_respect_base_filters) || length(fallback_respect_base_filters) != 1 ||
-      is.na(fallback_respect_base_filters)) {
+    is.na(fallback_respect_base_filters)) {
     stop("`fallback_respect_base_filters` must be TRUE or FALSE.")
   }
   if (!is.logical(verbose) || length(verbose) != 1 || is.na(verbose)) {
@@ -150,7 +150,7 @@ hc_auto_tune_cutoff_tiered <- function(hc,
   }
 
   first_finite <- function(x) {
-    x <- suppressWarnings(as.numeric(x))
+    x <- .hc_as_numeric_safely(x)
     x <- x[is.finite(x)]
     if (length(x) == 0) {
       return(NA_real_)
@@ -159,8 +159,8 @@ hc_auto_tune_cutoff_tiered <- function(hc,
   }
 
   compute_slope <- function(degree, probs) {
-    d <- suppressWarnings(as.numeric(degree))
-    p <- suppressWarnings(as.numeric(probs))
+    d <- .hc_as_numeric_safely(degree)
+    p <- .hc_as_numeric_safely(probs)
     keep <- is.finite(d) & is.finite(p) & d > 0 & p > 0
     d <- d[keep]
     p <- p[keep]
@@ -175,7 +175,7 @@ hc_auto_tune_cutoff_tiered <- function(hc,
     if (is.null(cf) || length(cf) < 2) {
       return(NA_real_)
     }
-    slope <- suppressWarnings(as.numeric(cf[[2]]))
+    slope <- .hc_first_numeric_value(cf[[2]])
     if (!is.finite(slope)) {
       return(NA_real_)
     }
@@ -189,7 +189,7 @@ hc_auto_tune_cutoff_tiered <- function(hc,
     df <- as.data.frame(cutoff_stats, stringsAsFactors = FALSE)
     for (nm in c("cutoff", "R.squared", "no_edges", "no_nodes", "no_of_networks", "degree", "Probs")) {
       if (nm %in% colnames(df)) {
-        df[[nm]] <- suppressWarnings(as.numeric(df[[nm]]))
+        df[[nm]] <- .hc_as_numeric_safely(df[[nm]])
       }
     }
     if (!("cutoff" %in% colnames(df))) {
@@ -211,7 +211,7 @@ hc_auto_tune_cutoff_tiered <- function(hc,
         NA_real_
       }
       data.frame(
-        cutoff = suppressWarnings(as.numeric(k)),
+        cutoff = .hc_first_numeric_value(k),
         sft_rsq = first_finite(sub$R.squared),
         slope = if (all(c("degree", "Probs") %in% colnames(sub))) compute_slope(sub$degree, sub$Probs) else NA_real_,
         mean_k = mean_k,
@@ -251,7 +251,7 @@ hc_auto_tune_cutoff_tiered <- function(hc,
       nodes_ok <- rep(TRUE, nrow(df))
       min_nodes_abs <- NA_real_
     } else {
-      max_nodes <- suppressWarnings(max(df$no_nodes, na.rm = TRUE))
+      max_nodes <- .hc_max_finite(df$no_nodes)
       if (!is.finite(max_nodes) || max_nodes <= 0) {
         min_nodes_abs <- NA_real_
         nodes_ok <- rep(FALSE, nrow(df))
@@ -440,7 +440,7 @@ hc_auto_tune_cutoff_tiered <- function(hc,
     cut_to_apply <- as.numeric(recommended)
     existing <- rep(NA_real_, length(cut_to_apply))
     if (nrow(hc@config@layer) > 0 && "cutoff" %in% colnames(hc@config@layer)) {
-      existing <- suppressWarnings(as.numeric(hc@config@layer$cutoff))
+      existing <- .hc_as_numeric_safely(hc@config@layer$cutoff)
       if (length(existing) < length(cut_to_apply)) {
         existing <- c(existing, rep(NA_real_, length(cut_to_apply) - length(existing)))
       }

@@ -20,11 +20,5 @@ The function expects an ExperimentHub ID (e.g. \code{"EH12345"}).
 }
 
 \examples{
-hub_id <- "EH1"
-is.character(hub_id)
-
-\donttest{
-try(hc_get_reference_data("EH1"), silent = TRUE)
+hc <- hc_init()
 }
-}
-

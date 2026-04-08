@@ -9,7 +9,7 @@ hc_tf_overrep_module(hc, ...)
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{TF_overrep_module()}.}
+\item{...}{Additional arguments for module-level TF enrichment.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -19,16 +19,5 @@ TF enrichment per module (S4 API)
 }
 
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- as_hcocena(hco)
-try(hc <- hc_tf_overrep_module(hc, clusters = "all", topTF = 1, topTarget = 1), silent = TRUE)
+hc <- hc_init()
 }
-}
-

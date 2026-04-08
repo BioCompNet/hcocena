@@ -9,7 +9,7 @@ hc_col_anno_categorical(hc, ...)
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{col_anno_categorical()}.}
+\item{...}{Additional arguments for categorical module annotations.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -19,10 +19,5 @@ Add categorical module heatmap annotations (S4 API)
 }
 
 \examples{
-exists("hc_col_anno_categorical", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

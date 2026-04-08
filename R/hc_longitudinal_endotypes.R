@@ -25,8 +25,8 @@
 
   cfg <- hc@config@layer
   if (base::nrow(cfg) > 0 &&
-      "layer_name" %in% base::colnames(cfg) &&
-      "layer_id" %in% base::colnames(cfg)) {
+    "layer_name" %in% base::colnames(cfg) &&
+    "layer_id" %in% base::colnames(cfg)) {
     idx <- base::which(as.character(cfg$layer_name) == layer_chr)
     if (base::length(idx) > 0) {
       cand <- as.character(cfg$layer_id[[idx[[1]]]])
@@ -68,7 +68,7 @@
 #' @noRd
 .hc_impute_series <- function(x, method = c("none", "linear", "locf")) {
   method <- base::match.arg(method)
-  x <- suppressWarnings(base::as.numeric(x))
+  x <- .hc_as_numeric_safely(x)
   if (base::all(base::is.na(x)) || identical(method, "none")) {
     return(x)
   }
@@ -167,7 +167,7 @@
     "#E377C2", # pink
     "#17BECF", # cyan
     "#BCBD22", # olive
-    "#7F7F7F"  # gray
+    "#7F7F7F" # gray
   )
   n <- base::as.integer(n[[1]])
   if (!base::is.finite(n) || n <= 0L) {
@@ -242,7 +242,7 @@
       x
     }
     number_hits <- regmatches(x, gregexpr("[0-9]+", x, perl = TRUE))[[1]]
-    numbers <- suppressWarnings(base::as.integer(number_hits))
+    numbers <- .hc_as_integer_safely(number_hits)
     numbers <- numbers[base::is.finite(numbers)]
     suffix <- base::tolower(gsub("[0-9]+", "", x, perl = TRUE))
     list(
@@ -441,8 +441,7 @@
 
   obs <- obs[
     !base::is.na(obs$module) & base::nzchar(base::trimws(obs$module)) &
-      !base::is.na(obs$module_color) & base::nzchar(base::trimws(obs$module_color)),
-    ,
+      !base::is.na(obs$module_color) & base::nzchar(base::trimws(obs$module_color)), ,
     drop = FALSE
   ]
   if (base::nrow(obs) == 0) {
@@ -760,9 +759,9 @@
   keep <- !base::is.na(grp) & !base::is.na(cnt) & cnt >= base::as.integer(min_points[[1]])
 
   if (!base::is.null(x_col) && !base::is.null(y_col) &&
-      x_col %in% base::colnames(df) && y_col %in% base::colnames(df)) {
-    x <- suppressWarnings(base::as.numeric(df[[x_col]]))
-    y <- suppressWarnings(base::as.numeric(df[[y_col]]))
+    x_col %in% base::colnames(df) && y_col %in% base::colnames(df)) {
+    x <- .hc_as_numeric_safely(df[[x_col]])
+    y <- .hc_as_numeric_safely(df[[y_col]])
     finite_xy <- base::is.finite(x) & base::is.finite(y)
     keep <- keep & finite_xy
 
@@ -778,7 +777,7 @@
             return(FALSE)
           }
           if (base::length(base::unique(xx)) < base::as.integer(min_unique[[1]]) ||
-              base::length(base::unique(yy)) < base::as.integer(min_unique[[1]])) {
+            base::length(base::unique(yy)) < base::as.integer(min_unique[[1]])) {
             return(FALSE)
           }
           vx <- stats::var(xx, na.rm = TRUE)
@@ -786,8 +785,8 @@
           if (!(base::is.finite(vx) && base::is.finite(vy) && vx > 0 && vy > 0)) {
             return(FALSE)
           }
-          cov_xy <- suppressWarnings(stats::cov(base::cbind(xx, yy), use = "complete.obs"))
-          det_xy <- suppressWarnings(base::det(cov_xy))
+          cov_xy <- stats::cov(base::cbind(xx, yy), use = "complete.obs")
+          det_xy <- base::det(cov_xy)
           base::is.finite(det_xy) && det_xy > 1e-10
         },
         logical(1)
@@ -828,11 +827,11 @@
 
 .hc_square_limits_2d <- function(df, x_col, y_col, pad_frac = 0.06) {
   if (!base::is.data.frame(df) || base::nrow(df) == 0 ||
-      !(x_col %in% base::colnames(df)) || !(y_col %in% base::colnames(df))) {
+    !(x_col %in% base::colnames(df)) || !(y_col %in% base::colnames(df))) {
     return(list(x = NULL, y = NULL))
   }
-  x <- suppressWarnings(base::as.numeric(df[[x_col]]))
-  y <- suppressWarnings(base::as.numeric(df[[y_col]]))
+  x <- .hc_as_numeric_safely(df[[x_col]])
+  y <- .hc_as_numeric_safely(df[[y_col]])
   keep <- base::is.finite(x) & base::is.finite(y)
   if (!base::any(keep)) {
     return(list(x = NULL, y = NULL))
@@ -886,7 +885,7 @@
   if (base::length(x) <= 1L) {
     return(x)
   }
-  num_part <- suppressWarnings(base::as.integer(gsub("^[^0-9]*([0-9]+).*$", "\\1", x)))
+  num_part <- .hc_as_integer_safely(gsub("^[^0-9]*([0-9]+).*$", "\\1", x))
   has_num <- base::is.finite(num_part)
   ord <- base::order(
     !has_num,
@@ -905,8 +904,8 @@
                                   pad_frac = 0.12,
                                   min_span = 0.04) {
   if (!base::is.data.frame(mean_df) || base::nrow(mean_df) == 0 ||
-      !(panel_col %in% base::colnames(mean_df)) ||
-      !(value_col %in% base::colnames(mean_df))) {
+    !(panel_col %in% base::colnames(mean_df)) ||
+    !(value_col %in% base::colnames(mean_df))) {
     return(base::data.frame(
       panel_label = character(0),
       y_lower = numeric(0),
@@ -915,14 +914,14 @@
     ))
   }
   panels <- base::as.character(mean_df[[panel_col]])
-  val <- suppressWarnings(base::as.numeric(mean_df[[value_col]]))
+  val <- .hc_as_numeric_safely(mean_df[[value_col]])
   low <- if (!base::is.null(lower_col) && lower_col %in% base::colnames(mean_df)) {
-    suppressWarnings(base::as.numeric(mean_df[[lower_col]]))
+    .hc_as_numeric_safely(mean_df[[lower_col]])
   } else {
     val
   }
   high <- if (!base::is.null(upper_col) && upper_col %in% base::colnames(mean_df)) {
-    suppressWarnings(base::as.numeric(mean_df[[upper_col]]))
+    .hc_as_numeric_safely(mean_df[[upper_col]])
   } else {
     val
   }
@@ -989,14 +988,14 @@
   low_col <- pick_first_col(lower_candidates)
   up_col <- pick_first_col(upper_candidates)
 
-  df$emmean <- suppressWarnings(base::as.numeric(base::as.character(df[[est_col]])))
+  df$emmean <- .hc_as_numeric_safely(df[[est_col]])
   if (!base::is.null(low_col)) {
-    df$lower.CL <- suppressWarnings(base::as.numeric(base::as.character(df[[low_col]])))
+    df$lower.CL <- .hc_as_numeric_safely(df[[low_col]])
   } else {
     df$lower.CL <- df$emmean
   }
   if (!base::is.null(up_col)) {
-    df$upper.CL <- suppressWarnings(base::as.numeric(base::as.character(df[[up_col]])))
+    df$upper.CL <- .hc_as_numeric_safely(df[[up_col]])
   } else {
     df$upper.CL <- df$emmean
   }
@@ -1029,8 +1028,8 @@
   }
 
   if ("term_display" %in% base::colnames(df) &&
-      !base::is.null(term_display_levels) &&
-      base::length(term_display_levels) > 0) {
+    !base::is.null(term_display_levels) &&
+    base::length(term_display_levels) > 0) {
     term_chr <- base::as.character(df$term_display)
     term_chr[!is_valid(term_chr)] <- "Term unavailable"
     df$term_display <- base::factor(term_chr, levels = base::as.character(term_display_levels))
@@ -1210,7 +1209,7 @@
       stringsAsFactors = FALSE
     )
     if ("stability" %in% base::colnames(meta_cluster)) {
-      donor_clusterings$selected_stability <- suppressWarnings(as.numeric(meta_cluster$stability))
+      donor_clusterings$selected_stability <- .hc_as_numeric_safely(meta_cluster$stability)
     }
   }
 
@@ -1500,8 +1499,8 @@
   x_lab <- "PC1"
   y_lab <- "PC2"
   if (!is.null(var_explained)) {
-    vv <- suppressWarnings(as.numeric(var_explained))
-    if (base::length(vv) >= 2 && base::all(base::is.finite(vv[1:2]))) {
+    vv <- .hc_as_numeric_safely(var_explained)
+    if (base::length(vv) >= 2 && base::all(base::is.finite(vv[base::seq_len(2L)]))) {
       x_lab <- base::sprintf("PC1 (%.1f%%)", vv[[1]])
       y_lab <- base::sprintf("PC2 (%.1f%%)", vv[[2]])
     }
@@ -1667,7 +1666,7 @@
 #' @param group_col Optional annotation column (e.g. outcome group) to carry.
 #' @param modules Optional subset of modules (module labels or color names).
 #' @param use_module_labels Logical. If `TRUE`, use `M`-style labels from
-#'   `plot_cluster_heatmap()` when available; otherwise use color names.
+#'   `hc_plot_cluster_heatmap()` when available; otherwise use color names.
 #' @param time_levels Optional explicit timepoint order.
 #' @param aggregate_fun Function used to aggregate technical replicates per
 #'   donor/timepoint/module (default `mean`).
@@ -1718,13 +1717,11 @@ hc_longitudinal_module_means <- function(hc,
   counts <- SummarizedExperiment::assay(se, "counts")
   counts <- base::as.matrix(counts)
   if (!is.numeric(counts)) {
-    counts <- suppressWarnings(
-      base::matrix(
-        data = base::as.numeric(counts),
-        nrow = base::nrow(counts),
-        ncol = base::ncol(counts),
-        dimnames = base::dimnames(counts)
-      )
+    counts <- base::matrix(
+      data = .hc_as_numeric_safely(counts),
+      nrow = base::nrow(counts),
+      ncol = base::ncol(counts),
+      dimnames = base::dimnames(counts)
     )
   }
   if (is.null(base::rownames(counts)) || is.null(base::colnames(counts))) {
@@ -2209,8 +2206,8 @@ hc_longitudinal_endotype_clustering <- function(hc,
     valid_module_k <- valid_module_k[base::is.finite(valid_module_k) & valid_module_k >= 2 & valid_module_k < base::nrow(mat_use)]
 
     if (base::nrow(mat_use) <= 2 ||
-        base::all(base::apply(mat_use, 2, function(v) stats::sd(v, na.rm = TRUE) == 0)) ||
-        base::length(valid_module_k) == 0) {
+      base::all(base::apply(mat_use, 2, function(v) stats::sd(v, na.rm = TRUE) == 0)) ||
+      base::length(valid_module_k) == 0) {
       mod_cluster <- base::rep(1L, base::nrow(mat_use))
       mod_score <- base::data.frame(
         k = 1L,
@@ -2561,208 +2558,67 @@ hc_plot_longitudinal_module_clusters <- function(hc,
     NULL
   }
 
-  if (!is.null(obj$legacy_kml_object)) {
-    .hc_require_namespace("lme4", "legacy longitudinal module-cluster waves")
-    .hc_require_namespace("emmeans", "legacy longitudinal module-cluster waves")
-
-    cluster_assign <- base::as.data.frame(obj$module_cluster_assignments, stringsAsFactors = FALSE)
-    cluster_assign$donor <- base::as.character(cluster_assign$donor)
-    cluster_assign$module <- base::as.character(cluster_assign$module)
-    cluster_assign$cluster <- as.character(cluster_assign$cluster)
-
-    legacy_wave_df <- lapply(mod_levels, function(mod) {
-      traj_mat <- obj$legacy_kml_object[[mod]]@traj
-      df <- as.data.frame(traj_mat, stringsAsFactors = FALSE) |>
-        tibble::rownames_to_column(var = "donor") |>
-        tidyr::pivot_longer(
-          cols = -donor,
-          names_to = "time_raw",
-          values_to = "value"
-        )
-      df$module <- mod
-      df$value <- as.numeric(scale(df$value))
-      df$time_num <- suppressWarnings(as.integer(gsub("^t", "", df$time_raw)))
-      df
-    }) |>
-      dplyr::bind_rows()
-
-    legacy_wave_df <- base::merge(
-      legacy_wave_df,
-      cluster_assign[, c("donor", "module", "cluster", "module_cluster_key"), drop = FALSE],
-      by = c("donor", "module"),
-      all.x = FALSE,
-      sort = FALSE
-    )
-    legacy_wave_df <- legacy_wave_df[!base::is.na(legacy_wave_df$cluster), , drop = FALSE]
-    legacy_wave_df$module <- base::factor(base::as.character(legacy_wave_df$module), levels = mod_levels)
-    legacy_wave_df$cluster <- base::factor(base::as.character(legacy_wave_df$cluster))
-    legacy_wave_df$time_factor <- base::factor(
-      legacy_wave_df$time_num,
-      levels = sort(base::unique(legacy_wave_df$time_num)),
-      ordered = TRUE
-    )
-    legacy_wave_df$donor <- base::factor(base::as.character(legacy_wave_df$donor))
-
-    model <- lme4::lmer(
-      stats::as.formula("value ~ cluster * time_factor * module + (1 | donor)"),
-      data = legacy_wave_df
-    )
-    emm <- emmeans::emmeans(model, ~ cluster * time_factor * module, type = "response")
-    summary_trajectories <- base::as.data.frame(emm, stringsAsFactors = FALSE)
-    summary_trajectories <- .hc_normalize_emmeans_summary(summary_trajectories)
-    summary_trajectories$emmean <- suppressWarnings(base::as.numeric(summary_trajectories$emmean))
-    summary_trajectories$lower.CL <- suppressWarnings(base::as.numeric(summary_trajectories$lower.CL))
-    summary_trajectories$upper.CL <- suppressWarnings(base::as.numeric(summary_trajectories$upper.CL))
-    ci_missing <- !base::is.finite(summary_trajectories$lower.CL) | !base::is.finite(summary_trajectories$upper.CL)
-    if (base::any(ci_missing)) {
-      summary_trajectories$lower.CL[ci_missing] <- summary_trajectories$emmean[ci_missing]
-      summary_trajectories$upper.CL[ci_missing] <- summary_trajectories$emmean[ci_missing]
-    }
-    summary_trajectories <- summary_trajectories[!base::is.na(summary_trajectories$emmean), , drop = FALSE]
-    summary_trajectories$module <- base::factor(base::as.character(summary_trajectories$module), levels = mod_levels)
-    summary_trajectories$cluster <- as.character(summary_trajectories$cluster)
-    summary_trajectories$time_num <- suppressWarnings(as.integer(as.character(summary_trajectories$time_factor)))
-    summary_trajectories$module_cluster_key <- paste0(summary_trajectories$module, "__", summary_trajectories$cluster)
-
-    plot_range <- suppressWarnings(base::as.numeric(base::c(
-      summary_trajectories$emmean,
-      summary_trajectories$lower.CL,
-      summary_trajectories$upper.CL
-    )))
-    plot_range <- plot_range[base::is.finite(plot_range)]
-    plot_lim <- if (base::length(plot_range) > 0) {
-      max(abs(plot_range), na.rm = TRUE)
-    } else {
-      NA_real_
-    }
-    if (!is.finite(plot_lim) || plot_lim <= 0) {
-      plot_lim <- 1
-    }
-
-    x_breaks <- sort(base::unique(summary_trajectories$time_num))
-    x_labels <- if (!is.null(t_levels) && length(t_levels) >= length(x_breaks)) {
-      t_levels[x_breaks]
-    } else {
-      as.character(x_breaks)
-    }
-
-    p_waves <- ggplot2::ggplot(
-      summary_trajectories,
-      ggplot2::aes(x = time_num, y = emmean)
-    ) +
-      ggplot2::geom_hline(yintercept = 0, colour = "#000000", linetype = "dashed") +
-      ggplot2::geom_ribbon(
-        ggplot2::aes(
-          fill = module_cluster_key,
-          ymin = lower.CL,
-          ymax = upper.CL,
-          group = module_cluster_key
-        ),
-        alpha = 0.15,
-        show.legend = FALSE,
-        na.rm = TRUE
-      ) +
-      ggplot2::geom_line(
-        ggplot2::aes(color = module_cluster_key, group = module_cluster_key),
-        linewidth = 1.15,
-        show.legend = FALSE
-      ) +
-      ggplot2::geom_point(
-        ggplot2::aes(fill = module_cluster_key, group = module_cluster_key),
-        shape = 21,
-        color = "#000000",
-        size = 2.6,
-        show.legend = FALSE
-      ) +
-      .hc_module_facet_wrap(
-        module_levels = mod_levels,
-        mod_col = mod_col,
-        ncol = facet_ncol,
-        scales = if (isTRUE(free_y)) "free_y" else "fixed",
-        facets = ~module
-      ) +
-      ggplot2::scale_fill_manual(values = pal, drop = FALSE) +
-      ggplot2::scale_color_manual(values = pal, drop = FALSE) +
-      ggplot2::scale_x_continuous(breaks = x_breaks, labels = x_labels) +
-      .hc_theme_pub(base_size = 11) +
-      ggplot2::theme(
-        aspect.ratio = if (isTRUE(square_panels)) 1 else NULL,
-        axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
-      ) +
-      ggplot2::labs(
-        title = "Module-wise trajectory clusters",
-        x = "Timepoint",
-        y = "Scaled mean variance-stabilized expression"
-      ) +
-      ggplot2::ylim(c(-plot_lim, plot_lim))
-    p_waves <- .hc_colorize_module_strips(
-      p = p_waves,
-      module_levels = mod_levels,
-      mod_col = mod_col
-    )
+  traj_df <- base::as.data.frame(obj$donor_time_module_with_module_clusters, stringsAsFactors = FALSE)
+  mean_df <- base::as.data.frame(obj$module_cluster_trajectory_mean, stringsAsFactors = FALSE)
+  y_lab <- if (!is.null(obj$value_label) && base::nzchar(as.character(obj$value_label[[1]]))) {
+    as.character(obj$value_label[[1]])
   } else {
-    traj_df <- base::as.data.frame(obj$donor_time_module_with_module_clusters, stringsAsFactors = FALSE)
-    mean_df <- base::as.data.frame(obj$module_cluster_trajectory_mean, stringsAsFactors = FALSE)
-    y_lab <- if (!is.null(obj$value_label) && base::nzchar(as.character(obj$value_label[[1]]))) {
-      as.character(obj$value_label[[1]])
-    } else {
-      "Module mean expression"
-    }
-    if (!is.null(t_levels)) {
-      traj_df$time <- base::factor(base::as.character(traj_df$time), levels = t_levels, ordered = TRUE)
-      mean_df$time <- base::factor(base::as.character(mean_df$time), levels = t_levels, ordered = TRUE)
-    }
-
-    traj_df <- traj_df[!base::is.na(traj_df$module_cluster_key), , drop = FALSE]
-    traj_df$module <- base::factor(base::as.character(traj_df$module), levels = mod_levels)
-    mean_df$module <- base::factor(base::as.character(mean_df$module), levels = mod_levels)
-
-    p_waves <- ggplot2::ggplot(
-      traj_df,
-      ggplot2::aes(
-        x = time,
-        y = value,
-        group = donor,
-        color = module_cluster_key
-      )
-    ) +
-      ggplot2::geom_line(alpha = donor_alpha, linewidth = donor_linewidth, show.legend = FALSE) +
-      ggplot2::geom_line(
-        data = mean_df,
-        mapping = ggplot2::aes(group = module_cluster_key),
-        linewidth = mean_linewidth,
-        show.legend = FALSE
-      ) +
-      ggplot2::geom_point(
-        data = mean_df,
-        mapping = ggplot2::aes(group = module_cluster_key),
-        size = mean_point_size,
-        show.legend = FALSE
-      ) +
-      .hc_module_facet_wrap(
-        module_levels = mod_levels,
-        mod_col = mod_col,
-        ncol = facet_ncol,
-        scales = if (isTRUE(free_y)) "free_y" else "fixed",
-        facets = ~module
-      ) +
-      ggplot2::scale_color_manual(values = pal, drop = FALSE) +
-      .hc_theme_pub(base_size = 11) +
-      ggplot2::theme(
-        aspect.ratio = if (isTRUE(square_panels)) 1 else NULL,
-        axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
-      ) +
-      ggplot2::labs(
-        title = "Module-wise trajectory clusters",
-        x = "Timepoint",
-        y = y_lab
-      )
-    p_waves <- .hc_colorize_module_strips(
-      p = p_waves,
-      module_levels = mod_levels,
-      mod_col = mod_col
-    )
+    "Module mean expression"
   }
+  if (!is.null(t_levels)) {
+    traj_df$time <- base::factor(base::as.character(traj_df$time), levels = t_levels, ordered = TRUE)
+    mean_df$time <- base::factor(base::as.character(mean_df$time), levels = t_levels, ordered = TRUE)
+  }
+
+  traj_df <- traj_df[!base::is.na(traj_df$module_cluster_key), , drop = FALSE]
+  traj_df$module <- base::factor(base::as.character(traj_df$module), levels = mod_levels)
+  mean_df$module <- base::factor(base::as.character(mean_df$module), levels = mod_levels)
+
+  p_waves <- ggplot2::ggplot(
+    traj_df,
+    ggplot2::aes(
+      x = time,
+      y = value,
+      group = donor,
+      color = module_cluster_key
+    )
+  ) +
+    ggplot2::geom_line(alpha = donor_alpha, linewidth = donor_linewidth, show.legend = FALSE) +
+    ggplot2::geom_line(
+      data = mean_df,
+      mapping = ggplot2::aes(group = module_cluster_key),
+      linewidth = mean_linewidth,
+      show.legend = FALSE
+    ) +
+    ggplot2::geom_point(
+      data = mean_df,
+      mapping = ggplot2::aes(group = module_cluster_key),
+      size = mean_point_size,
+      show.legend = FALSE
+    ) +
+    .hc_module_facet_wrap(
+      module_levels = mod_levels,
+      mod_col = mod_col,
+      ncol = facet_ncol,
+      scales = if (isTRUE(free_y)) "free_y" else "fixed",
+      facets = ~module
+    ) +
+    ggplot2::scale_color_manual(values = pal, drop = FALSE) +
+    .hc_theme_pub(base_size = 11) +
+    ggplot2::theme(
+      aspect.ratio = if (isTRUE(square_panels)) 1 else NULL,
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
+    ) +
+    ggplot2::labs(
+      title = "Module-wise trajectory clusters",
+      x = "Timepoint",
+      y = y_lab
+    )
+  p_waves <- .hc_colorize_module_strips(
+    p = p_waves,
+    module_levels = mod_levels,
+    mod_col = mod_col
+  )
 
   cl_mat <- base::as.matrix(obj$module_cluster_matrix)
   cl_mat_num <- cl_mat
@@ -2778,10 +2634,10 @@ hc_plot_longitudinal_module_clusters <- function(hc,
     }
   }
   donor_order <- base::rownames(cl_mat_num)
-  if (!base::is.null(obj$legacy_master_donors)) {
-    legacy_order <- base::as.character(obj$legacy_master_donors)
-    legacy_order <- legacy_order[legacy_order %in% base::rownames(cl_mat_num)]
-    donor_order <- base::c(legacy_order, base::setdiff(base::rownames(cl_mat_num), legacy_order))
+  if (!base::is.null(obj$master_donors)) {
+    stored_order <- base::as.character(obj$master_donors)
+    stored_order <- stored_order[stored_order %in% base::rownames(cl_mat_num)]
+    donor_order <- base::c(stored_order, base::setdiff(base::rownames(cl_mat_num), stored_order))
   } else if (base::nrow(cl_mat_num) > 1) {
     donor_order <- base::rownames(cl_mat_num)[stats::hclust(stats::dist(cl_mat_num), method = "ward.D2")$order]
   }
@@ -2792,7 +2648,7 @@ hc_plot_longitudinal_module_clusters <- function(hc,
 
   hm_df <- base::as.data.frame(base::as.table(cl_mat), stringsAsFactors = FALSE)
   base::colnames(hm_df) <- c("donor", "module", "cluster")
-  hm_df$cluster <- suppressWarnings(as.integer(hm_df$cluster))
+  hm_df$cluster <- .hc_as_integer_safely(hm_df$cluster)
   hm_df$module_cluster_key <- ifelse(
     base::is.na(hm_df$cluster),
     NA_character_,
@@ -3294,7 +3150,7 @@ hc_longitudinal_module_cap <- function(hc,
   cap_long <- base::as.data.frame(base::as.table(cap_matrix), stringsAsFactors = FALSE)
   base::colnames(cap_long) <- c("donor", "module_cluster_key", "proportion")
   cap_long$module <- sub("__.*$", "", base::as.character(cap_long$module_cluster_key))
-  cap_long$cluster <- suppressWarnings(as.integer(sub("^.*__", "", base::as.character(cap_long$module_cluster_key))))
+  cap_long$cluster <- .hc_as_integer_safely(sub("^.*__", "", base::as.character(cap_long$module_cluster_key)))
   cap_long$proportion <- as.numeric(cap_long$proportion)
 
   cap_assign <- if (base::length(cap_assign_rows) > 0) {
@@ -3868,7 +3724,7 @@ hc_plot_longitudinal_cap <- function(hc,
     stringsAsFactors = FALSE
   )
   key_df$module <- sub("__.*$", "", key_df$module_cluster_key)
-  key_df$cluster <- suppressWarnings(as.integer(sub("^.*__", "", key_df$module_cluster_key)))
+  key_df$cluster <- .hc_as_integer_safely(sub("^.*__", "", key_df$module_cluster_key))
   key_df$cluster[base::is.na(key_df$cluster)] <- 1L
   key_df <- key_df[base::order(base::match(key_df$module, module_levels), key_df$cluster), , drop = FALSE]
   key_order <- key_df$module_cluster_key
@@ -4175,8 +4031,8 @@ hc_plot_longitudinal_meta_embeddings <- function(hc,
 
   p_cross <- NULL
   if (isTRUE(show_endotype_crosstab) &&
-      !is.null(obj$donor_cluster) &&
-      "endotype" %in% base::colnames(obj$donor_cluster)) {
+    !is.null(obj$donor_cluster) &&
+    "endotype" %in% base::colnames(obj$donor_cluster)) {
     tmp <- base::merge(
       obj$donor_cluster[, c("donor", "endotype"), drop = FALSE],
       mc[, c("donor", "meta_cluster"), drop = FALSE],
@@ -4373,9 +4229,9 @@ hc_plot_longitudinal_meta_consensus <- function(hc,
       subc <- cons[idx, idx, drop = FALSE]
       subc[!base::is.finite(subc)] <- 0
       subc <- (subc + base::t(subc)) / 2
-            dmat <- base::pmax(1 - subc, 0)
-            dmat <- base::as.matrix(dmat)
-            diag(dmat) <- 0
+      dmat <- base::pmax(1 - subc, 0)
+      dmat <- base::as.matrix(dmat)
+      diag(dmat) <- 0
       local_order <- tryCatch(
         {
           d <- stats::as.dist(dmat)
@@ -4507,7 +4363,7 @@ hc_plot_longitudinal_meta_consensus <- function(hc,
     stb <- base::data.frame(
       donor = base::as.character(meta_cluster$donor),
       meta_cluster = base::factor(base::as.character(meta_cluster$meta_cluster), levels = lv),
-      stability = suppressWarnings(as.numeric(meta_cluster$stability)),
+      stability = .hc_as_numeric_safely(meta_cluster$stability),
       stringsAsFactors = FALSE
     )
     stb <- stb[base::is.finite(stb$stability), , drop = FALSE]
@@ -4637,7 +4493,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
   }
   value_mode <- base::match.arg(value_mode)
   if (!is.null(value_range)) {
-    value_range <- suppressWarnings(as.numeric(value_range))
+    value_range <- .hc_as_numeric_safely(value_range)
     if (base::length(value_range) != 2 || !base::all(base::is.finite(value_range))) {
       stop("`value_range` must be NULL or a numeric vector of length 2.")
     }
@@ -4694,7 +4550,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
   if (identical(value_mode, "scaled_mean_vst")) {
     split_idx <- base::split(base::seq_len(base::nrow(tr)), base::as.character(tr$module))
     for (idx in split_idx) {
-      vv <- suppressWarnings(as.numeric(tr$value_plot[idx]))
+      vv <- .hc_as_numeric_safely(tr$value_plot[idx])
       if (base::length(vv) == 0) {
         next
       }
@@ -4812,9 +4668,9 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
   }
   if (!"qvalue" %in% base::colnames(out)) {
     if ("p.adjust" %in% base::colnames(out)) {
-      out$qvalue <- suppressWarnings(base::as.numeric(out$p.adjust))
+      out$qvalue <- .hc_as_numeric_safely(out$p.adjust)
     } else if ("pvalue" %in% base::colnames(out)) {
-      out$qvalue <- suppressWarnings(base::as.numeric(out$pvalue))
+      out$qvalue <- .hc_as_numeric_safely(out$pvalue)
     } else {
       out$qvalue <- NA_real_
     }
@@ -4838,8 +4694,8 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
   out$cluster <- base::as.character(out$cluster)
   out$term <- base::as.character(out$term)
   out$module_label <- base::as.character(out$module_label)
-  out$rank <- suppressWarnings(base::as.numeric(out$rank))
-  out$qvalue <- suppressWarnings(base::as.numeric(out$qvalue))
+  out$rank <- .hc_as_numeric_safely(out$rank)
+  out$qvalue <- .hc_as_numeric_safely(out$qvalue)
   out$geneID <- base::as.character(out$geneID)
 
   keep <- !base::is.na(out$database) &
@@ -4876,8 +4732,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
     store <- list()
   }
 
-  table_key <- switch(
-    enrichment_table,
+  table_key <- switch(enrichment_table,
     selected = "selected_enrichments_all_dbs",
     all = "all_enrichments_all_dbs",
     significant = "significant_enrichments_all_dbs"
@@ -4900,8 +4755,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
     }
   }
 
-  subkey <- switch(
-    enrichment_table,
+  subkey <- switch(enrichment_table,
     selected = "selected_enrichments",
     all = "all_enrichments",
     significant = "significant_enrichments"
@@ -5004,8 +4858,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
   top_df$module_color <- base::as.character(top_df$module_color)
   top_df <- top_df[
     !base::is.na(top_df$module) & base::nzchar(base::trimws(top_df$module)) &
-      !base::is.na(top_df$term) & base::nzchar(base::trimws(top_df$term)),
-    ,
+      !base::is.na(top_df$term) & base::nzchar(base::trimws(top_df$term)), ,
     drop = FALSE
   ]
   if (base::nrow(top_df) == 0) {
@@ -5025,8 +4878,8 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
     }
   }
 
-  top_df$rank_num <- suppressWarnings(base::as.numeric(top_df$rank))
-  top_df$q_num <- suppressWarnings(base::as.numeric(top_df$qvalue))
+  top_df$rank_num <- .hc_as_numeric_safely(top_df$rank)
+  top_df$q_num <- .hc_as_numeric_safely(top_df$qvalue)
   out <- base::lapply(base::split(top_df, top_df$module), function(x) {
     x <- x[!base::duplicated(x$term), , drop = FALSE]
     x <- x[
@@ -5034,8 +4887,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
         ifelse(base::is.na(x$rank_num), Inf, x$rank_num),
         ifelse(base::is.na(x$q_num), Inf, x$q_num),
         x$term
-      ),
-      ,
+      ), ,
       drop = FALSE
     ]
     x$term_rank <- base::seq_len(base::nrow(x))
@@ -5065,7 +4917,8 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
   if (!requireNamespace("GSVA", quietly = TRUE)) {
     return(NULL)
   }
-  err <- NULL
+  err_state <- new.env(parent = emptyenv())
+  err_state$message <- NULL
   out <- NULL
 
   if (base::exists("ssgseaParam", where = asNamespace("GSVA"), inherits = FALSE)) {
@@ -5083,7 +4936,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
         )
       },
       error = function(e) {
-        err <<- conditionMessage(e)
+        err_state$message <- conditionMessage(e)
         NULL
       }
     )
@@ -5114,7 +4967,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
             )
           },
           error = function(e2) {
-            err <<- base::paste(conditionMessage(e1), conditionMessage(e2), sep = " | ")
+            err_state$message <- base::paste(conditionMessage(e1), conditionMessage(e2), sep = " | ")
             NULL
           }
         )
@@ -5129,7 +4982,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
   if (base::nrow(out) == 0 || base::ncol(out) == 0) {
     return(NULL)
   }
-  base::attr(out, "error_message") <- err
+  base::attr(out, "error_message") <- err_state$message
   out
 }
 
@@ -5139,7 +4992,8 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
   if (!requireNamespace("GSVA", quietly = TRUE)) {
     return(NULL)
   }
-  err <- NULL
+  err_state <- new.env(parent = emptyenv())
+  err_state$message <- NULL
   out <- NULL
 
   if (base::exists("zscoreParam", where = asNamespace("GSVA"), inherits = FALSE)) {
@@ -5155,7 +5009,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
         )
       },
       error = function(e) {
-        err <<- conditionMessage(e)
+        err_state$message <- conditionMessage(e)
         NULL
       }
     )
@@ -5182,7 +5036,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
             )
           },
           error = function(e2) {
-            err <<- base::paste(conditionMessage(e1), conditionMessage(e2), sep = " | ")
+            err_state$message <- base::paste(conditionMessage(e1), conditionMessage(e2), sep = " | ")
             NULL
           }
         )
@@ -5197,7 +5051,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
   if (base::nrow(out) == 0 || base::ncol(out) == 0) {
     return(NULL)
   }
-  base::attr(out, "error_message") <- err
+  base::attr(out, "error_message") <- err_state$message
   out
 }
 
@@ -5215,13 +5069,13 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
     stop("Missing columns needed for grouped z-scaling: ", base::paste(base::setdiff(c(value_col, group_cols), base::colnames(df)), collapse = ", "))
   }
 
-  df[[out_col]] <- suppressWarnings(base::as.numeric(df[[value_col]]))
+  df[[out_col]] <- .hc_as_numeric_safely(df[[value_col]])
   split_idx <- base::split(
     base::seq_len(base::nrow(df)),
     base::do.call(base::paste, c(df[group_cols], sep = "\r"))
   )
   for (idx in split_idx) {
-    vals <- suppressWarnings(base::as.numeric(df[[value_col]][idx]))
+    vals <- .hc_as_numeric_safely(df[[value_col]][idx])
     keep <- base::is.finite(vals)
     if (!base::any(keep)) {
       df[[out_col]][idx] <- NA_real_
@@ -5367,7 +5221,7 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
     stop("`top` must be a single numeric value >= 1.")
   }
   top <- base::as.integer(base::round(top))
-  min_term_genes <- suppressWarnings(base::as.integer(min_term_genes[[1]]))
+  min_term_genes <- .hc_as_integer_safely(min_term_genes[[1]])
   if (!base::is.finite(min_term_genes) || min_term_genes < 1) {
     stop("`min_term_genes` must be >= 1.")
   }
@@ -5379,8 +5233,8 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
   }
   base_obj <- obj
   if ((base::is.null(base_obj$layer_id) || base::is.null(base_obj$donor_col) || base::is.null(base_obj$time_col)) &&
-      !base::is.null(obj$source_slot) &&
-      obj$source_slot %in% base::names(sat)) {
+    !base::is.null(obj$source_slot) &&
+    obj$source_slot %in% base::names(sat)) {
     src <- sat[[obj$source_slot]]
     if (base::is.list(src)) {
       base_obj <- src
@@ -5417,13 +5271,11 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
   expr_mat <- SummarizedExperiment::assay(se, "counts")
   expr_mat <- base::as.matrix(expr_mat)
   if (!base::is.numeric(expr_mat)) {
-    expr_mat <- suppressWarnings(
-      base::matrix(
-        data = base::as.numeric(expr_mat),
-        nrow = base::nrow(expr_mat),
-        ncol = base::ncol(expr_mat),
-        dimnames = base::dimnames(expr_mat)
-      )
+    expr_mat <- base::matrix(
+      data = .hc_as_numeric_safely(expr_mat),
+      nrow = base::nrow(expr_mat),
+      ncol = base::ncol(expr_mat),
+      dimnames = base::dimnames(expr_mat)
     )
   }
   if (base::is.null(base::rownames(expr_mat)) || base::is.null(base::colnames(expr_mat))) {
@@ -5505,7 +5357,7 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
   }
 
   if (!base::is.null(qvalue_max)) {
-    qvalue_max <- suppressWarnings(base::as.numeric(qvalue_max[[1]]))
+    qvalue_max <- .hc_first_numeric_value(qvalue_max[[1]])
     if (!base::is.finite(qvalue_max) || qvalue_max <= 0) {
       stop("`qvalue_max` must be NULL or a positive numeric value.")
     }
@@ -5561,8 +5413,8 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
       }
     }
 
-    db_tbl$rank_num <- suppressWarnings(base::as.numeric(db_tbl$rank))
-    db_tbl$q_num <- suppressWarnings(base::as.numeric(db_tbl$qvalue))
+    db_tbl$rank_num <- .hc_as_numeric_safely(db_tbl$rank)
+    db_tbl$q_num <- .hc_as_numeric_safely(db_tbl$qvalue)
     use_custom_terms <- !base::is.null(custom_terms)
     if (use_custom_terms) {
       keep_custom <- .hc_match_custom_enrichment_terms(
@@ -5579,7 +5431,9 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
 
     top_rows <- base::lapply(base::split(db_tbl, db_tbl$module), function(x) {
       x <- x[!base::is.na(x$term) & x$term != "", , drop = FALSE]
-      if (base::nrow(x) == 0) return(NULL)
+      if (base::nrow(x) == 0) {
+        return(NULL)
+      }
       x <- x[!base::duplicated(x$term), , drop = FALSE]
       ord <- base::order(
         ifelse(base::is.na(x$rank_num), Inf, x$rank_num),
@@ -5878,8 +5732,7 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
     top_export$score_scale <- score_scale
     top_export$enrichment_table <- enrichment_table
     top_export <- top_export[
-      base::order(base::match(base::as.character(top_export$module), module_levels), top_export$rank, top_export$term),
-      ,
+      base::order(base::match(base::as.character(top_export$module), module_levels), top_export$rank, top_export$term), ,
       drop = FALSE
     ]
     base::rownames(top_export) <- NULL
@@ -6007,17 +5860,15 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
                                                        save_width = 12,
                                                        save_height = 12,
                                                        export_excel = TRUE) {
-  if (!inherits(hc, "HCoCenaExperiment")) {
-    stop("`hc` must be a `HCoCenaExperiment`.")
-  }
+  hc <- .hc_longitudinal_unwrap_hc(hc)
   enrichment_table <- base::match.arg(enrichment_table)
   score_method <- base::match.arg(score_method)
   score_scale <- base::match.arg(score_scale)
   impute_missing <- base::match.arg(impute_missing)
   term_match <- base::match.arg(term_match)
   free_y <- TRUE
-  ci_level <- suppressWarnings(base::as.numeric(ci_level[[1]]))
-  ci_alpha <- suppressWarnings(base::as.numeric(ci_alpha[[1]]))
+  ci_level <- .hc_first_numeric_value(ci_level[[1]])
+  ci_alpha <- .hc_first_numeric_value(ci_alpha[[1]])
   if (!base::is.finite(ci_level) || ci_level <= 0 || ci_level >= 1) {
     stop("`ci_level` must be a numeric value in (0, 1).")
   }
@@ -6026,6 +5877,7 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
   }
 
   target_slots <- .hc_longitudinal_step3_target_slots(hc = hc, slot_name = slot_name)
+  requested_slot_family <- .hc_longitudinal_requested_slot_family(slot_name)
   if (base::length(target_slots) > 1) {
     slot_results <- list()
     slot_info <- base::vector("list", base::length(target_slots))
@@ -6114,11 +5966,21 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
     ))
   }
 
-  sq_size <- suppressWarnings(base::max(
-    base::as.numeric(save_width[[1]]),
-    base::as.numeric(save_height[[1]]),
-    na.rm = TRUE
-  ))
+  if (base::length(target_slots) == 1 && isTRUE(requested_slot_family)) {
+    slot_ctx <- .hc_longitudinal_step2_slot_context(
+      hc = hc,
+      slot_name = target_slots[[1]],
+      requested_slot_name = slot_name
+    )
+    slot_name <- target_slots[[1]]
+    if (!base::is.null(slot_ctx$file_suffix) &&
+      base::nzchar(slot_ctx$file_suffix) &&
+      !base::grepl(base::paste0("_", slot_ctx$file_suffix, "$"), file_prefix)) {
+      file_prefix <- base::paste0(file_prefix, "_", slot_ctx$file_suffix)
+    }
+  }
+
+  sq_size <- .hc_max_finite(base::c(save_width[[1]], save_height[[1]]))
   if (!base::is.finite(sq_size) || sq_size <= 0) {
     sq_size <- 12
   }
@@ -6128,7 +5990,7 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
   sat <- as.list(hc@satellite)
   obj <- sat[[slot_name]]
   if (base::is.null(obj) || !base::is.list(obj) || base::is.null(obj$meta_cluster)) {
-    stop("Slot `", slot_name, "` must contain `meta_cluster`. Run `hc_longitudinal_meta_clustering()` first.")
+    stop("Slot `", slot_name, "` must contain `meta_cluster`. Run `hc_longitudinal_step2_meta_clustering()` first.")
   }
   meta_tbl <- base::as.data.frame(obj$meta_cluster, stringsAsFactors = FALSE)
   if (!base::all(c("donor", "meta_cluster") %in% base::colnames(meta_tbl))) {
@@ -6354,10 +6216,10 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
     )
     mean_df <- mean_agg
     score_stats <- mean_agg$score
-    mean_df$score <- suppressWarnings(base::as.numeric(score_stats[, "mean"]))
-    mean_df$ci_lower <- suppressWarnings(base::as.numeric(score_stats[, "lower"]))
-    mean_df$ci_upper <- suppressWarnings(base::as.numeric(score_stats[, "upper"]))
-    mean_df$n_donor <- suppressWarnings(base::as.integer(score_stats[, "n"]))
+    mean_df$score <- .hc_as_numeric_safely(score_stats[, "mean"])
+    mean_df$ci_lower <- .hc_as_numeric_safely(score_stats[, "lower"])
+    mean_df$ci_upper <- .hc_as_numeric_safely(score_stats[, "upper"])
+    mean_df$n_donor <- .hc_as_integer_safely(score_stats[, "n"])
     mean_df$score[!base::is.finite(mean_df$score)] <- NA_real_
     mean_df$ci_lower[!base::is.finite(mean_df$ci_lower)] <- NA_real_
     mean_df$ci_upper[!base::is.finite(mean_df$ci_upper)] <- NA_real_
@@ -6386,10 +6248,10 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
     )
     mean_plot_df <- mean_plot_agg
     score_plot_stats <- mean_plot_agg$score_plot
-    mean_plot_df$score_plot <- suppressWarnings(base::as.numeric(score_plot_stats[, "mean"]))
-    mean_plot_df$ci_lower_plot <- suppressWarnings(base::as.numeric(score_plot_stats[, "lower"]))
-    mean_plot_df$ci_upper_plot <- suppressWarnings(base::as.numeric(score_plot_stats[, "upper"]))
-    mean_plot_df$n_donor_plot <- suppressWarnings(base::as.integer(score_plot_stats[, "n"]))
+    mean_plot_df$score_plot <- .hc_as_numeric_safely(score_plot_stats[, "mean"])
+    mean_plot_df$ci_lower_plot <- .hc_as_numeric_safely(score_plot_stats[, "lower"])
+    mean_plot_df$ci_upper_plot <- .hc_as_numeric_safely(score_plot_stats[, "upper"])
+    mean_plot_df$n_donor_plot <- .hc_as_integer_safely(score_plot_stats[, "n"])
     mean_plot_df$score_plot[!base::is.finite(mean_plot_df$score_plot)] <- NA_real_
     mean_plot_df$ci_lower_plot[!base::is.finite(mean_plot_df$ci_lower_plot)] <- NA_real_
     mean_plot_df$ci_upper_plot[!base::is.finite(mean_plot_df$ci_upper_plot)] <- NA_real_
@@ -6421,8 +6283,7 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
     panel_lookup <- panel_lookup[
       is_valid_panel_field(panel_lookup$module) &
         is_valid_panel_field(panel_lookup$term) &
-        is_valid_panel_field(panel_lookup$term_display),
-      ,
+        is_valid_panel_field(panel_lookup$term_display), ,
       drop = FALSE
     ]
     present_keys <- base::unique(base::c(
@@ -6521,8 +6382,7 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
     )
     if (base::nrow(panel_limits) > 0) {
       panel_limits <- panel_limits[
-        base::as.character(panel_limits$panel_label) %in% panel_levels,
-        ,
+        base::as.character(panel_limits$panel_label) %in% panel_levels, ,
         drop = FALSE
       ]
     }
@@ -6675,24 +6535,23 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
       base::order(
         base::match(base::as.character(top_export$module), module_levels),
         top_export$term_rank
-      ),
-      ,
+      ), ,
       drop = FALSE
     ]
     base::rownames(top_export) <- NULL
 
     if (isTRUE(export_excel) && requireNamespace("openxlsx", quietly = TRUE)) {
-        out_dir <- .hc_resolve_output_dir(hc)
-        openxlsx::write.xlsx(
-          x = list(
-            top_terms = top_export,
-            meta_mean = mean_df,
-            meta_mean_plot = mean_plot_df,
-            donor_traj = donor_df
-          ),
-          file = base::file.path(out_dir, base::paste0(file_prefix, "_", db_token, ".xlsx")),
-          overwrite = TRUE
-        )
+      out_dir <- .hc_resolve_output_dir(hc)
+      openxlsx::write.xlsx(
+        x = list(
+          top_terms = top_export,
+          meta_mean = mean_df,
+          meta_mean_plot = mean_plot_df,
+          donor_traj = donor_df
+        ),
+        file = base::file.path(out_dir, base::paste0(file_prefix, "_", db_token, ".xlsx")),
+        overwrite = TRUE
+      )
     }
 
     out_plots[[db_nm]] <- p

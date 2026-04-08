@@ -132,20 +132,20 @@ hc_set_paths <- function(hc, dir_count_data, dir_annotation, dir_reference_files
 #'   `dir_annotation`, `dir_reference_files`, and `dir_output`.
 #' @export
 hc_resolve_paths <- function(
-    project_root_hint = NULL,
-    local_count_subdir = "count_data",
-    local_annotation_subdir = "annotation_data",
-    local_reference_subdir = "reference_files",
-    local_output_subdir = "output",
-    docker_reference_dir = "/home/rstudio/reference_files",
-    docker_count_dir = "/home/rstudio/count_data",
-    docker_annotation_dir = "/home/rstudio/annotation_data",
-    docker_output_dir = "/home/rstudio/output",
-    create_docker_dirs = TRUE,
-    fallback_count_data = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_GENE_EXPRESSION_TABLES/",
-    fallback_annotation = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_ANNOTATION_TABLES/",
-    fallback_reference_files = "PATH_TO_REFERENCE_FILES_FOLDER/",
-    fallback_output = "PATH_TO_FOLDER_WHERE_HCOCENA_SHOULD_SAVE_ALL_ANALYSIS_OUTPUTS/"
+  project_root_hint = NULL,
+  local_count_subdir = "count_data",
+  local_annotation_subdir = "annotation_data",
+  local_reference_subdir = "reference_files",
+  local_output_subdir = "output",
+  docker_reference_dir = "/home/rstudio/reference_files",
+  docker_count_dir = "/home/rstudio/count_data",
+  docker_annotation_dir = "/home/rstudio/annotation_data",
+  docker_output_dir = "/home/rstudio/output",
+  create_docker_dirs = TRUE,
+  fallback_count_data = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_GENE_EXPRESSION_TABLES/",
+  fallback_annotation = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_ANNOTATION_TABLES/",
+  fallback_reference_files = "PATH_TO_REFERENCE_FILES_FOLDER/",
+  fallback_output = "PATH_TO_FOLDER_WHERE_HCOCENA_SHOULD_SAVE_ALL_ANALYSIS_OUTPUTS/"
 ) {
   project_root_hint <- .hc_scalar_or_null(project_root_hint, "project_root_hint")
   local_count_subdir <- .hc_scalar_or_null(local_count_subdir, "local_count_subdir")
@@ -246,25 +246,25 @@ hc_resolve_paths <- function(
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_auto_set_paths <- function(
-    hc,
-    project_root_hint = NULL,
-    local_count_subdir = "count_data",
-    local_annotation_subdir = "annotation_data",
-    local_reference_subdir = "reference_files",
-    local_output_subdir = "output",
-    docker_reference_dir = "/home/rstudio/reference_files",
-    docker_count_dir = "/home/rstudio/count_data",
-    docker_annotation_dir = "/home/rstudio/annotation_data",
-    docker_output_dir = "/home/rstudio/output",
-    create_docker_dirs = TRUE,
-    fallback_count_data = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_GENE_EXPRESSION_TABLES/",
-    fallback_annotation = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_ANNOTATION_TABLES/",
-    fallback_reference_files = "PATH_TO_REFERENCE_FILES_FOLDER/",
-    fallback_output = "PATH_TO_FOLDER_WHERE_HCOCENA_SHOULD_SAVE_ALL_ANALYSIS_OUTPUTS/",
-    dir_count_data = NULL,
-    dir_annotation = NULL,
-    dir_reference_files = NULL,
-    dir_output = NULL
+  hc,
+  project_root_hint = NULL,
+  local_count_subdir = "count_data",
+  local_annotation_subdir = "annotation_data",
+  local_reference_subdir = "reference_files",
+  local_output_subdir = "output",
+  docker_reference_dir = "/home/rstudio/reference_files",
+  docker_count_dir = "/home/rstudio/count_data",
+  docker_annotation_dir = "/home/rstudio/annotation_data",
+  docker_output_dir = "/home/rstudio/output",
+  create_docker_dirs = TRUE,
+  fallback_count_data = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_GENE_EXPRESSION_TABLES/",
+  fallback_annotation = "PATH_TO_FOLDER_THAT_HOLDS_YOUR_ANNOTATION_TABLES/",
+  fallback_reference_files = "PATH_TO_REFERENCE_FILES_FOLDER/",
+  fallback_output = "PATH_TO_FOLDER_WHERE_HCOCENA_SHOULD_SAVE_ALL_ANALYSIS_OUTPUTS/",
+  dir_count_data = NULL,
+  dir_annotation = NULL,
+  dir_reference_files = NULL,
+  dir_output = NULL
 ) {
   resolved <- hc_resolve_paths(
     project_root_hint = project_root_hint,
@@ -635,9 +635,9 @@ hc_define_layers <- function(hc, data_sets = list()) {
     }
     zero_var <- var.df$gene[!base::is.na(var.df$variance) & var.df$variance == 0]
     if (base::length(zero_var) > 0) {
-      message(base::paste0("Detected genes with 0 variance in dataset ", i, "."))
+      message("Detected genes with 0 variance in dataset ", i, ".")
       counts <- counts[!(base::rownames(counts) %in% zero_var), , drop = FALSE]
-      message(base::paste0(base::length(zero_var), " gene(s) were removed from dataset ", i, "."))
+      message(base::length(zero_var), " gene(s) were removed from dataset ", i, ".")
     }
 
     anno <- .hc_load_anno_source(
@@ -651,11 +651,9 @@ hc_define_layers <- function(hc, data_sets = list()) {
 
     if (!base::ncol(counts) == base::nrow(anno)) {
       stop(
-        base::paste0(
-          "The count table has ", base::ncol(counts), " columns but the annotation has ",
-          base::nrow(anno), " rows. These values are required to be the same since they\n",
-          "                 should correspond to the number of samples. THE LOADING OF THE DATA WILL BE TERMINATED."
-        )
+        "The count table has ", base::ncol(counts), " columns but the annotation has ",
+        base::nrow(anno), " rows. These values are required to be the same since they\n",
+        "                 should correspond to the number of samples. THE LOADING OF THE DATA WILL BE TERMINATED."
       )
     }
     if (!base::all(base::as.character(base::colnames(counts)) %in% base::as.character(base::rownames(anno)))) {
@@ -759,7 +757,7 @@ hc_read_data <- function(hc,
 
   layout_algorithm <- .hc_normalize_layout_algorithm(layout_algorithm)
   if (layout_algorithm %in% c("layout_with_stress", "layout_with_sparse_stress") &&
-      !requireNamespace("graphlayouts", quietly = TRUE)) {
+    !requireNamespace("graphlayouts", quietly = TRUE)) {
     warning(
       "Selected `layout_algorithm = '", layout_algorithm, "'`, but package `graphlayouts` is not installed.\n",
       "Network plotting will fall back to `layout_with_fr` until `graphlayouts` is available.",
@@ -1038,7 +1036,10 @@ hc_set_supp_files <- function(hc, Tf = NULL, Hallmark = NULL, Go = NULL, Kegg = 
     return(clusterProfiler::read.gmt(source_path))
   }
 
-  print(base::paste0("invalid input format of database: ", name, ". Valid inputs are: .csv and .gmt files!"))
+  warning(
+    "invalid input format of database: ", name, ". Valid inputs are: .csv and .gmt files!",
+    call. = FALSE
+  )
   NULL
 }
 
@@ -1100,23 +1101,26 @@ hc_read_supplementary <- function(hc) {
 #' Run expression analysis part I (S4 API)
 #'
 # Internal implementation shared by S4 and legacy entry points.
-.hc_run_expression_analysis_1_legacy_driver <- function(padj,
-                                                        export,
-                                                        import,
-                                                        bayes,
-                                                        prior,
-                                                        alpha,
-                                                        corr_method) {
+.hc_run_expression_analysis_1_driver <- function(padj,
+                                                 export,
+                                                 import,
+                                                 bayes,
+                                                 prior,
+                                                 alpha,
+                                                 corr_method) {
   for (x in base::seq_len(base::length(hcobject[["layers"]]))) {
-    hcobject[["layer_specific_outputs"]][[base::paste0("set", x)]][["part1"]] <<- run_expression_analysis_1_body(
-      x = x,
-      bayes = bayes,
-      prior = prior,
-      alpha = alpha,
-      padj = padj,
-      export = export,
-      import = import,
-      corr_method = corr_method
+    .hc_set_bridge_hcobject_slot(
+      c("layer_specific_outputs", base::paste0("set", x), "part1"),
+      run_expression_analysis_1_body(
+        x = x,
+        bayes = bayes,
+        prior = prior,
+        alpha = alpha,
+        padj = padj,
+        export = export,
+        import = import,
+        corr_method = corr_method
+      )
     )
   }
 }
@@ -1132,16 +1136,16 @@ hc_read_supplementary <- function(hc) {
   if (!inherits(hc, "HCoCenaExperiment")) {
     stop("`hc` must be a `HCoCenaExperiment`.")
   }
-  if (!corr_method %in% c("pearson", "spearman", "rho")) {
-    stop("Parameter 'corr_method' must be either 'pearson', 'spearman' or 'rho'.")
+  if (!corr_method %in% c("pearson", "spearman")) {
+    stop("Parameter 'corr_method' must be either 'pearson' or 'spearman'.")
   }
   if (!(base::nrow(hc@config@layer) > 0 && "layer_id" %in% base::colnames(hc@config@layer))) {
     stop("No layers found. Run `hc_define_layers()` before `hc_run_expression_analysis_1()`.")
   }
 
-  .hc_run_legacy(
+  .hc_run_driver(
     hc = hc,
-    fun = .hc_run_expression_analysis_1_legacy_driver,
+    fun = .hc_run_expression_analysis_1_driver,
     padj = padj,
     export = export,
     import = import,
@@ -1197,8 +1201,8 @@ hc_run_expression_analysis_1 <- function(hc,
 #'   The final applied cutoff vector is always printed.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-.hc_set_cutoff_legacy_driver <- function(cutoff_vector) {
-  hcobject[["cutoff_vec"]] <<- cutoff_vector
+.hc_set_cutoff_driver <- function(cutoff_vector) {
+  .hc_set_bridge_hcobject_slot("cutoff_vec", cutoff_vector)
 }
 
 hc_set_cutoff <- function(hc,
@@ -1248,7 +1252,7 @@ hc_set_cutoff <- function(hc,
   }
 
   align_vec <- function(x) {
-    xv <- suppressWarnings(as.numeric(x))
+    xv <- .hc_as_numeric_safely(x)
     out <- rep(NA_real_, n_layers)
     if (length(xv) == 0) {
       return(out)
@@ -1259,7 +1263,7 @@ hc_set_cutoff <- function(hc,
       idx <- match(layer_ids, nms)
       ok <- is.finite(idx)
       if (any(ok)) {
-        out[ok] <- suppressWarnings(as.numeric(x[idx[ok]]))
+        out[ok] <- .hc_as_numeric_safely(x[idx[ok]])
       }
     }
 
@@ -1272,16 +1276,18 @@ hc_set_cutoff <- function(hc,
     out
   }
 
-  chosen <- rep(NA_real_, n_layers)
-  source_per_layer <- rep(NA_character_, n_layers)
+  cutoff_state <- new.env(parent = emptyenv())
+  cutoff_state$chosen <- rep(NA_real_, n_layers)
+  cutoff_state$source_per_layer <- rep(NA_character_, n_layers)
 
   fill_missing <- function(vec, source_name) {
     aligned <- align_vec(vec)
-    idx <- which(!is.finite(chosen) & is.finite(aligned))
+    idx <- which(!is.finite(cutoff_state$chosen) & is.finite(aligned))
     if (length(idx) > 0) {
-      chosen[idx] <<- aligned[idx]
-      source_per_layer[idx] <<- source_name
+      cutoff_state$chosen[idx] <- aligned[idx]
+      cutoff_state$source_per_layer[idx] <- source_name
     }
+    invisible(NULL)
   }
 
   if (isTRUE(auto)) {
@@ -1296,10 +1302,10 @@ hc_set_cutoff <- function(hc,
       }
     }
     if ("auto_tune" %in% names(sat) &&
-        is.list(sat[["auto_tune"]]) &&
-        "cutoff" %in% names(sat[["auto_tune"]]) &&
-        is.list(sat[["auto_tune"]][["cutoff"]]) &&
-        "recommended_cutoff_vector" %in% names(sat[["auto_tune"]][["cutoff"]])) {
+      is.list(sat[["auto_tune"]]) &&
+      "cutoff" %in% names(sat[["auto_tune"]]) &&
+      is.list(sat[["auto_tune"]][["cutoff"]]) &&
+      "recommended_cutoff_vector" %in% names(sat[["auto_tune"]][["cutoff"]])) {
       fill_missing(sat[["auto_tune"]][["cutoff"]][["recommended_cutoff_vector"]], "auto_tune.recommended")
     }
 
@@ -1320,6 +1326,8 @@ hc_set_cutoff <- function(hc,
     }
   }
 
+  chosen <- cutoff_state$chosen
+  source_per_layer <- cutoff_state$source_per_layer
   miss <- which(!is.finite(chosen))
   if (length(miss) > 0) {
     chosen[miss] <- as.numeric(fallback_cutoff)
@@ -1342,9 +1350,9 @@ hc_set_cutoff <- function(hc,
     )
   }
 
-  hc <- .hc_run_legacy(
+  hc <- .hc_run_driver(
     hc = hc,
-    fun = .hc_set_cutoff_legacy_driver,
+    fun = .hc_set_cutoff_driver,
     cutoff_vector = chosen
   )
 
@@ -1369,11 +1377,11 @@ hc_set_cutoff <- function(hc,
 #' Run expression analysis part II (S4 API)
 #'
 # Internal implementation shared by S4 and legacy entry points.
-.hc_run_expression_analysis_2_legacy_driver <- function(grouping_v,
-                                                        plot_HM,
-                                                        method,
-                                                        additional_anno,
-                                                        cols) {
+.hc_run_expression_analysis_2_driver <- function(grouping_v,
+                                                 plot_HM,
+                                                 method,
+                                                 additional_anno,
+                                                 cols) {
   for (x in base::seq_len(base::length(hcobject[["layers"]]))) {
     extra_anno <- if (base::is.null(additional_anno) || base::length(additional_anno) < x) {
       NULL
@@ -1406,9 +1414,9 @@ hc_set_cutoff <- function(hc,
     stop("No layers found. Run `hc_define_layers()` before `hc_run_expression_analysis_2()`.")
   }
 
-  .hc_run_legacy(
+  .hc_run_driver(
     hc = hc,
-    fun = .hc_run_expression_analysis_2_legacy_driver,
+    fun = .hc_run_expression_analysis_2_driver,
     grouping_v = grouping_v,
     plot_HM = plot_HM,
     method = method,
@@ -1441,10 +1449,10 @@ hc_run_expression_analysis_2 <- function(hc,
 #' Build integrated network (S4 API)
 #'
 # Internal implementation shared by S4 and legacy entry points.
-.hc_build_integrated_network_legacy_driver <- function(mode,
-                                                       with,
-                                                       multi_edges,
-                                                       GFC_when_missing) {
+.hc_build_integrated_network_driver <- function(mode,
+                                                with,
+                                                multi_edges,
+                                                GFC_when_missing) {
   if (mode == "u") {
     message("Intergrating network based on union.")
     get_union()
@@ -1474,22 +1482,23 @@ hc_run_expression_analysis_2 <- function(hc,
   base::colnames(new_edgelist) <- base::colnames(
     hcobject[["integrated_output"]][["combined_edgelist"]]
   )
-  hcobject[["integrated_output"]][["combined_edgelist"]] <<- new_edgelist
-  hcobject[["integrated_output"]][["merged_net"]] <<- merged_net
-  hcobject[["integrated_output"]][["GFC_all_layers"]] <<- merge_GFCs(
-    GFC_when_missing = GFC_when_missing
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "combined_edgelist"), new_edgelist)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "merged_net"), merged_net)
+  .hc_set_bridge_hcobject_slot(
+    c("integrated_output", "GFC_all_layers"),
+    merge_GFCs(GFC_when_missing = GFC_when_missing)
   )
 
   # Rebuilding the integrated graph invalidates prior cluster-dependent outputs.
-  hcobject[["integrated_output"]][["cluster_calc"]] <<- list()
-  hcobject[["integrated_output"]][["enrichments"]] <<- NULL
-  hcobject[["integrated_output"]][["upstream_inference"]] <<- NULL
-  hcobject[["integrated_output"]][["knowledge_network"]] <<- NULL
-  hcobject[["satellite_outputs"]][["enrichments"]] <<- NULL
-  hcobject[["satellite_outputs"]][["upstream_inference"]] <<- NULL
-  hcobject[["satellite_outputs"]][["knowledge_network"]] <<- NULL
-  hcobject[["satellite_outputs"]][["labelled_network"]] <<- NULL
-  hcobject[["satellite_outputs"]][["network_col_by_module"]] <<- NULL
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc"), list())
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "enrichments"), NULL)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "upstream_inference"), NULL)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "knowledge_network"), NULL)
+  .hc_set_bridge_hcobject_slot(c("satellite_outputs", "enrichments"), NULL)
+  .hc_set_bridge_hcobject_slot(c("satellite_outputs", "upstream_inference"), NULL)
+  .hc_set_bridge_hcobject_slot(c("satellite_outputs", "knowledge_network"), NULL)
+  .hc_set_bridge_hcobject_slot(c("satellite_outputs", "labelled_network"), NULL)
+  .hc_set_bridge_hcobject_slot(c("satellite_outputs", "network_col_by_module"), NULL)
 }
 #
 #' @rdname build_integrated_network
@@ -1503,16 +1512,16 @@ hc_build_integrated_network <- function(hc,
                                         multi_edges = "min",
                                         GFC_when_missing = NULL) {
   if (is.null(GFC_when_missing) &&
-      base::nrow(hc@config@global) > 0 &&
-      "range_GFC" %in% base::colnames(hc@config@global)) {
+    base::nrow(hc@config@global) > 0 &&
+    "range_GFC" %in% base::colnames(hc@config@global)) {
     GFC_when_missing <- -hc@config@global$range_GFC[[1]]
   }
   if (is.null(GFC_when_missing)) {
     GFC_when_missing <- -2.0
   }
-  .hc_run_legacy(
+  .hc_run_driver(
     hc = hc,
-    fun = .hc_build_integrated_network_legacy_driver,
+    fun = .hc_build_integrated_network_driver,
     mode = mode,
     with = with,
     multi_edges = multi_edges,
@@ -1523,25 +1532,28 @@ hc_build_integrated_network <- function(hc,
 #' Cluster integrated network (S4 API)
 #'
 # Internal implementation shared by S4 and legacy entry points.
-.hc_cluster_calculation_legacy_driver <- function(cluster_algo,
-                                                  no_of_iterations,
-                                                  resolution,
-                                                  partition_type,
-                                                  max_cluster_count_per_gene,
-                                                  return_result) {
-  hcobject[["global_settings"]][["chosen_clustering_algo"]] <<- cluster_algo
+.hc_cluster_calculation_driver <- function(cluster_algo,
+                                           no_of_iterations,
+                                           resolution,
+                                           partition_type,
+                                           max_cluster_count_per_gene,
+                                           return_result) {
+  .hc_set_bridge_hcobject_slot(c("global_settings", "chosen_clustering_algo"), cluster_algo)
 
   if (cluster_algo == "cluster_leiden") {
-    hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]] <<- leiden_clustering(
-      g = hcobject[["integrated_output"]][["merged_net"]],
-      num_it = no_of_iterations,
-      resolution = resolution,
-      partition_type = partition_type
+    .hc_set_bridge_hcobject_slot(
+      c("integrated_output", "cluster_calc", "cluster_information"),
+      leiden_clustering(
+        g = hcobject[["integrated_output"]][["merged_net"]],
+        num_it = no_of_iterations,
+        resolution = resolution,
+        partition_type = partition_type
+      )
     )
-    hcobject[["integrated_output"]][["cluster_calc"]][["labelled_network"]] <<- NULL
-    hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]] <<- NULL
-    hcobject[["satellite_outputs"]][["labelled_network"]] <<- NULL
-    hcobject[["satellite_outputs"]][["network_col_by_module"]] <<- NULL
+    .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "labelled_network"), NULL)
+    .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "network_col_by_module"), NULL)
+    .hc_set_bridge_hcobject_slot(c("satellite_outputs", "labelled_network"), NULL)
+    .hc_set_bridge_hcobject_slot(c("satellite_outputs", "network_col_by_module"), NULL)
     return(invisible(NULL))
   }
 
@@ -1562,7 +1574,7 @@ hc_build_integrated_network <- function(hc,
 
   cluster_run <- .hc_with_seed(168575L, {
     if (cluster_algo == "auto") {
-      print(algos_to_use)
+      message("Testing clustering algorithms: ", base::paste(algos_to_use, collapse = ", "))
       df_modularity_score <- base::do.call(
         "rbind",
         base::lapply(algos_to_use, function(algo_now) {
@@ -1581,10 +1593,10 @@ hc_build_integrated_network <- function(hc,
         dplyr::select(cluster_algorithm) %>%
         base::as.character()
 
-      print(base::paste(cluster_algo_used, " will be used based on the highest modularity score."))
+      message(cluster_algo_used, " will be used based on the highest modularity score.")
     } else {
       cluster_algo_used <- cluster_algo
-      print(base::paste(cluster_algo_used, " will be used based on your input."))
+      message(cluster_algo_used, " will be used based on your input.")
     }
 
     gene_which_cluster <- base::do.call(
@@ -1625,13 +1637,11 @@ hc_build_integrated_network <- function(hc,
     base::length(base::grep(gene_cluster_ident, pattern = "\\b0\\b"))
   )
 
-  print(
-    base::paste(
-      white_genes_clustercounts,
-      "genes were assigned to more than",
-      max_cluster_count_per_gene,
-      "cluster(s). These genes are assigned to Cluster 0 (white) and will be left out of the network and further analyses."
-    )
+  message(
+    white_genes_clustercounts,
+    " genes were assigned to more than ",
+    max_cluster_count_per_gene,
+    " cluster(s). These genes are assigned to Cluster 0 (white) and will be left out of the network and further analyses."
   )
 
   cluster_data <- base::data.frame(
@@ -1674,19 +1684,17 @@ hc_build_integrated_network <- function(hc,
       purrr::map(1)
   )
 
-  print(
-    base::paste0(
-      white_genes_clustersize,
-      " genes were assigned to clusters with a smaller size than the defined minimal cluster size of ",
-      hcobject[["global_settings"]][["min_nodes_number_for_cluster"]],
-      " genes per cluster. These genes will also be assigned to Cluster 0 (white) and left out of the network and further analyses."
-    )
+  message(
+    white_genes_clustersize,
+    " genes were assigned to clusters with a smaller size than the defined minimal cluster size of ",
+    hcobject[["global_settings"]][["min_nodes_number_for_cluster"]],
+    " genes per cluster. These genes will also be assigned to Cluster 0 (white) and left out of the network and further analyses."
   )
 
   dfk_allinfo <- base::do.call(
     "rbind",
     base::lapply(
-      1:base::nrow(dfk),
+      base::seq_len(base::nrow(dfk)),
       gfc_mean_clustergene,
       cluster_df = dfk,
       gfc_dat = hcobject[["integrated_output"]][["GFC_all_layers"]]
@@ -1698,11 +1706,11 @@ hc_build_integrated_network <- function(hc,
     return(dfk_allinfo)
   }
 
-  hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]] <<- dfk_allinfo
-  hcobject[["integrated_output"]][["cluster_calc"]][["labelled_network"]] <<- NULL
-  hcobject[["integrated_output"]][["cluster_calc"]][["network_col_by_module"]] <<- NULL
-  hcobject[["satellite_outputs"]][["labelled_network"]] <<- NULL
-  hcobject[["satellite_outputs"]][["network_col_by_module"]] <<- NULL
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "cluster_information"), dfk_allinfo)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "labelled_network"), NULL)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "network_col_by_module"), NULL)
+  .hc_set_bridge_hcobject_slot(c("satellite_outputs", "labelled_network"), NULL)
+  .hc_set_bridge_hcobject_slot(c("satellite_outputs", "network_col_by_module"), NULL)
   invisible(NULL)
 }
 
@@ -1713,9 +1721,9 @@ hc_build_integrated_network <- function(hc,
                                          partition_type = "RBConfigurationVertexPartition",
                                          max_cluster_count_per_gene = 1,
                                          return_result = FALSE) {
-  out <- .hc_run_legacy_capture(
+  out <- .hc_run_driver_capture(
     hc = hc,
-    fun = .hc_cluster_calculation_legacy_driver,
+    fun = .hc_cluster_calculation_driver,
     cluster_algo = cluster_algo,
     no_of_iterations = no_of_iterations,
     resolution = resolution,
@@ -1756,8 +1764,8 @@ hc_cluster_calculation <- function(hc,
   )
 
   if (base::is.list(out) &&
-      "hc" %in% base::names(out) &&
-      inherits(out[["hc"]], "HCoCenaExperiment")) {
+    "hc" %in% base::names(out) &&
+    inherits(out[["hc"]], "HCoCenaExperiment")) {
     return(out[["result"]])
   }
 
@@ -1774,9 +1782,9 @@ hc_cluster_calculation <- function(hc,
                                     k_max = NULL,
                                     auto_parsimony_penalty = 1e-04,
                                     verbose = TRUE) {
-  out <- .hc_run_legacy_capture(
+  out <- .hc_run_driver_capture(
     hc = hc,
-    fun = .hc_merge_clusters_legacy_driver,
+    fun = .hc_merge_clusters_driver,
     k = k,
     save = save,
     method = method,
@@ -1818,8 +1826,8 @@ hc_merge_clusters <- function(hc,
   )
 
   if (base::is.list(out) &&
-      "hc" %in% base::names(out) &&
-      inherits(out[["hc"]], "HCoCenaExperiment")) {
+    "hc" %in% base::names(out) &&
+    inherits(out[["hc"]], "HCoCenaExperiment")) {
     return(out[["hc"]])
   }
 
@@ -1851,9 +1859,9 @@ hc_split_modules <- function(hc,
                              min_submodule_size = NULL,
                              min_module_size = NULL,
                              verbose = TRUE) {
-  .hc_run_legacy(
+  .hc_run_driver(
     hc = hc,
-    fun = .hc_split_modules_legacy_driver,
+    fun = .hc_split_modules_driver,
     modules = modules,
     cluster_algo = cluster_algo,
     no_of_iterations = no_of_iterations,
@@ -1882,9 +1890,9 @@ hc_unsplit_modules <- function(hc,
                                which = c("last", "all"),
                                verbose = TRUE) {
   which <- base::match.arg(which)
-  .hc_run_legacy(
+  .hc_run_driver(
     hc = hc,
-    fun = .hc_unsplit_modules_legacy_driver,
+    fun = .hc_unsplit_modules_driver,
     which = which,
     verbose = verbose
   )
@@ -2177,7 +2185,7 @@ hc_unsplit_modules <- function(hc,
                                                         panel_keys = NULL,
                                                         res = 200) {
   if (!isTRUE(getOption("knitr.in.progress")) &&
-      !isTRUE(getOption("rstudio.notebook.executing"))) {
+    !isTRUE(getOption("rstudio.notebook.executing"))) {
     return(invisible(NULL))
   }
   if (requireNamespace("knitr", quietly = TRUE)) {
@@ -2278,9 +2286,10 @@ hc_unsplit_modules <- function(hc,
     png_paths <- c(png_paths, png_file)
   }
 
+  rendered_paths <- NULL
   if (length(png_paths) > 0) {
     if (requireNamespace("knitr", quietly = TRUE)) {
-      print(knitr::include_graphics(png_paths))
+      rendered_paths <- knitr::include_graphics(png_paths)
     } else {
       warning(
         "Package `knitr` is required for notebook panel rendering.",
@@ -2295,6 +2304,10 @@ hc_unsplit_modules <- function(hc,
       paste(unique(failed_panels), collapse = ", "),
       call. = FALSE
     )
+  }
+
+  if (!base::is.null(rendered_paths)) {
+    return(rendered_paths)
   }
 
   invisible(NULL)
@@ -2405,16 +2418,19 @@ hc_plot_enrichment_panels <- function(hc,
       next
     }
 
-    draw_res <- try({
-      grid::grid.newpage()
-      ComplexHeatmap::draw(
-        draw_obj,
-        newpage = FALSE,
-        merge_legends = TRUE,
-        show_annotation_legend = TRUE,
-        show_heatmap_legend = TRUE
-      )
-    }, silent = TRUE)
+    draw_res <- try(
+      {
+        grid::grid.newpage()
+        ComplexHeatmap::draw(
+          draw_obj,
+          newpage = FALSE,
+          merge_legends = TRUE,
+          show_annotation_legend = TRUE,
+          show_heatmap_legend = TRUE
+        )
+      },
+      silent = TRUE
+    )
     if (inherits(draw_res, "try-error")) {
       draw_errors <- c(draw_errors, k)
       next
@@ -2442,9 +2458,9 @@ hc_plot_enrichment_panels <- function(hc,
 #' @return Updated `HCoCenaExperiment`.
 # Internal implementation shared by S4 and legacy entry points.
 .hc_functional_enrichment_impl <- function(hc, ...) {
-  out <- .hc_run_legacy_capture(
+  out <- .hc_run_driver_capture(
     hc = hc,
-    fun = ".hc_functional_enrichment_legacy_driver",
+    fun = ".hc_functional_enrichment_driver",
     ...
   )
   list(hc = out$hc, result = out$result)
@@ -2458,6 +2474,7 @@ hc_functional_enrichment <- function(hc,
                                      clusters = c("all"),
                                      padj = "BH",
                                      qval = 0.05,
+                                     consistent_terms = TRUE,
                                      heatmap_side = "left",
                                      heatmap_cluster_rows = FALSE,
                                      cluster_columns = FALSE,
@@ -2490,6 +2507,7 @@ hc_functional_enrichment <- function(hc,
     clusters = clusters,
     padj = padj,
     qval = qval,
+    consistent_terms = consistent_terms,
     heatmap_side = heatmap_side,
     heatmap_cluster_rows = heatmap_cluster_rows,
     cluster_columns = cluster_columns,
@@ -2524,9 +2542,9 @@ hc_functional_enrichment <- function(hc,
 #' @return Updated `HCoCenaExperiment`.
 # Internal implementation shared by S4 and legacy entry points.
 .hc_upstream_inference_impl <- function(hc, ...) {
-  out <- .hc_run_legacy_capture(
+  out <- .hc_run_driver_capture(
     hc = hc,
-    fun = ".hc_upstream_inference_legacy_driver",
+    fun = ".hc_upstream_inference_driver",
     ...
   )
   list(hc = out$hc, result = out$result)
@@ -2596,9 +2614,9 @@ hc_upstream_inference <- function(hc,
 #' @return Updated `HCoCenaExperiment`.
 # Internal implementation shared by S4 and legacy entry points.
 .hc_celltype_annotation_impl <- function(hc, ...) {
-  out <- .hc_run_legacy_capture(
+  out <- .hc_run_driver_capture(
     hc = hc,
-    fun = ".hc_celltype_annotation_legacy_driver",
+    fun = ".hc_celltype_annotation_driver",
     ...
   )
   list(hc = out$hc, result = out$result)
@@ -2660,9 +2678,9 @@ hc_celltype_annotation <- function(hc,
 #' @return Updated `HCoCenaExperiment`.
 # Internal implementation shared by S4 and legacy entry points.
 .hc_celltype_activity_decoupler_impl <- function(hc, ...) {
-  out <- .hc_run_legacy_capture(
+  out <- .hc_run_driver_capture(
     hc = hc,
-    fun = ".hc_celltype_activity_decoupler_legacy_driver",
+    fun = ".hc_celltype_activity_decoupler_driver",
     ...
   )
   list(hc = out$hc, result = out$result)
@@ -2728,9 +2746,9 @@ hc_celltype_activity_decoupler <- function(hc,
 #' @return Updated `HCoCenaExperiment`.
 # Internal implementation shared by S4 and legacy entry points.
 .hc_plot_enrichment_upstream_network_impl <- function(hc, ...) {
-  out <- .hc_run_legacy_capture(
+  out <- .hc_run_driver_capture(
     hc = hc,
-    fun = ".hc_plot_enrichment_upstream_network_legacy_driver",
+    fun = ".hc_plot_enrichment_upstream_network_driver",
     ...
   )
   list(hc = out$hc, result = out$result)
@@ -2795,9 +2813,9 @@ hc_plot_enrichment_upstream_network <- function(hc,
   for (nm in base::names(paths)) {
     current_dir <- paths[[nm]]
     if (nm == "dir_output" &&
-        !base::identical(current_dir, FALSE) &&
-        isTRUE(create_output_dir) &&
-        !base::dir.exists(current_dir)) {
+      !base::identical(current_dir, FALSE) &&
+      isTRUE(create_output_dir) &&
+      !base::dir.exists(current_dir)) {
       base::dir.create(current_dir, recursive = TRUE, showWarnings = FALSE)
       message("Created missing output directory: ", current_dir)
     }
@@ -2877,15 +2895,16 @@ hc_init_save_folder <- function(hc, name, use_output_dir = FALSE) {
 #'
 #' @rdname plot_cutoffs
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `plot_cutoffs()`.
+#' @param ... Additional arguments for cut-off plotting.
 #' @template example-hc-after-part1
+#' @examples
 #' hc <- hc_plot_cutoffs(hc)
 #' @return Updated `HCoCenaExperiment`.
 # Internal implementation shared by S4 and legacy entry points.
 .hc_plot_cutoffs_impl <- function(hc, ...) {
-  out <- .hc_run_legacy_capture(
+  out <- .hc_run_driver_capture(
     hc = hc,
-    fun = ".hc_plot_cutoffs_legacy_driver",
+    fun = ".hc_plot_cutoffs_driver",
     ...
   )
   list(hc = out$hc, result = out$result)
@@ -2901,13 +2920,14 @@ hc_plot_cutoffs <- function(hc, ...) {
 #' @rdname plot_deg_dist
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-after-part1
+#' @examples
 #' hc <- hc_plot_deg_dist(hc)
 #' @return Updated `HCoCenaExperiment`.
 # Internal implementation shared by S4 and legacy entry points.
 .hc_plot_deg_dist_impl <- function(hc) {
-  out <- .hc_run_legacy_capture(
+  out <- .hc_run_driver_capture(
     hc = hc,
-    fun = ".hc_plot_deg_dist_legacy_driver"
+    fun = ".hc_plot_deg_dist_driver"
   )
   list(hc = out$hc, result = out$result)
 }
@@ -2921,10 +2941,11 @@ hc_plot_deg_dist <- function(hc) {
 #'
 #' @rdname plot_cluster_heatmap
 #' @param hc A `HCoCenaExperiment`.
-#' @param file_name Optional file name passed to `plot_cluster_heatmap()`.
+#' @param file_name Optional export file name for the module heatmap.
 #'   Defaults to `"Heatmap_modules.pdf"`. Use `FALSE` to skip file export.
-#' @param ... Passed to `plot_cluster_heatmap()`.
+#' @param ... Additional plotting arguments forwarded to the heatmap backend.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_plot_cluster_heatmap(hc, file_name = FALSE)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -2933,18 +2954,18 @@ hc_plot_cluster_heatmap <- function(hc, file_name = "Heatmap_modules.pdf", ...) 
     stop("`hc` must be a `HCoCenaExperiment`.")
   }
 
-  legacy_envo <- .hc_legacy_state_env()
-  legacy_state <- .hc_bind_legacy_hcobject(
-    .hc_as_hcobject_for_cluster_plot(hc),
+  legacy_envo <- .hc_bridge_state_env()
+  legacy_state <- .hc_bind_bridge_hcobject(
+    .hc_as_bridge_object_for_cluster_plot(hc),
     envo = legacy_envo
   )
-  on.exit(.hc_restore_legacy_hcobject(legacy_state), add = TRUE)
+  on.exit(.hc_restore_bridge_hcobject(legacy_state), add = TRUE)
 
   old_opt <- getOption("hcocena.suppress_legacy_warning", FALSE)
   options(hcocena.suppress_legacy_warning = TRUE)
   on.exit(options(hcocena.suppress_legacy_warning = old_opt), add = TRUE)
 
-  base::do.call(.hc_plot_cluster_heatmap_legacy_driver, c(list(file_name = file_name), list(...)))
+  base::do.call(.hc_plot_cluster_heatmap_driver, c(list(file_name = file_name), list(...)))
   .hc_update_hc_from_cluster_plot(
     hc = hc,
     hcobject = base::get("hcobject", envir = legacy_envo, inherits = FALSE)
@@ -2966,6 +2987,7 @@ hc_plot_cluster_heatmap <- function(hc, file_name = "Heatmap_modules.pdf", ...) 
 #' @param row_order Optional heatmap row order.
 #' @param cluster_rows Whether to cluster heatmap rows.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_change_grouping_parameter(hc, group_by = "batch")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -2975,9 +2997,9 @@ hc_change_grouping_parameter <- function(hc,
                                          cluster_columns = FALSE,
                                          row_order = NULL,
                                          cluster_rows = TRUE) {
-  .hc_run_legacy(
+  .hc_run_driver(
     hc = hc,
-    fun = .hc_change_grouping_parameter_legacy_driver,
+    fun = .hc_change_grouping_parameter_driver,
     group_by = group_by,
     col_order = col_order,
     cluster_columns = cluster_columns,
@@ -2990,13 +3012,14 @@ hc_change_grouping_parameter <- function(hc,
 #'
 #' @rdname plot_integrated_network
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `plot_integrated_network()`.
+#' @param ... Additional plotting arguments for the integrated network view.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_plot_integrated_network(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_plot_integrated_network <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_plot_integrated_network_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_plot_integrated_network_driver, ...)
 }
 
 #' Plot network colored by GFC (S4 API)
@@ -3004,31 +3027,32 @@ hc_plot_integrated_network <- function(hc, ...) {
 #' @rdname plot_GFC_network
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_plot_gfc_network(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_plot_gfc_network <- function(hc) {
-  .hc_run_legacy(hc = hc, fun = .hc_plot_GFC_network_legacy_driver)
+  .hc_run_driver(hc = hc, fun = .hc_plot_GFC_network_driver)
 }
 
 #' TF enrichment per module (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `TF_overrep_module()`.
+#' @param ... Additional arguments for module-level TF enrichment.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_tf_overrep_module <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_TF_overrep_module_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_TF_overrep_module_driver, ...)
 }
 
 #' TF enrichment network-wide (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `TF_overrep_network()`.
+#' @param ... Additional arguments for network-level TF enrichment.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_tf_overrep_network <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_TF_overrep_network_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_TF_overrep_network_driver, ...)
 }
 
 #' Check TF targets (S4 API)
@@ -3038,7 +3062,7 @@ hc_tf_overrep_network <- function(hc, ...) {
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_check_tf <- function(hc, TF) {
-  .hc_run_legacy(hc = hc, fun = .hc_check_tf_legacy_driver, TF = TF)
+  .hc_run_driver(hc = hc, fun = .hc_check_tf_driver, TF = TF)
 }
 
 #' Write session info (S4 API)
@@ -3046,11 +3070,12 @@ hc_check_tf <- function(hc, TF) {
 #' @rdname write_session_info
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-prepared
+#' @examples
 #' hc <- hc_write_session_info(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_write_session_info <- function(hc) {
-  .hc_run_legacy(hc = hc, fun = .hc_write_session_info_legacy_driver)
+  .hc_run_driver(hc = hc, fun = .hc_write_session_info_driver)
 }
 
 #' Suggest top variable genes (S4 API)
@@ -3058,50 +3083,54 @@ hc_write_session_info <- function(hc) {
 #' @rdname suggest_topvar
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-prepared
+#' @examples
 #' hc <- hc_suggest_topvar(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_suggest_topvar <- function(hc) {
-  .hc_run_legacy(hc = hc, fun = .hc_suggest_topvar_legacy_driver)
+  .hc_run_driver(hc = hc, fun = .hc_suggest_topvar_driver)
 }
 
 #' Plot sample distributions (S4 API)
 #'
 #' @rdname plot_sample_distributions
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `plot_sample_distributions()`.
+#' @param ... Additional arguments for sample-distribution plotting.
 #' @template example-hc-prepared
+#' @examples
 #' hc <- hc_plot_sample_distributions(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_plot_sample_distributions <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_plot_sample_distributions_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_plot_sample_distributions_driver, ...)
 }
 
 #' PCA plotting (S4 API)
 #'
 #' @rdname PCA
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `PCA()`.
+#' @param ... Additional PCA plotting arguments.
 #' @template example-hc-prepared
+#' @examples
 #' hc <- hc_pca(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_pca <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_PCA_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_PCA_driver, ...)
 }
 
 #' Meta-data plotting (S4 API)
 #'
 #' @rdname meta_plot
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `meta_plot()`.
+#' @param ... Additional metadata plotting arguments.
 #' @template example-hc-prepared
+#' @examples
 #' hc <- hc_meta_plot(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_meta_plot <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_meta_plot_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_meta_plot_driver, ...)
 }
 
 #' Export clusters (S4 API)
@@ -3109,24 +3138,26 @@ hc_meta_plot <- function(hc, ...) {
 #' @rdname export_clusters
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_export_clusters(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_export_clusters <- function(hc) {
-  .hc_run_legacy(hc = hc, fun = .hc_export_clusters_legacy_driver)
+  .hc_run_driver(hc = hc, fun = .hc_export_clusters_driver)
 }
 
 #' Module scores (S4 API)
 #'
 #' @rdname get_module_scores
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `get_module_scores()`.
+#' @param ... Additional arguments for module-score calculation.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_get_module_scores(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_get_module_scores <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_get_module_scores_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_get_module_scores_driver, ...)
 }
 
 #' Alluvial comparison plots (S4 API)
@@ -3134,67 +3165,70 @@ hc_get_module_scores <- function(hc, ...) {
 #' @rdname algo_alluvial
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_algo_alluvial(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_algo_alluvial <- function(hc) {
-  .hc_run_legacy(hc = hc, fun = .hc_algo_alluvial_legacy_driver)
+  .hc_run_driver(hc = hc, fun = .hc_algo_alluvial_driver)
 }
 
 #' PCA algorithm comparison (S4 API)
 #'
 #' @rdname PCA_algo_compare
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `PCA_algo_compare()`.
+#' @param ... Additional PCA-comparison arguments.
 #' @template example-hc-prepared
+#' @examples
 #' hc <- hc_pca_algo_compare(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_pca_algo_compare <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_PCA_algo_compare_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_PCA_algo_compare_driver, ...)
 }
 
 #' Update clustering algorithm (S4 API)
 #'
 #' @rdname update_clustering_algorithm
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `update_clustering_algorithm()`.
+#' @param ... Additional clustering-update arguments.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_update_clustering_algorithm(hc, cluster_algo = "cluster_louvain")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_update_clustering_algorithm <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_update_clustering_algorithm_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_update_clustering_algorithm_driver, ...)
 }
 
 #' Export network to local folder (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `export_to_local_folder()`.
+#' @param ... Additional export arguments for local folder output.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_export_to_local_folder <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_export_to_local_folder_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_export_to_local_folder_driver, ...)
 }
 
 #' Import Cytoscape layout from local folder (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `import_layout_from_local_folder()`.
+#' @param ... Additional arguments for local layout import.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_import_layout_from_local_folder <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_import_layout_from_local_folder_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_import_layout_from_local_folder_driver, ...)
 }
 
 #' Export network to Cytoscape (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `export_to_cytoscape()`.
+#' @param ... Additional arguments for Cytoscape export.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_export_to_cytoscape <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_export_to_cytoscape_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_export_to_cytoscape_driver, ...)
 }
 
 #' Import layout from Cytoscape (S4 API)
@@ -3203,87 +3237,91 @@ hc_export_to_cytoscape <- function(hc, ...) {
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_import_layout_from_cytoscape <- function(hc) {
-  .hc_run_legacy(hc = hc, fun = .hc_import_layout_from_cytoscape_legacy_driver)
+  .hc_run_driver(hc = hc, fun = .hc_import_layout_from_cytoscape_driver)
 }
 
 #' Hub detection (S4 API)
 #'
 #' @rdname find_hubs
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `find_hubs()`.
+#' @param ... Additional arguments for hub detection.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_find_hubs(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_find_hubs <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_find_hubs_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_find_hubs_driver, ...)
 }
 
 #' Visualize gene expression (S4 API)
 #'
 #' @rdname visualize_gene_expression
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `visualize_gene_expression()`.
+#' @param ... Additional arguments for gene-expression visualization.
 #' @template example-hc-prepared
+#' @examples
 #' hc <- hc_visualize_gene_expression(hc, gene = "G1")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_visualize_gene_expression <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_visualize_gene_expression_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_visualize_gene_expression_driver, ...)
 }
 
 #' Highlight gene set in network (S4 API)
 #'
 #' @rdname highlight_geneset
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `highlight_geneset()`.
+#' @param ... Additional arguments for gene-set highlighting.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_highlight_geneset(hc, geneset = c("G1", "G2"))
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_highlight_geneset <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_highlight_geneset_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_highlight_geneset_driver, ...)
 }
 
 #' Highlight single cluster in network (S4 API)
 #'
 #' @rdname colour_single_cluster
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `colour_single_cluster()`.
+#' @param ... Additional arguments for single-cluster highlighting.
 #' @template example-hc-clustered
+#' @examples
 #' hc <- hc_colour_single_cluster(hc, selected_cluster = 1)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_colour_single_cluster <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_colour_single_cluster_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_colour_single_cluster_driver, ...)
 }
 
 #' Add categorical module heatmap annotations (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `col_anno_categorical()`.
+#' @param ... Additional arguments for categorical module annotations.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_col_anno_categorical <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_col_anno_categorical_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_col_anno_categorical_driver, ...)
 }
 
 #' Correlate categorical metadata with modules (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `meta_correlation_cat()`.
+#' @param ... Additional arguments for categorical metadata correlation.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_meta_correlation_cat <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_meta_correlation_cat_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_meta_correlation_cat_driver, ...)
 }
 
 #' Test module differences between conditions (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Passed to `module_condition_significance()`.
+#' @param ... Additional arguments for module-condition significance testing.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_module_condition_significance <- function(hc, ...) {
-  .hc_run_legacy(hc = hc, fun = .hc_module_condition_significance_legacy_driver, ...)
+  .hc_run_driver(hc = hc, fun = .hc_module_condition_significance_driver, ...)
 }

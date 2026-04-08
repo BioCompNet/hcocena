@@ -26,7 +26,7 @@ setValidity("HCoCenaExperiment", function(object) {
   cfg_layers <- character()
 
   if (base::nrow(object@config@layer) > 0 &&
-      "layer_id" %in% base::colnames(object@config@layer)) {
+    "layer_id" %in% base::colnames(object@config@layer)) {
     cfg_layers <- as.character(object@config@layer$layer_id)
   }
 
@@ -52,7 +52,7 @@ setValidity("HCoCenaExperiment", function(object) {
 
   voi <- NULL
   if (base::nrow(object@config@global) > 0 &&
-      "voi" %in% base::colnames(object@config@global)) {
+    "voi" %in% base::colnames(object@config@global)) {
     voi <- as.character(object@config@global$voi[[1]])
   }
 
@@ -68,10 +68,10 @@ setValidity("HCoCenaExperiment", function(object) {
   }
 
   if (base::nrow(object@config@layer) > 0 &&
-      "cutoff" %in% base::colnames(object@config@layer) &&
-      "layer_id" %in% base::colnames(object@config@layer)) {
+    "cutoff" %in% base::colnames(object@config@layer) &&
+    "layer_id" %in% base::colnames(object@config@layer)) {
     if (base::length(object@config@layer$cutoff) !=
-        base::length(object@config@layer$layer_id)) {
+      base::length(object@config@layer$layer_id)) {
       errors <- c(errors, "`cutoff` length in `config@layer` must match number of layers.")
     }
   }
@@ -88,13 +88,13 @@ setValidity("HCoCenaExperiment", function(object) {
       cluster_genes <- character()
 
       if ((base::is.data.frame(ci) || inherits(ci, "DataFrame")) &&
-          "genes" %in% base::colnames(ci)) {
+        "genes" %in% base::colnames(ci)) {
         cluster_genes <- as.character(ci$genes)
       } else if ((base::is.data.frame(ci) || inherits(ci, "DataFrame")) &&
-                 "gene" %in% base::colnames(ci)) {
+        "gene" %in% base::colnames(ci)) {
         cluster_genes <- as.character(ci$gene)
       } else if ((base::is.data.frame(ci) || inherits(ci, "DataFrame")) &&
-                 "gene_n" %in% base::colnames(ci)) {
+        "gene_n" %in% base::colnames(ci)) {
         cluster_genes <- base::unlist(base::strsplit(as.character(ci$gene_n), split = ","))
       }
 
@@ -107,4 +107,3 @@ setValidity("HCoCenaExperiment", function(object) {
 
   if (base::length(errors) == 0) TRUE else errors
 })
-

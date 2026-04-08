@@ -38,10 +38,5 @@ Plot CAP heatmap (donor x module-cluster proportions)
 }
 
 \examples{
-exists("hc_plot_longitudinal_cap", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

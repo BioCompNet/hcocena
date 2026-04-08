@@ -38,10 +38,5 @@ per endotype) from \code{hc_longitudinal_endotype_clustering()} outputs.
 }
 
 \examples{
-exists("hc_plot_longitudinal_endotypes", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

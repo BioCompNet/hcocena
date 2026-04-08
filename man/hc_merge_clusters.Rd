@@ -58,4 +58,3 @@ hc <- as_hcocena(hco)
 try(hc <- hc_merge_clusters(hc, k = 1), silent = TRUE)
 }
 }
-

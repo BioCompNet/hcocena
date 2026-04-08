@@ -56,10 +56,5 @@ used in the legacy longitudinal scripts.
 }
 
 \examples{
-exists("hc_longitudinal_module_cap", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

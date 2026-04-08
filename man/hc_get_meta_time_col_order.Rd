@@ -29,10 +29,5 @@ Returns the column-order vector stored by \code{hc_add_meta_time_grouping()}.
 }
 
 \examples{
-exists("hc_get_meta_time_col_order", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

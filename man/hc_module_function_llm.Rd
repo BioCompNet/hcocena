@@ -57,14 +57,13 @@ module name or \code{"custom_geneset"}. Can only be used for a single module or
 a free gene set.}
 
 \item{llm}{LLM provider. Supported values are \code{"gemini"}, \code{"claude"},
-\code{"anthropic"} (alias for \code{"claude"}), \code{"openai"},
-\code{"chatgpt"} (alias for \code{"openai"}), or \code{"vllm"} for a local
-OpenAI-compatible vLLM server.}
+\code{"anthropic"} (alias for \code{"claude"}), \code{"openai"}, \code{"chatgpt"} (alias for
+\code{"openai"}), or \code{"vllm"} for a local OpenAI-compatible vLLM server.}
 
 \item{api_key}{API key for the selected provider. If omitted, the function
 uses \code{GEMINI_API_KEY} for Gemini, \code{ANTHROPIC_API_KEY} for Claude,
-\code{OPENAI_API_KEY} for OpenAI, and \code{VLLM_API_KEY} for vLLM. For local
-vLLM, the fallback is \code{"EMPTY"}.}
+\code{OPENAI_API_KEY} for OpenAI, and \code{VLLM_API_KEY} for vLLM. For local vLLM,
+the fallback is \code{"EMPTY"}.}
 
 \item{gemini_model}{Optional Gemini model code. Only used when
 \code{llm = "gemini"}. Defaults to \code{"gemini-2.5-pro"}.}
@@ -125,17 +124,15 @@ supplied gene vector. Optional free-text context can be added to steer the
 interpretation towards a disease, tissue, perturbation, timepoint, or other
 experimental background.
 
-By default, results are stored in
-\code{methods::slot(hc, "satellite")[[slot_name]][[label]]} when an
-\code{hc} object is provided. A compact table is also written to
-\code{methods::slot(hc, "satellite")[[paste0(slot_name, "_summary")]]}.
+By default, results are stored in \code{hc@satellite[[slot_name]][[label]]} when
+an \code{hc} object is provided. A compact table is also written to
+\code{hc@satellite[[paste0(slot_name, "_summary")]]}.
 
 The function name is retained for backward compatibility, but it can now use
 Gemini, OpenAI-compatible APIs, and local vLLM servers via \code{llm}.
 }
 \examples{
-exists("hc_module_function_llm", mode = "function")
-
+hc <- hc_init()
 \donttest{
 if (nzchar(Sys.getenv("OPENAI_API_KEY"))) {
   res <- hc_module_function_llm(

@@ -17,16 +17,5 @@ Import layout from Cytoscape (S4 API)
 }
 
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- as_hcocena(hco)
-if (requireNamespace("RCy3", quietly = TRUE)) try(hc <- hc_import_layout_from_cytoscape(hc), silent = TRUE)
+hc <- hc_init()
 }
-}
-

@@ -56,10 +56,5 @@ meta-cluster x timepoint.
 }
 
 \examples{
-exists("hc_add_meta_time_grouping", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

@@ -1,16 +1,16 @@
 Package: hcocena
 Title: Horizontal Integration and Analysis of Multiple Transcriptomics
         Datasets
-Version: 0.99.4
+Version: 0.99.6
 Authors@R: c(
     person(given = "Lisa",
            family = "Holsten",
            role = c("aut"),
-		   comment = c(ORCID = "0000-0001-6238-1273")),
-	person(given = "Kilian",
+           comment = c(ORCID = "0000-0001-6238-1273")),
+    person(given = "Kilian",
            family = "Dahm",
            role = c("aut"),
-		   comment = c(ORCID = "0000-0002-6819-2622")),
+           comment = c(ORCID = "0000-0002-6819-2622")),
     person(given = "Marie",
            family = "Oestreich",
            role = c("aut"),
@@ -21,16 +21,20 @@ Authors@R: c(
     person(given = "Thomas",
            family = "Ulas",
            role = c("aut", "cre"),
-		   email = "t.ulas@uni-bonn.de",
-		   comment = c(ORCID = "0000-0002-9785-4197")))
+           email = "t.ulas@uni-bonn.de",
+           comment = c(ORCID = "0000-0002-9785-4197")))
 Description: Tools for the joint analysis of multiple transcriptomics datasets
-    using a network-based integration approach. The package now provides an
-    S4 object model based on MultiAssayExperiment while keeping backward
-    compatibility with the legacy global-state workflow.
+    using a network-based integration approach. The package provides an
+    S4 object model based on MultiAssayExperiment for reproducible analysis of
+    single-layer and multi-layer studies. It includes workflows for clustering,
+    module visualization, functional annotation, upstream inference, and
+    longitudinal follow-up while retaining compatibility helpers for legacy
+    hCoCena objects.
 License: GPL (>= 3)
 Encoding: UTF-8
 Depends: R (>= 4.5.0)
-biocViews: Software, Clustering, GeneExpression, Network, Transcriptomics
+biocViews: Software, Clustering, GeneExpression, Network, NetworkInference,
+        Transcriptomics, WorkflowStep
 BiocType: Software
 URL: https://github.com/BioCompNet/hcocena
 BugReports: https://github.com/BioCompNet/hcocena/issues
@@ -49,7 +53,7 @@ Imports: Cairo (>= 1.5-12.2), circlize, clusterProfiler (>= 3.18.1),
         0.3.4), RColorBrewer (>= 1.1-2), readr (>= 2.0.1), reshape2,
         rlist (>= 0.4.6.1), S4Vectors, scales (>= 1.1.1), stringi (>=
         1.6.2), stringr (>= 1.5.1), SummarizedExperiment, tibble (>=
-        3.1.2), tidyr, tidyselect (>= 1.1.1)
+        3.1.2), tidyselect (>= 1.1.1)
 Suggests: BiocStyle, CALIBERrfimpute, decoupleR, dorothea, ellmer,
         ExperimentHub, emmeans, ggh4x, graphlayouts, GSVA, htmlwidgets,
         knitr (>= 1.33), lme4, limma, mice, networkD3 (>= 0.4),

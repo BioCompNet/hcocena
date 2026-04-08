@@ -64,7 +64,7 @@ hc_plot_celltype_annotation_matrix <- function(hc,
   } else {
     by_db <- ct[["selected_celltypes_by_db"]]
     if (base::is.null(by_db) || !(database %in% base::names(by_db))) {
-      stop(base::paste0("Database `", database, "` not found in `selected_celltypes_by_db`."))
+      stop("Database `", database, "` not found in `selected_celltypes_by_db`.")
     }
     df <- by_db[[database]]
   }
@@ -87,11 +87,11 @@ hc_plot_celltype_annotation_matrix <- function(hc,
   agg <- stats::aggregate(
     df[[value_col]],
     by = list(cluster = base::as.character(df$cluster), cell_type = base::as.character(df$cell_type)),
-    FUN = function(x) base::sum(suppressWarnings(base::as.numeric(x)), na.rm = TRUE)
+    FUN = function(x) base::sum(.hc_as_numeric_safely(x), na.rm = TRUE)
   )
   base::colnames(agg)[3] <- "value"
   agg <- agg[!base::is.na(agg$cluster) & base::nzchar(agg$cluster) &
-               !base::is.na(agg$cell_type) & base::nzchar(agg$cell_type), , drop = FALSE]
+    !base::is.na(agg$cell_type) & base::nzchar(agg$cell_type), , drop = FALSE]
   if (base::nrow(agg) == 0) {
     stop("No non-empty cluster/cell_type combinations available for plotting.")
   }
@@ -165,7 +165,7 @@ hc_plot_celltype_annotation_matrix <- function(hc,
     cl <- base::as.character(base::rownames(mat))
     module_labels_default <- base::as.character(module_label_map[cl])
     module_labels_default[base::is.na(module_labels_default) | module_labels_default == ""] <- cl[base::is.na(module_labels_default) | module_labels_default == ""]
-    mnum <- suppressWarnings(base::as.numeric(sub("^M([0-9]+).*", "\\1", module_labels_default)))
+    mnum <- .hc_as_numeric_safely(sub("^M([0-9]+).*", "\\1", module_labels_default))
     ord <- base::order(base::is.na(mnum), mnum, cl)
     mat <- mat[ord, , drop = FALSE]
   } else {

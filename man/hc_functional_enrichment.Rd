@@ -12,6 +12,7 @@ hc_functional_enrichment(
   clusters = c("all"),
   padj = "BH",
   qval = 0.05,
+  consistent_terms = TRUE,
   heatmap_side = "left",
   heatmap_cluster_rows = FALSE,
   cluster_columns = FALSE,
@@ -57,6 +58,12 @@ absolute/relative or file names inside \code{dir_reference_files}.}
 \item{padj}{Method to use for multiple testing correction. Can be one of "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none".  Default is "BH" (Benjamini-Hochberg).}
 
 \item{qval}{Upper threshold for the adjusted p-value. Default is 0.05.}
+
+\item{consistent_terms}{Logical. If \code{TRUE} (default), use the union of the
+top \code{top} enriched terms across the selected modules for each database and
+also show those terms in other modules whenever they are significantly
+enriched there. If \code{FALSE}, show the top enriched terms per module
+separately.}
 
 \item{heatmap_side}{Position of the hCoCena heatmap in the combined output.
 Choose one of "left" (default) or "right".}

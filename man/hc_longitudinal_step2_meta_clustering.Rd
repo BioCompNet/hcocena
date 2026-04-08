@@ -53,9 +53,9 @@ PCA subspace used for graph clustering.}
 }
 \value{
 A list with updated \code{hc}, step plots, and diagnostics. When multiple
-slots are processed, \code{plots} and \code{diagnostics} are returned as named
-lists keyed by layer/slot, plus a \code{slot_info} table describing the
-resolved slots.
+slots are processed, \code{plots} and \code{diagnostics} are returned as named lists
+keyed by layer/slot, plus a \code{slot_info} table describing the resolved
+slots.
 }
 \description{
 Runs the exact CAP -> PCA -> graph -> Leiden donor meta-clustering and
@@ -63,10 +63,5 @@ returns the PCA/UMAP embeddings.
 }
 
 \examples{
-exists("hc_longitudinal_step2_meta_clustering", mode = "function")
-
-\donttest{
-TRUE
+hc <- hc_init()
 }
-}
-

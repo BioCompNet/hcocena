@@ -1181,6 +1181,10 @@ hc_run_expression_analysis_1 <- function(hc,
   )
 }
 
+.hc_set_cutoff_driver <- function(cutoff_vector) {
+  .hc_set_bridge_hcobject_slot("cutoff_vec", cutoff_vector)
+}
+
 #' Set network cutoffs (S4 API)
 #'
 #' @rdname set_cutoff
@@ -1201,10 +1205,6 @@ hc_run_expression_analysis_1 <- function(hc,
 #'   The final applied cutoff vector is always printed.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-.hc_set_cutoff_driver <- function(cutoff_vector) {
-  .hc_set_bridge_hcobject_slot("cutoff_vec", cutoff_vector)
-}
-
 hc_set_cutoff <- function(hc,
                           cutoff_vector = base::c(),
                           auto = FALSE,

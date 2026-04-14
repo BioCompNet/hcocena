@@ -54,6 +54,7 @@ test_that("extended S4 wrappers are exported", {
     "hc_visualize_gene_expression",
     "hc_highlight_geneset",
     "hc_colour_single_cluster",
+    "hc_set_cutoff",
     "hc_col_anno_categorical",
     "hc_meta_correlation_cat"
   )
@@ -63,6 +64,14 @@ test_that("extended S4 wrappers are exported", {
 
   expect_true(all(expected %in% public_exports))
   expect_true(all(grepl("^hc_", public_exports)))
+})
+
+test_that("default GFC palette matches the legacy RdBu default", {
+  cols <- hcocena:::.hc_default_gfc_colors()
+  expected <- rev(RColorBrewer::brewer.pal(11, "RdBu"))
+
+  expect_length(cols, 11)
+  expect_identical(cols, expected)
 })
 
 test_that("output directory setup can create missing root and use it directly", {

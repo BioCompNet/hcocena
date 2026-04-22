@@ -16,10 +16,10 @@ integration and downstream analysis of transcriptomics datasets.
 
 ## Recommended tags
 
-- `latest`
-- `1.96`
+- `1.96` for a pinned, reproducible setup
+- `latest` if you prefer the moving convenience tag
 
-Older tags currently kept for reproducibility:
+Older tags still kept for older reproducible runs:
 
 - `1.95`
 - `1.94`

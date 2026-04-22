@@ -22,3 +22,20 @@ The image includes:
 - empty `count_data`, `annotation_data`, and `output` directories
 
 RStudio Server is exposed on port `8787` by the base image.
+
+## Updating the Docker Hub description
+
+When publishing a new public Docker tag, update the overview file from the
+repository root with:
+
+```bash
+Rscript docker/update_dockerhub_overview.R <new-tag>
+```
+
+This updates [`DOCKERHUB_OVERVIEW.md`](DOCKERHUB_OVERVIEW.md) so the new tag
+becomes the recommended pinned version, moves the previous recommended tag into
+the older reproducibility list, and refreshes the `docker pull` / `docker run`
+examples.
+
+If Docker Hub is not syncing this file automatically, copy the updated markdown
+to the repository Overview field there right after pushing the new tag.

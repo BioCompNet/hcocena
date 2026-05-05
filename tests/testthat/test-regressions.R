@@ -2584,3 +2584,32 @@ test_that("regression: longitudinal step1 accepts prior step result lists", {
     }
   )
 })
+
+test_that("regression: htmlwidgets display inline during HTML knitting", {
+  skip_if_not_installed("htmlwidgets")
+  skip_if_not_installed("knitr")
+
+  display_fun <- get(".hc_display_object", asNamespace("hcocena"))
+  widget <- htmlwidgets::createWidget(
+    name = "hcocena-test-widget",
+    x = list(value = 1),
+    package = "htmlwidgets"
+  )
+
+  old_options <- options(knitr.in.progress = TRUE)
+  old_knit <- knitr::opts_knit$get()
+  old_current <- knitr::opts_current$get()
+  on.exit({
+    options(old_options)
+    do.call(knitr::opts_knit$set, old_knit)
+    do.call(knitr::opts_current$set, old_current)
+  }, add = TRUE)
+
+  knitr::opts_knit$set(rmarkdown.pandoc.to = "html")
+  knitr::opts_current$set(out.width.px = "100%", out.height.px = "400px")
+
+  out <- capture.output(display_fun(widget))
+
+  expect_true(any(grepl("hcocena-test-widget html-widget", out, fixed = TRUE)))
+  expect_true(length(knitr::knit_meta()) > 0)
+})

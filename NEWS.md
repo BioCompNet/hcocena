@@ -12,6 +12,8 @@
   `hc_suggest_topvar()` inflection points slightly compared with older
   releases.
 - Refreshed the Docker release metadata for the next public image tag.
+- Rendered interactive cutoff plots inline during HTML/R Markdown knitting
+  instead of opening them in the RStudio Viewer.
 
 # hcocena 0.99.5
 

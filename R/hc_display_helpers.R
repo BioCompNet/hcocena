@@ -1,3 +1,25 @@
+.hc_display_htmlwidget <- function(x) {
+  if (isTRUE(getOption("knitr.in.progress", FALSE)) &&
+      requireNamespace("knitr", quietly = TRUE) &&
+      isTRUE(knitr::is_html_output())) {
+    rendered <- tryCatch(
+      knitr::knit_print(x, options = knitr::opts_current$get()),
+      error = function(e) NULL
+    )
+    if (inherits(rendered, "knit_asis")) {
+      meta <- attr(rendered, "knit_meta", exact = TRUE)
+      if (!is.null(meta)) {
+        knitr::knit_meta_add(meta)
+      }
+      cat(as.character(rendered), sep = "\n")
+      return(invisible(x))
+    }
+  }
+
+  utils::getFromNamespace("print.htmlwidget", "htmlwidgets")(x)
+  invisible(x)
+}
+
 .hc_display_object <- function(x, row.names = TRUE, col.names = TRUE) {
   if (base::is.null(x)) {
     return(base::invisible(NULL))
@@ -21,8 +43,7 @@
   }
 
   if (inherits(x, "htmlwidget")) {
-    utils::getFromNamespace("print.htmlwidget", "htmlwidgets")(x)
-    return(base::invisible(x))
+    return(.hc_display_htmlwidget(x))
   }
 
   if (ggplot2::is.ggplot(x) || inherits(x, "patchwork")) {

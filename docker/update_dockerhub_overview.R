@@ -23,7 +23,7 @@ if (length(args) != 1L) {
 
 new_tag <- args[[1]]
 if (!grepl("^[0-9]+(\\.[0-9]+)*$", new_tag)) {
-  stop("Expected a numeric Docker tag such as '1.96' or '1.96.1'.", call. = FALSE)
+  stop("Expected a numeric pinned Docker tag such as '1.96' or '1.96.1'.", call. = FALSE)
 }
 
 script_arg <- grep("^--file=", commandArgs(), value = TRUE)
@@ -92,8 +92,8 @@ older_tags <- older_tags[older_tags != new_tag]
 replacement <- c(
   "## Recommended tags",
   "",
+  "- `latest` for the current image and quick-start commands",
   sprintf("- `%s` for a pinned, reproducible setup", new_tag),
-  "- `latest` if you prefer the moving convenience tag",
   "",
   "Older tags still kept for older reproducible runs:",
   ""
@@ -111,14 +111,23 @@ updated_lines <- c(
   lines[quick_start_idx:length(lines)]
 )
 
+image_tag_pattern <- "(latest|[0-9]+(\\.[0-9]+)*)"
 updated_lines <- gsub(
-  "docker pull therealtomek/hcocena:[0-9]+(\\.[0-9]+)*",
-  sprintf("docker pull therealtomek/hcocena:%s", new_tag),
+  sprintf("docker pull therealtomek/hcocena:%s", image_tag_pattern),
+  "docker pull therealtomek/hcocena:latest",
   updated_lines
 )
 updated_lines <- gsub(
-  "docker run --rm -p 8787:8787 -e PASSWORD=hcocena therealtomek/hcocena:[0-9]+(\\.[0-9]+)*",
-  sprintf("docker run --rm -p 8787:8787 -e PASSWORD=hcocena therealtomek/hcocena:%s", new_tag),
+  sprintf(
+    "docker run --rm -p 8787:8787 -e PASSWORD=hcocena therealtomek/hcocena:%s",
+    image_tag_pattern
+  ),
+  "docker run --rm -p 8787:8787 -e PASSWORD=hcocena therealtomek/hcocena:latest",
+  updated_lines
+)
+updated_lines <- gsub(
+  "replace `latest` with a pinned tag such as `[0-9]+(\\.[0-9]+)*`",
+  sprintf("replace `latest` with a pinned tag such as `%s`", new_tag),
   updated_lines
 )
 
@@ -137,5 +146,6 @@ if (length(older_tags)) {
 cat(
   "Next step: after pushing the new Docker image tag, sync the contents of ",
   "docker/DOCKERHUB_OVERVIEW.md to the Docker Hub Overview page if it is not auto-synced.\n",
+  "The quick-start commands intentionally keep using the moving 'latest' tag.\n",
   sep = ""
 )

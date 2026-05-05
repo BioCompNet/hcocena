@@ -33,9 +33,11 @@ Rscript docker/update_dockerhub_overview.R <new-tag>
 ```
 
 This updates [`DOCKERHUB_OVERVIEW.md`](DOCKERHUB_OVERVIEW.md) so the new tag
-becomes the recommended pinned version, moves the previous recommended tag into
-the older reproducibility list, and refreshes the `docker pull` / `docker run`
-examples.
+becomes the recommended pinned version and moves the previous recommended tag
+into the older reproducibility list. The `docker pull` / `docker run` quick
+start examples intentionally stay on `latest`, so the Docker Hub page still
+points to the current image even if the pinned-version text is not copied right
+away.
 
 If Docker Hub is not syncing this file automatically, copy the updated markdown
 to the repository Overview field there right after pushing the new tag.

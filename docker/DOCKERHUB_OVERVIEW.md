@@ -7,7 +7,7 @@ integration and downstream analysis of transcriptomics datasets.
 
 - the `hcocena` package preinstalled in the container
 - an RStudio workspace at `/home/rstudio/hcocena`
-- bundled `reference_files/`
+- bundled `reference_files/` with pathway, GO, hallmark, TF, and immune helper references
 - visible workflow notebooks:
   - `01_hcocena_main.Rmd`
   - `02_hcocena_satellite.Rmd`

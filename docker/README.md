@@ -11,8 +11,8 @@ The image includes:
 - the local `hcocena` package installation
 - a ready-to-use workspace directly at `/home/rstudio`
 - TB-neo-specific `01_hcocena_main.Rmd` and `02_hcocena_satellite.Rmd`
-- a prepared `/home/rstudio/reference_files` folder with a README for adding
-  your reference files
+- a bundled `/home/rstudio/reference_files` folder with pathway, GO, hallmark,
+  TF, and immune helper references
 - an empty `/home/rstudio/project_data` folder with instructions for
   adding the project-specific `.rds` inputs yourself
 - workflow notebooks directly in the workspace root:

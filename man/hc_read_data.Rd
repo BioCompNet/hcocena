@@ -45,6 +45,9 @@ directly into \code{dir_output}. If \code{NULL}, keep an already configured
 \value{
 Updated \code{HCoCenaExperiment}.
 }
+\details{
+Count inputs are normalized to numeric expression matrices during import. For object-based count inputs, non-numeric helper columns are dropped. Genes with zero variance are removed during loading because they can destabilize downstream variance-based heuristics such as \code{hc_suggest_topvar()}. As a result, suggested inflection points can differ slightly from older releases on the same raw input.
+}
 \description{
 Read expression and annotation data (S4 API)
 }

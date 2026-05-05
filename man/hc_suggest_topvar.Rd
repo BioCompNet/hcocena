@@ -12,6 +12,9 @@ hc_suggest_topvar(hc)
 \value{
 Updated \code{HCoCenaExperiment}.
 }
+\details{
+\code{hc_suggest_topvar()} operates on the counts stored in \code{hc}, i.e. after \code{hc_read_data()} preprocessing. Because \code{hc_read_data()} removes zero-variance genes and drops non-numeric helper columns from object-based count inputs, suggested inflection points can differ slightly from older releases on the same raw input even though the \code{hc_suggest_topvar()} heuristic itself is unchanged.
+}
 \description{
 Suggest top variable genes (S4 API)
 }

@@ -67,6 +67,15 @@
 #'  Default is 300.
 #' @param overall_plot_scale Numeric scaling factor for the overall heatmap output.
 #'  Values > 1 enlarge the plot, values < 1 shrink it. Default is 1.
+#' @param smart_column_gaps Logical. If `TRUE`, insert subtle column gaps at
+#'  automatically detected condition/layer/prefix group boundaries. Default is
+#'  `FALSE`.
+#' @param column_gap_by Optional metadata column name used to split heatmap
+#'  columns. If supplied, gaps are enabled and this explicit metadata split
+#'  takes precedence over automatic smart gap detection. The metadata value must
+#'  be constant within each displayed heatmap column.
+#' @param column_gap_mm Numeric gap size in millimeters used when column gaps
+#'  are enabled. Default is `0.6`.
 #' @param include_dynamic_enrichment_slots Logical. If `TRUE`, also include
 #'  dynamically named enrichment slots (e.g. `enriched_per_cluster_<db>`).
 #'  Default is `FALSE` to keep the standard heatmap behavior unchanged.
@@ -134,6 +143,9 @@
                                             pdf_pointsize = 11,
                                             pdf_dpi = 300,
                                             overall_plot_scale = 1,
+                                            smart_column_gaps = FALSE,
+                                            column_gap_by = NULL,
+                                            column_gap_mm = 0.6,
                                             include_dynamic_enrichment_slots = FALSE,
                                             celltype_bar_top_n = 3,
                                             celltype_bar_include_other = TRUE,
@@ -179,6 +191,9 @@
     pdf_pointsize = pdf_pointsize,
     pdf_dpi = pdf_dpi,
     overall_plot_scale = overall_plot_scale,
+    smart_column_gaps = smart_column_gaps,
+    column_gap_by = column_gap_by,
+    column_gap_mm = column_gap_mm,
     include_dynamic_enrichment_slots = include_dynamic_enrichment_slots,
     celltype_bar_top_n = celltype_bar_top_n,
     celltype_bar_include_other = celltype_bar_include_other,
@@ -226,6 +241,9 @@ plot_cluster_heatmap <- function(col_order = NULL,
                                  pdf_pointsize = 11,
                                  pdf_dpi = 300,
                                  overall_plot_scale = 1,
+                                 smart_column_gaps = FALSE,
+                                 column_gap_by = NULL,
+                                 column_gap_mm = 0.6,
                                  include_dynamic_enrichment_slots = FALSE,
                                  celltype_bar_top_n = 3,
                                  celltype_bar_include_other = TRUE,
@@ -356,6 +374,9 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                                      pdf_pointsize = 11,
                                      pdf_dpi = 300,
                                      overall_plot_scale = 1,
+                                     smart_column_gaps = FALSE,
+                                     column_gap_by = NULL,
+                                     column_gap_mm = 0.6,
                                      include_dynamic_enrichment_slots = FALSE,
                                      celltype_bar_top_n = 3,
                                      celltype_bar_include_other = TRUE,
@@ -405,6 +426,21 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     celltype_bar_mode,
     choices = c("bar_and_text", "bar", "text")
   )
+  if (!base::is.logical(smart_column_gaps) || base::length(smart_column_gaps) != 1 ||
+    base::is.na(smart_column_gaps)) {
+    stop("`smart_column_gaps` must be TRUE or FALSE.")
+  }
+  if (!base::is.null(column_gap_by)) {
+    if (!base::is.character(column_gap_by) || base::length(column_gap_by) != 1 ||
+      base::is.na(column_gap_by) || !base::nzchar(base::trimws(column_gap_by))) {
+      stop("`column_gap_by` must be NULL or a non-empty metadata column name.")
+    }
+    column_gap_by <- base::trimws(column_gap_by)
+  }
+  if (!base::is.numeric(column_gap_mm) || base::length(column_gap_mm) != 1 ||
+    base::is.na(column_gap_mm) || !base::is.finite(column_gap_mm) || column_gap_mm <= 0) {
+    stop("`column_gap_mm` must be a single positive number.")
+  }
   show_celltype_bars <- celltype_bar_mode %in% c("bar_and_text", "bar")
   show_celltype_text <- (celltype_bar_mode %in% c("bar_and_text", "text")) && isTRUE(celltype_bar_show_dominant)
   if (!base::is.null(celltype_bar_top_n)) {
@@ -1935,11 +1971,16 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     hcobject,
     base::colnames(mat_heatmap)
   )
+  column_gap_k_enabled <- !base::is.numeric(k) || base::length(k) == 0 || base::all(k <= 0)
+  column_gap_enabled <- (isTRUE(smart_column_gaps) || !base::is.null(column_gap_by)) &&
+    isTRUE(column_gap_k_enabled)
   column_gap_spec <- .hc_heatmap_column_gap_spec(
     hcobject = hcobject,
     cols = base::colnames(mat_heatmap),
     cluster_columns = cluster_columns,
-    gap_mm = 0.6 * overall_plot_scale
+    gap_mm = column_gap_mm * overall_plot_scale,
+    enabled = column_gap_enabled,
+    metadata_column = if (isTRUE(column_gap_enabled)) column_gap_by else NULL
   )
 
   if (base::is.null(anno_list)) {
@@ -2481,6 +2522,9 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_box_to_cell_ratio"), module_box_to_cell_ratio)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "heatmap_cell_size_mm"), cell_size_mm)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "duplicate_condition_width_scale"), duplicate_condition_width_scale)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "smart_column_gaps"), smart_column_gaps)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "column_gap_by"), column_gap_by)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "column_gap_mm"), column_gap_mm)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "heatmap_column_gap_mm"), column_gap_spec$total_gap_mm)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "heatmap_column_gap_source"), column_gap_spec$source)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "gene_count_fontsize"), gene_count_fontsize)

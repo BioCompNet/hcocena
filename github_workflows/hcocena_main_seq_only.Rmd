@@ -22,7 +22,7 @@ plots and helper utilities.
 
   First, we are going to load the hCoCena R-package. If you are not working within the provided hCoCena Docker image, please refer to the scripts `hCoCena-r-package/install_versioned_dependencies.R` and `install.R` in the repository for local installation.
   
-  Note: hCoCena no longer depends on `MCDA`. The package `propr` is only required when using `corr_method = "rho"`.
+  Note: hCoCena no longer depends on `MCDA` or `propr`.
 
 ```{r}
 
@@ -193,7 +193,7 @@ hc <- hc_set_layer_settings(
 
 ## 1.8 Data processing part I
 
-  This function executes the first part of the data processing procedure. It leads up to choosing the correlation cut-off for each layer. All datasets will be filtered for their most variant genes as defined in the layer-specific settings. After this filtering step, the pair-wise correlation for all pairs of genes is calculated. You can set the correlation metric that you would like to use with the 'corr_method' parameter. Options are: 'pearson', 'spearman' and 'rho' (Skinnider et al., https://doi.org/10.1038/s41592-019-0372-4). We will pick 'spearman'.
+  This function executes the first part of the data processing procedure. It leads up to choosing the correlation cut-off for each layer. All datasets will be filtered for their most variant genes as defined in the layer-specific settings. After this filtering step, the pair-wise correlation for all pairs of genes is calculated. You can set the correlation metric that you would like to use with the 'corr_method' parameter. Options are: 'pearson' and 'spearman'. We will pick 'spearman'.
   A set of statistics will be calculated for the set range of cut-off values that aim to facilitate the cut-off choice. This includes determining the number of graph components resulting from creating a network when cutting the data with the respective cut-off, as well as the number of nodes and edges this network comprises. The last parameter that is evaluated is the R²-value of the data to a linear regression through the logged degree distribution for the given network. These parameters will be visualised in the next step.
   For detailed information on what happens in this step and what parameters can be set, enter `?hcocena::hc_run_expression_analysis_1` into the console.
 

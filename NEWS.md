@@ -2,8 +2,15 @@
 
 ## Enrichment defaults
 
+- Made module-heatmap column gaps opt-in via `smart_column_gaps`, with
+  `column_gap_by` for explicit metadata-based splits and `column_gap_mm` for
+  gap size control.
 - Switched functional-enrichment defaults to consistent term selection across
   modules and wrappers.
+- Clarified that `hc_read_data()` now removes zero-variance genes and drops
+  non-numeric helper columns from object-based count inputs, which can shift
+  `hc_suggest_topvar()` inflection points slightly compared with older
+  releases.
 - Refreshed the Docker release metadata for the next public image tag.
 
 # hcocena 0.99.5

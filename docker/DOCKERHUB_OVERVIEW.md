@@ -16,11 +16,12 @@ integration and downstream analysis of transcriptomics datasets.
 
 ## Recommended tags
 
-- `1.96` for a pinned, reproducible setup
+- `1.97` for a pinned, reproducible setup
 - `latest` if you prefer the moving convenience tag
 
 Older tags still kept for older reproducible runs:
 
+- `1.96`
 - `1.95`
 - `1.94`
 - `1.9`
@@ -32,13 +33,13 @@ Older tags still kept for older reproducible runs:
 Pull the current image:
 
 ```bash
-docker pull therealtomek/hcocena:1.96
+docker pull therealtomek/hcocena:1.97
 ```
 
 Run RStudio Server:
 
 ```bash
-docker run --rm -p 8787:8787 -e PASSWORD=hcocena therealtomek/hcocena:1.96
+docker run --rm -p 8787:8787 -e PASSWORD=hcocena therealtomek/hcocena:1.97
 ```
 
 Then open:

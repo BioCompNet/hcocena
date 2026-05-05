@@ -2,7 +2,7 @@
 #'
 #' This function executes the frist part of the data processing procedure. It leads up to choosing the correlation cut-off for each layer.
 #' 	All datasets will be filtered for their most variant genes as defined in the layer-specific settings.
-#' 	After this filtering step, the pair-wise Pearson correlation coefficients for all pairs of genes are calculated.
+#' 	After this filtering step, the pair-wise correlation coefficients for all pairs of genes are calculated.
 #' 	Correlations that are negative or that have an associated p-value higher than 0.05 are immediately discarded.
 #' 	Next, a set of statistics will be calculated for the set range of cut-off values that aim to facilitate the cut-off choice.
 #' 	This includes determining the number of graph components resulting from creating a network when cutting the data with the respective cut-off,

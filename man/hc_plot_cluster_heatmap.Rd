@@ -12,7 +12,8 @@ hc_plot_cluster_heatmap(hc, file_name = "Heatmap_modules.pdf", ...)
 \item{file_name}{Optional file name passed to \code{plot_cluster_heatmap()}.
 Defaults to \code{"Heatmap_modules.pdf"}. Use \code{FALSE} to skip file export.}
 
-\item{...}{Passed to \code{plot_cluster_heatmap()}.}
+\item{...}{Passed to \code{plot_cluster_heatmap()}, including
+\code{smart_column_gaps}, \code{column_gap_by}, and \code{column_gap_mm}.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.

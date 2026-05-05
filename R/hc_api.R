@@ -680,6 +680,12 @@ hc_define_layers <- function(hc, data_sets = list()) {
 #' @param project_folder Optional save subfolder name. Use `""` to write
 #'   directly into `dir_output`. If `NULL`, keep an already configured
 #'   `save_folder` or default to `""`.
+#' @details Count inputs are normalized to numeric expression matrices during
+#'   import. For object-based count inputs, non-numeric helper columns are
+#'   dropped. Genes with zero variance are removed during loading because they
+#'   can destabilize downstream variance-based heuristics such as
+#'   `hc_suggest_topvar()`. As a result, suggested inflection points can differ
+#'   slightly from older releases on the same raw input.
 #' @examples
 #' extdir <- paste0(
 #'   normalizePath(system.file("extdata", package = "hcocena"), winslash = "/"),
@@ -2943,7 +2949,8 @@ hc_plot_deg_dist <- function(hc) {
 #' @param hc A `HCoCenaExperiment`.
 #' @param file_name Optional export file name for the module heatmap.
 #'   Defaults to `"Heatmap_modules.pdf"`. Use `FALSE` to skip file export.
-#' @param ... Additional plotting arguments forwarded to the heatmap backend.
+#' @param ... Additional plotting arguments forwarded to the heatmap backend,
+#'   including `smart_column_gaps`, `column_gap_by`, and `column_gap_mm`.
 #' @template example-hc-clustered
 #' @examples
 #' hc <- hc_plot_cluster_heatmap(hc, file_name = FALSE)
@@ -3082,6 +3089,12 @@ hc_write_session_info <- function(hc) {
 #'
 #' @rdname suggest_topvar
 #' @param hc A `HCoCenaExperiment`.
+#' @details `hc_suggest_topvar()` operates on the counts stored in `hc`, i.e.
+#'   after `hc_read_data()` preprocessing. Because `hc_read_data()` removes
+#'   zero-variance genes and drops non-numeric helper columns from object-based
+#'   count inputs, suggested inflection points can differ slightly from older
+#'   releases on the same raw input even though the `hc_suggest_topvar()`
+#'   heuristic itself is unchanged.
 #' @template example-hc-prepared
 #' @examples
 #' hc <- hc_suggest_topvar(hc)

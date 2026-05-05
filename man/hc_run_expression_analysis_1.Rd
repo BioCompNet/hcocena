@@ -38,7 +38,7 @@ Therefore, the Pearson correlation values can be weighted with Bayesian correlat
 
 \item{alpha}{A numeric value from 0 to 1. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.}
 
-\item{corr_method}{Default is "pearson", but can alternatively be set to "spearman" or "rho" in case of single-cell data (according to Skinnider et al., https://www.nature.com/articles/s41592-019-0372-4).}
+\item{corr_method}{Default is "pearson", but can alternatively be set to "spearman".}
 }
 \value{
 Updated \code{HCoCenaExperiment}.

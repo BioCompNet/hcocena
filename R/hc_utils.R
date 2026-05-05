@@ -580,11 +580,155 @@ cluster_calculation_internal <- function(graph_obj,
   )
 }
 
+.hc_heatmap_column_metadata_values <- function(hcobject,
+                                               cols,
+                                               metadata_column) {
+  if (base::is.null(metadata_column) || base::length(metadata_column) == 0) {
+    stop("`column_gap_by` must be NULL or a non-empty metadata column name.")
+  }
+  metadata_column <- base::trimws(base::as.character(metadata_column[[1]]))
+  if (base::is.na(metadata_column) || !base::nzchar(metadata_column)) {
+    stop("`column_gap_by` must be NULL or a non-empty metadata column name.")
+  }
+
+  cols <- base::as.character(cols)
+  if (base::length(cols) == 0) {
+    return(base::character())
+  }
+
+  clean_chr <- function(x) {
+    x <- base::trimws(base::as.character(x))
+    x[x %in% c("", "NA", "<NA>", "[NA]", "[<NA>]")] <- NA_character_
+    x
+  }
+  group_vector <- function(anno_df, voi) {
+    candidate_cols <- base::intersect(base::as.character(voi), base::colnames(anno_df))
+    grp <- if (base::length(candidate_cols) > 1) {
+      do.call(base::paste, base::c(anno_df[, candidate_cols, drop = FALSE], sep = "-"))
+    } else if (base::length(candidate_cols) == 1) {
+      anno_df[[candidate_cols[[1]]]]
+    } else {
+      anno_df[[1]]
+    }
+    clean_chr(grp)
+  }
+
+  layer_map <- .hc_layer_name_map(hcobject)
+  layer_ids <- base::names(layer_map)
+  if (base::length(layer_ids) == 0) {
+    stop("`column_gap_by` cannot be used because no annotation layers were found.")
+  }
+
+  meta <- .hc_gfc_column_display_metadata(hcobject, cols)
+  parsed_layer_suffix <- .hc_parse_heatmap_col_layer_suffix(hcobject, cols)
+  voi <- tryCatch(hcobject[["global_settings"]][["voi"]], error = function(e) NULL)
+  data_list <- hcobject[["data"]]
+  out <- base::rep(NA_character_, base::length(cols))
+  metadata_found_anywhere <- FALSE
+
+  for (i in base::seq_along(cols)) {
+    candidate_layer_ids <- base::character()
+    mapped_layer_id <- base::as.character(meta$layer_id[[i]])
+    if (!base::is.na(mapped_layer_id) && base::nzchar(mapped_layer_id)) {
+      candidate_layer_ids <- mapped_layer_id
+    }
+    if (base::length(candidate_layer_ids) == 0 &&
+      !base::is.null(parsed_layer_suffix)) {
+      parsed_layer <- base::as.character(parsed_layer_suffix$layer_name[[i]])
+      if (!base::is.na(parsed_layer) && base::nzchar(parsed_layer)) {
+        candidate_layer_ids <- base::names(layer_map)[base::unname(layer_map) == parsed_layer]
+      }
+    }
+    if (base::length(candidate_layer_ids) == 0) {
+      candidate_layer_ids <- layer_ids
+    }
+    candidate_layer_ids <- base::unique(candidate_layer_ids)
+
+    condition_candidates <- base::unique(clean_chr(base::c(
+      cols[[i]],
+      meta$raw_condition[[i]],
+      if (!base::is.null(parsed_layer_suffix)) parsed_layer_suffix$prefix[[i]] else NA_character_
+    )))
+    condition_candidates <- condition_candidates[!base::is.na(condition_candidates)]
+
+    values_i <- base::character()
+    for (lid in candidate_layer_ids) {
+      anno_df <- data_list[[base::paste0(lid, "_anno")]]
+      if (base::is.null(anno_df)) {
+        layer_pos <- base::match(lid, layer_ids)
+        if (!base::is.na(layer_pos)) {
+          anno_df <- data_list[[base::paste0("set", layer_pos, "_anno")]]
+        }
+      }
+      if (base::is.null(anno_df) || !base::is.data.frame(anno_df)) {
+        next
+      }
+      if (!(metadata_column %in% base::colnames(anno_df))) {
+        next
+      }
+      metadata_found_anywhere <- TRUE
+      grp <- group_vector(anno_df, voi)
+      hit <- !base::is.na(grp) & grp %in% condition_candidates
+      if (!base::any(hit)) {
+        next
+      }
+      values_i <- base::c(values_i, clean_chr(anno_df[[metadata_column]][hit]))
+    }
+
+    values_i <- base::unique(values_i[!base::is.na(values_i)])
+    if (base::length(values_i) == 1) {
+      out[[i]] <- values_i[[1]]
+    } else if (base::length(values_i) > 1) {
+      stop(
+        "`column_gap_by = \"", metadata_column, "\"` maps heatmap column `",
+        cols[[i]], "` to multiple metadata values: ",
+        base::paste(values_i, collapse = ", "),
+        ". Use a metadata column that is constant within each heatmap column.",
+        call. = FALSE
+      )
+    }
+  }
+
+  if (!isTRUE(metadata_found_anywhere)) {
+    stop(
+      "`column_gap_by = \"", metadata_column,
+      "\"` was not found in any annotation table.",
+      call. = FALSE
+    )
+  }
+  if (base::any(base::is.na(out))) {
+    missing_cols <- cols[base::is.na(out)]
+    stop(
+      "`column_gap_by = \"", metadata_column,
+      "\"` could not be resolved for heatmap column(s): ",
+      base::paste(missing_cols, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  out
+}
+
 .hc_heatmap_column_gap_spec <- function(hcobject,
                                         cols,
                                         cluster_columns = FALSE,
-                                        gap_mm = 0.6) {
+                                        gap_mm = 0.6,
+                                        enabled = FALSE,
+                                        metadata_column = NULL) {
   cols <- base::as.character(cols)
+  metadata_column <- if (base::is.null(metadata_column)) {
+    NULL
+  } else if (base::length(metadata_column) == 0) {
+    NULL
+  } else {
+    base::trimws(base::as.character(metadata_column[[1]]))
+  }
+  if (!base::is.null(metadata_column) &&
+    (base::is.na(metadata_column) || !base::nzchar(metadata_column))) {
+    metadata_column <- NULL
+  }
+  metadata_split_requested <- !base::is.null(metadata_column)
   empty_out <- list(
     column_split = NULL,
     column_gap = NULL,
@@ -593,11 +737,22 @@ cluster_calculation_internal <- function(graph_obj,
     slice_count = 1L,
     slice_titles = NULL
   )
-  if (base::length(cols) <= 3 || isTRUE(cluster_columns)) {
+  if (!isTRUE(enabled) && !isTRUE(metadata_split_requested)) {
+    return(empty_out)
+  }
+  if (base::length(cols) <= 1 || isTRUE(cluster_columns)) {
+    return(empty_out)
+  }
+  if (base::length(cols) <= 3 && !isTRUE(metadata_split_requested)) {
     return(empty_out)
   }
 
-  add_candidate <- function(store, keys, source, priority) {
+  add_candidate <- function(store,
+                            keys,
+                            source,
+                            priority,
+                            show_titles = FALSE,
+                            allow_singleton_runs = FALSE) {
     keys <- base::as.character(keys)
     if (base::length(keys) != base::length(cols)) {
       return(store)
@@ -607,7 +762,10 @@ cluster_calculation_internal <- function(graph_obj,
       return(store)
     }
     runs <- base::rle(keys)
-    if (base::length(runs$lengths) <= 1 || base::all(runs$lengths == 1)) {
+    if (base::length(runs$lengths) <= 1) {
+      return(store)
+    }
+    if (base::all(runs$lengths == 1) && !isTRUE(allow_singleton_runs)) {
       return(store)
     }
     if (base::length(base::unique(keys)) <= 1) {
@@ -621,25 +779,42 @@ cluster_calculation_internal <- function(graph_obj,
       max_run = base::max(runs$lengths),
       mean_run = base::mean(runs$lengths),
       covered_cols = base::sum(runs$lengths[runs$lengths > 1]),
-      n_runs = base::length(runs$lengths)
+      n_runs = base::length(runs$lengths),
+      show_titles = isTRUE(show_titles)
     )
     store
   }
 
   candidates <- list()
-  meta <- .hc_gfc_column_display_metadata(hcobject, cols)
-  parsed_layer_suffix <- .hc_parse_heatmap_col_layer_suffix(hcobject, cols)
+  if (isTRUE(metadata_split_requested)) {
+    metadata_keys <- .hc_heatmap_column_metadata_values(
+      hcobject = hcobject,
+      cols = cols,
+      metadata_column = metadata_column
+    )
+    candidates <- add_candidate(
+      candidates,
+      metadata_keys,
+      base::paste0("metadata:", metadata_column),
+      0L,
+      show_titles = TRUE,
+      allow_singleton_runs = TRUE
+    )
+  } else {
+    meta <- .hc_gfc_column_display_metadata(hcobject, cols)
+    parsed_layer_suffix <- .hc_parse_heatmap_col_layer_suffix(hcobject, cols)
 
-  if (!base::is.null(parsed_layer_suffix)) {
-    candidates <- add_candidate(candidates, parsed_layer_suffix$prefix, "prefix_before_layer", 1L)
-    candidates <- add_candidate(candidates, parsed_layer_suffix$layer_name, "layer_suffix", 4L)
+    if (!base::is.null(parsed_layer_suffix)) {
+      candidates <- add_candidate(candidates, parsed_layer_suffix$prefix, "prefix_before_layer", 1L)
+      candidates <- add_candidate(candidates, parsed_layer_suffix$layer_name, "layer_suffix", 4L, show_titles = TRUE)
+    }
+    if (base::is.data.frame(meta) && base::nrow(meta) == base::length(cols)) {
+      candidates <- add_candidate(candidates, meta$raw_condition, "raw_condition", 2L)
+      candidates <- add_candidate(candidates, meta$layer_name, "layer_name", 3L, show_titles = TRUE)
+    }
+    generic_prefix <- ifelse(base::grepl("_", cols), base::sub("_[^_]+$", "", cols), NA_character_)
+    candidates <- add_candidate(candidates, generic_prefix, "prefix_before_last_underscore", 5L)
   }
-  if (base::is.data.frame(meta) && base::nrow(meta) == base::length(cols)) {
-    candidates <- add_candidate(candidates, meta$raw_condition, "raw_condition", 2L)
-    candidates <- add_candidate(candidates, meta$layer_name, "layer_name", 3L)
-  }
-  generic_prefix <- ifelse(base::grepl("_", cols), base::sub("_[^_]+$", "", cols), NA_character_)
-  candidates <- add_candidate(candidates, generic_prefix, "prefix_before_last_underscore", 5L)
 
   if (base::length(candidates) == 0) {
     return(empty_out)
@@ -661,7 +836,7 @@ cluster_calculation_internal <- function(graph_obj,
 
   slice_titles <- base::as.character(runs$values)
   slice_titles[base::is.na(slice_titles) | !base::nzchar(slice_titles)] <- base::paste0("Part ", base::seq_len(slice_count))
-  if (best$source %in% c("layer_name", "layer_suffix")) {
+  if (isTRUE(best$show_titles)) {
     split_values <- base::make.unique(slice_titles, sep = " ")
     split_ids <- base::inverse.rle(list(
       values = split_values,

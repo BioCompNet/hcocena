@@ -128,18 +128,28 @@ test_that("regression: heatmap gets subtle smart column gaps only at useful grou
     layers = list(set1 = TRUE, set2 = TRUE),
     layers_names = c("RNA", "PROT"),
     data = list(
-      set1_anno = data.frame(Group = c("T1", "T2", "T3"), stringsAsFactors = FALSE),
-      set2_anno = data.frame(Group = c("T1", "T2", "T3"), stringsAsFactors = FALSE)
+      set1_anno = data.frame(Group = c("T1", "T2", "T3"), Phase = c("early", "early", "late"), stringsAsFactors = FALSE),
+      set2_anno = data.frame(Group = c("T1", "T2", "T3"), Phase = c("early", "early", "late"), stringsAsFactors = FALSE)
     ),
     global_settings = list(voi = "Group"),
     layer_specific_outputs = NULL
   )
 
-  by_layer <- gap_fun(
+  default_off <- gap_fun(
     hcobject = hc_stub,
     cols = c("T1", "T2", "T3", "T1", "T2", "T3"),
     cluster_columns = FALSE,
     gap_mm = 0.6
+  )
+  expect_null(default_off$column_split)
+  expect_equal(default_off$total_gap_mm, 0)
+
+  by_layer <- gap_fun(
+    hcobject = hc_stub,
+    cols = c("T1", "T2", "T3", "T1", "T2", "T3"),
+    cluster_columns = FALSE,
+    gap_mm = 0.6,
+    enabled = TRUE
   )
   expect_identical(by_layer$source, "layer_name")
   expect_equal(base::as.integer(by_layer$column_split), c(1L, 1L, 1L, 2L, 2L, 2L))
@@ -159,17 +169,41 @@ test_that("regression: heatmap gets subtle smart column gaps only at useful grou
     hcobject = hc_stub,
     cols = c("MC1_T1_RNA", "MC1_T1_PROT", "MC2_T1_RNA", "MC2_T1_PROT"),
     cluster_columns = FALSE,
-    gap_mm = 0.6
+    gap_mm = 0.6,
+    enabled = TRUE
   )
   expect_identical(by_prefix$source, "prefix_before_layer")
   expect_equal(base::as.integer(by_prefix$column_split), c(1L, 1L, 2L, 2L))
   expect_equal(by_prefix$slice_titles, c("", ""))
 
+  by_metadata <- gap_fun(
+    hcobject = hc_stub,
+    cols = c("T1", "T2", "T1", "T2", "T3", "T3"),
+    cluster_columns = FALSE,
+    gap_mm = 0.6,
+    metadata_column = "Phase"
+  )
+  expect_identical(by_metadata$source, "metadata:Phase")
+  expect_equal(base::as.integer(by_metadata$column_split), c(1L, 1L, 1L, 1L, 2L, 2L))
+  expect_equal(by_metadata$slice_titles, c("early", "late"))
+
+  by_metadata_singletons <- gap_fun(
+    hcobject = hc_stub,
+    cols = c("T1", "T3"),
+    cluster_columns = FALSE,
+    gap_mm = 0.6,
+    metadata_column = "Phase"
+  )
+  expect_identical(by_metadata_singletons$source, "metadata:Phase")
+  expect_equal(base::as.integer(by_metadata_singletons$column_split), c(1L, 2L))
+  expect_equal(by_metadata_singletons$slice_titles, c("early", "late"))
+
   clustered <- gap_fun(
     hcobject = hc_stub,
     cols = c("T1", "T2", "T3", "T1", "T2", "T3"),
     cluster_columns = TRUE,
-    gap_mm = 0.6
+    gap_mm = 0.6,
+    enabled = TRUE
   )
   expect_null(clustered$column_split)
   expect_equal(clustered$total_gap_mm, 0)
@@ -2316,6 +2350,10 @@ test_that("regression: plot heatmaps default to main order unless clustering is 
   expect_true("heatmap_cluster_columns" %in% names(formals(hcocena::hc_plot_module_function_llm)))
   expect_identical(formals(hcocena:::plot_cluster_heatmap)$cluster_columns, FALSE)
   expect_identical(formals(hcocena:::plot_cluster_heatmap_new)$cluster_columns, FALSE)
+  expect_identical(formals(hcocena:::plot_cluster_heatmap)$smart_column_gaps, FALSE)
+  expect_identical(formals(hcocena:::plot_cluster_heatmap_new)$smart_column_gaps, FALSE)
+  expect_true("column_gap_by" %in% names(formals(hcocena:::plot_cluster_heatmap_new)))
+  expect_identical(formals(hcocena:::plot_cluster_heatmap_new)$column_gap_mm, 0.6)
   expect_identical(formals(hcocena:::replot_cluster_heatmap)$cluster_columns, FALSE)
   expect_identical(formals(hcocena:::change_grouping_parameter)$cluster_columns, FALSE)
   expect_identical(formals(hcocena::hc_change_grouping_parameter)$cluster_columns, FALSE)

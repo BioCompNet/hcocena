@@ -80,6 +80,20 @@
 
   cluster_names <- base::as.character(base::unique(ids))
   cluster_names <- base::setdiff(cluster_names, singletons)
+
+  # If every cluster is a singleton there is no multi-member cluster to merge
+  # into. Bailing out here avoids `max(numeric(0))` (-Inf + warning) and the
+  # subsequent `sample(character(0), 1)` error.
+  if (base::length(cluster_names) == 0) {
+    if (base::length(singletons) > 0 && isTRUE(verbose)) {
+      message(
+        base::length(singletons),
+        " singletons identified but no multi-member cluster to join; left unchanged."
+      )
+    }
+    return(ids)
+  }
+
   connectivity <- base::numeric(base::length(cluster_names))
   base::names(connectivity) <- cluster_names
 
@@ -93,6 +107,10 @@
       } else {
         connectivity[[j]] <- base::mean(subSNN)
       }
+    }
+    if (!base::any(base::is.finite(connectivity))) {
+      # No usable connectivity to any cluster: leave this singleton as-is.
+      next
     }
     m <- base::max(connectivity, na.rm = TRUE)
     mi <- base::which(connectivity == m)

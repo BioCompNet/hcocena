@@ -2960,6 +2960,11 @@ hc_plot_cluster_heatmap <- function(hc, file_name = "Heatmap_modules.pdf", ...) 
   if (!inherits(hc, "HCoCenaExperiment")) {
     stop("`hc` must be a `HCoCenaExperiment`.")
   }
+  dot_args <- list(...)
+  if (!("module_label_numbering" %in% names(dot_args)) &&
+    .hc_module_label_map_has_split_labels(hc@integration@cluster[["module_label_map"]])) {
+    dot_args[["module_label_numbering"]] <- "preserve_existing"
+  }
 
   legacy_envo <- .hc_bridge_state_env()
   legacy_state <- .hc_bind_bridge_hcobject(
@@ -2972,7 +2977,7 @@ hc_plot_cluster_heatmap <- function(hc, file_name = "Heatmap_modules.pdf", ...) 
   options(hcocena.suppress_legacy_warning = TRUE)
   on.exit(options(hcocena.suppress_legacy_warning = old_opt), add = TRUE)
 
-  base::do.call(.hc_plot_cluster_heatmap_driver, c(list(file_name = file_name), list(...)))
+  base::do.call(.hc_plot_cluster_heatmap_driver, c(list(file_name = file_name), dot_args))
   .hc_update_hc_from_cluster_plot(
     hc = hc,
     hcobject = base::get("hcobject", envir = legacy_envo, inherits = FALSE)

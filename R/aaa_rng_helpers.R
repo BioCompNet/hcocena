@@ -2,7 +2,13 @@
 #' @noRd
 .hc_with_seed <- function(seed, expr) {
   expr <- substitute(expr)
-  seed <- .hc_as_integer_safely(seed[[1]])
+  # Guard against NULL / empty before indexing: `NULL[[1]]` and
+  # `integer(0)[[1]]` both error. A missing seed simply means "do not fix RNG".
+  seed <- if (is.null(seed) || length(seed) == 0L) {
+    NA_integer_
+  } else {
+    .hc_as_integer_safely(seed[[1]])
+  }
   if (length(seed) == 0L || is.na(seed)) {
     return(eval.parent(expr))
   }

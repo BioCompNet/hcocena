@@ -259,11 +259,29 @@ plot_cluster_heatmap <- function(col_order = NULL,
                                  module_significance_p_cutoffs = c(0.001, 0.01, 0.05),
                                  module_significance_annotation_name = "sig") {
   .hc_alias_warning("plot_cluster_heatmap")
+  if (missing(module_label_numbering) &&
+    .hc_module_label_map_has_split_labels(
+      hcobject[["integrated_output"]][["cluster_calc"]][["module_label_map"]]
+    )) {
+    module_label_numbering <- "preserve_existing"
+  }
   args <- as.list(environment())
   invisible(base::do.call(
     .hc_run_modern_bridge,
     c(list(fun = hc_plot_cluster_heatmap), args)
   ))
+}
+
+.hc_module_label_map_has_split_labels <- function(module_label_map) {
+  if (base::is.null(module_label_map) || base::length(module_label_map) == 0) {
+    return(FALSE)
+  }
+  labels <- base::as.character(module_label_map)
+  labels <- labels[!base::is.na(labels) & base::nzchar(labels)]
+  # A split child carries a numeric suffix (e.g. "M3.1"); repeated splits append
+  # further suffixes ("M3.1.2"). Anchor on the trailing ".<number>" so nested
+  # splits are still detected.
+  base::any(base::grepl("\\.[0-9]+$", labels))
 }
 
 .hc_module_label_draw_width_cm <- function(module_box_width_cm,
@@ -1995,7 +2013,6 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   # Keep module-expression tiles square-like for publication consistency.
   n_heat_rows <- base::nrow(mat_heatmap)
   n_heat_cols <- base::ncol(mat_heatmap)
-  cell_size_mm <- 5
   cell_size_mm <- 5.4
   if (n_heat_rows > 20) {
     cell_size_mm <- 4.9

@@ -1562,6 +1562,134 @@ test_that("regression: duplicate GFC condition names no longer break cluster sum
 })
 
 
+test_that("split_modules resolves numeric inputs by current heatmap row order", {
+  resolve_fun <- get(".hc_resolve_modules_for_split", asNamespace("hcocena"))
+  order_fun <- get(".hc_split_module_order", asNamespace("hcocena"))
+
+  module_label_map <- c(red = "M-red", blue = "M-blue", green = "M-green")
+  module_order <- order_fun(
+    cluster_calc = list(heatmap_row_order = c("blue", "green", "red")),
+    available_colors = c("red", "blue", "green")
+  )
+
+  resolved <- resolve_fun(
+    modules = c(1, 3),
+    available_colors = c("red", "blue", "green"),
+    module_label_map = module_label_map,
+    module_order = module_order
+  )
+
+  expect_equal(module_order, c("blue", "green", "red"))
+  expect_equal(resolved$target_colors, c("blue", "red"))
+  expect_equal(resolved$resolved_labels, c("M-blue", "M-red"))
+  expect_equal(resolved$resolution_table$resolved_index, c(1L, 3L))
+  expect_equal(resolved$resolution_table$resolved_color, c("blue", "red"))
+
+  bad <- resolve_fun(
+    modules = 1.5,
+    available_colors = c("red", "blue", "green"),
+    module_label_map = module_label_map,
+    module_order = module_order
+  )
+  expect_equal(bad$resolution_table$status, "not_found")
+})
+
+
+test_that("split_modules normalizes label maps and preserves duplicate GFC columns in children", {
+  normalize_fun <- get(".hc_normalize_module_label_map_for_split", asNamespace("hcocena"))
+  child_fun <- get(".hc_build_child_cluster_rows", asNamespace("hcocena"))
+
+  expect_equal(
+    normalize_fun(c(M1 = "red", M2 = "blue"), available_colors = c("red", "blue")),
+    c(red = "M1", blue = "M2")
+  )
+
+  template_row <- data.frame(
+    clusters = "M1",
+    gene_no = 4L,
+    gene_n = "g1,g2,g3,g4",
+    cluster_included = "yes",
+    color = "red",
+    conditions = "",
+    grp_means = "",
+    vertexsize = 3,
+    stringsAsFactors = FALSE
+  )
+  membership <- c(g1 = 1L, g2 = 1L, g3 = 2L, g4 = 2L)
+  child_rows <- child_fun(
+    template_row = template_row,
+    membership = membership,
+    member_levels = c("1", "2"),
+    child_colors = c("#111111", "#222222"),
+    child_labels = c("#111111" = "M1.1", "#222222" = "M1.2"),
+    gfc_all = data.frame(
+      T1 = c(1, 3, 10, 12),
+      T1 = c(5, 7, 20, 22),
+      Gene = c("g1", "g2", "g3", "g4"),
+      check.names = FALSE
+    )
+  )
+
+  expect_identical(child_rows$conditions, c("T1#T1", "T1#T1"))
+  expect_identical(child_rows$grp_means, c("2,6", "11,21"))
+})
+
+
+test_that("split_modules resolution_test_only without grid does not split", {
+  hc <- methods::new("HCoCenaExperiment")
+
+  expect_error(
+    hcocena::hc_split_modules(hc, modules = "M1", resolution_test_only = TRUE),
+    "requires `resolution_grid`"
+  )
+})
+
+
+test_that("split-module labels trigger preserve-existing heatmap numbering", {
+  has_split_labels <- get(".hc_module_label_map_has_split_labels", asNamespace("hcocena"))
+
+  expect_true(has_split_labels(c(turquoise = "M10.1", red = "M2")))
+  expect_false(has_split_labels(c(turquoise = "M10", red = "M2")))
+  # Repeated splits append further numeric suffixes and must still be detected.
+  expect_true(has_split_labels(c(turquoise = "M10.1.2", red = "M2")))
+  expect_false(has_split_labels(NULL))
+  expect_false(has_split_labels(character()))
+})
+
+
+test_that("cluster colour palette is unique (merge_clusters keys modules by colour)", {
+  palette <- hcocena:::get_cluster_colours()
+  expect_false(any(duplicated(palette)))
+  expect_true(all(nzchar(palette)))
+})
+
+
+test_that(".hc_with_seed handles NULL / empty / NA seeds without erroring", {
+  with_seed <- get(".hc_with_seed", asNamespace("hcocena"))
+
+  expect_identical(with_seed(NULL, 1 + 1), 2)
+  expect_identical(with_seed(integer(0), 1 + 1), 2)
+  expect_identical(with_seed(NA, 1 + 1), 2)
+
+  # A real seed still makes the draw reproducible.
+  a <- with_seed(42, stats::runif(1))
+  b <- with_seed(42, stats::runif(1))
+  expect_identical(a, b)
+})
+
+
+test_that(".hc_longitudinal_group_singletons leaves all-singleton input unchanged", {
+  group_singletons <- get(".hc_longitudinal_group_singletons", asNamespace("hcocena"))
+
+  ids <- c(a = "1", b = "2", c = "3")
+  expect_warning(
+    out <- group_singletons(ids, snn = NULL, group.singletons = TRUE, verbose = FALSE),
+    NA
+  )
+  expect_identical(out, ids)
+})
+
+
 test_that("regression: duplicate heatmap condition labels get layer prefixes and keep axis multiplicity", {
   display_fun <- get(".hc_gfc_display_col_labels", asNamespace("hcocena"))
   count_fun <- get(".hc_gfc_display_count_labels", asNamespace("hcocena"))

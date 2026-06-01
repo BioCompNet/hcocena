@@ -2,14 +2,20 @@
 #' @noRd
 
 get_cluster_colours <- function() {
+  # NOTE: colours must stay unique. Modules are coloured by index here, but
+  # `merge_clusters()` rebuilds its module table keyed by colour, so a repeated
+  # colour would silently collapse two distinct groups into one. The second
+  # "slategray" (position 39) was replaced with "purple" to keep the palette
+  # unique without shifting the indices of earlier colours. `unique()` guards
+  # against accidental duplicates being reintroduced later.
   col_vec <- c(
     "coral", "gold", "steelblue", "lightgreen", "turquoise", "plum", "maroon", "seagreen", "wheat", "slategray", "lightblue",
     "orchid", "darkgreen", "darkorange", "darkgrey", "indianred", "pink", "sandybrown", "khaki", "darkblue", "cadetblue",
     "greenyellow", "cyan", "thistle", "darkmagenta", "red", "blue", "green", "yellow", "brown", "black", "darkgoldenrod",
-    "cornsilk", "firebrick", "deeppink", "dodgerblue", "lightpink", "midnightblue", "slategray", "aquamarine", "chocolate",
+    "cornsilk", "firebrick", "deeppink", "dodgerblue", "lightpink", "midnightblue", "purple", "aquamarine", "chocolate",
     "darkred", "navy", "olivedrab", "peachpuff", "tomato", "snow"
   )
-  return(col_vec)
+  return(base::unique(col_vec))
 }
 
 .hc_match_axis_indices_with_duplicates <- function(axis_ids, requested_order) {

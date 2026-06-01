@@ -9,7 +9,8 @@
 #' Accepted values in `modules`:
 #' - module labels from `module_label_map` (e.g. `"M3"`),
 #' - module colors (e.g. `"#FFD700"`),
-#' - numeric module indices (based on current included-module order).
+#' - numeric module indices (based on the current heatmap row order when
+#'   available, otherwise the current included-module order).
 #'
 #' The function stores an undo snapshot in
 #' `hcobject$satellite_outputs$module_split_history`.
@@ -69,6 +70,9 @@
   }
   if (!is.logical(resolution_test_only) || length(resolution_test_only) != 1 || is.na(resolution_test_only)) {
     stop("`resolution_test_only` must be TRUE or FALSE.")
+  }
+  if (isTRUE(resolution_test_only) && is.null(resolution_grid)) {
+    stop("`resolution_test_only = TRUE` requires `resolution_grid`; no split was applied.")
   }
   if (!is.character(partition_type) || length(partition_type) != 1 || is.na(partition_type)) {
     stop("`partition_type` must be a single character string.")
@@ -135,21 +139,23 @@
     "M"
   }
 
-  module_label_map <- cluster_calc[["module_label_map"]]
-  if (is.null(module_label_map) || length(module_label_map) == 0) {
-    module_label_map <- stats::setNames(
-      paste0(module_prefix, seq_len(nrow(incl_info))),
-      as.character(incl_info$color)
-    )
-  } else {
-    module_label_map <- as.character(module_label_map)
-    names(module_label_map) <- as.character(names(cluster_calc[["module_label_map"]]))
-  }
+  raw_module_label_map <- cluster_calc[["module_label_map"]]
+  module_label_map <- raw_module_label_map
+  module_label_map <- .hc_normalize_module_label_map_for_split(
+    module_label_map = module_label_map,
+    available_colors = as.character(incl_info$color),
+    module_prefix = module_prefix
+  )
+  module_order <- .hc_split_module_order(
+    cluster_calc = cluster_calc,
+    available_colors = as.character(incl_info$color)
+  )
 
   resolved <- .hc_resolve_modules_for_split(
     modules = modules,
     available_colors = as.character(incl_info$color),
-    module_label_map = module_label_map
+    module_label_map = module_label_map,
+    module_order = module_order
   )
   unresolved_tbl <- resolved$resolution_table[
     as.character(resolved$resolution_table$status) != "ok", ,
@@ -157,7 +163,7 @@
   ]
   if (nrow(unresolved_tbl) > 0) {
     unresolved_inputs <- unique(as.character(unresolved_tbl$input))
-    available_labels <- unique(as.character(module_label_map))
+    available_labels <- unique(as.character(module_label_map[module_order]))
     if (length(available_labels) > 0) {
       available_preview <- paste(utils::head(available_labels, 12L), collapse = ", ")
       if (length(available_labels) > 12L) {
@@ -190,6 +196,7 @@
       paste(resolved$resolved_labels, collapse = ", "),
       " (", length(target_colors), " module(s))."
     )
+    .hc_display_object(resolved$resolution_table, row.names = FALSE)
   }
 
   all_graph_nodes <- as.character(igraph::V(merged_net)$name)
@@ -258,7 +265,11 @@
   }
 
   before_cluster_info <- cluster_info
-  before_module_label_map <- module_label_map
+  before_module_label_map <- if (!is.null(raw_module_label_map)) {
+    raw_module_label_map
+  } else {
+    module_label_map
+  }
 
   new_rows <- vector("list", nrow(cluster_info))
   row_ptr <- 0L
@@ -373,14 +384,19 @@
         parent_genes = length(genes),
         n_submodules_raw = n_sub_raw,
         n_submodules = 1L,
-        removed_small_submodules = removed_small_submodules,
-        removed_small_genes = removed_small_genes,
+        removed_small_submodules = 0L,
+        removed_small_genes = 0L,
         status = if (isTRUE(drop_small_submodules)) "skipped_after_small_module_filter" else "skipped_single_submodule",
         stringsAsFactors = FALSE
       )
       next
     }
     member_levels <- member_levels[kept_idx]
+    member_levels <- .hc_order_split_member_levels(
+      membership = membership,
+      member_levels = member_levels,
+      gfc_all = gfc_all
+    )
     n_sub <- length(member_levels)
     total_removed_small_submodules <- total_removed_small_submodules + removed_small_submodules
     total_removed_small_genes <- total_removed_small_genes + removed_small_genes
@@ -777,8 +793,88 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
   ))
 }
 
-.hc_resolve_modules_for_split <- function(modules, available_colors, module_label_map) {
+.hc_normalize_module_label_map_for_split <- function(module_label_map,
+                                                     available_colors,
+                                                     module_prefix = "M") {
   available_colors <- unique(as.character(available_colors))
+  if (length(available_colors) == 0) {
+    return(character())
+  }
+
+  if (is.null(module_label_map) || length(module_label_map) == 0) {
+    return(stats::setNames(
+      paste0(module_prefix, seq_along(available_colors)),
+      available_colors
+    ))
+  }
+
+  map_names <- names(module_label_map)
+  module_label_map <- as.character(module_label_map)
+  if (!is.null(map_names) && length(map_names) == length(module_label_map)) {
+    names(module_label_map) <- as.character(map_names)
+  }
+
+  missing_before <- setdiff(available_colors, names(module_label_map))
+  if (length(missing_before) > 0 && !is.null(names(module_label_map))) {
+    inverse_map <- stats::setNames(names(module_label_map), as.character(module_label_map))
+    if (all(available_colors %in% names(inverse_map))) {
+      module_label_map <- inverse_map
+    }
+  }
+
+  module_label_map <- module_label_map[names(module_label_map) %in% available_colors]
+  missing_map <- setdiff(available_colors, names(module_label_map))
+  if (length(missing_map) > 0) {
+    start_idx <- length(module_label_map) + 1L
+    module_label_map <- c(
+      module_label_map,
+      stats::setNames(
+        paste0(module_prefix, seq.int(start_idx, length.out = length(missing_map))),
+        missing_map
+      )
+    )
+  }
+
+  module_label_map[available_colors]
+}
+
+.hc_split_module_order <- function(cluster_calc, available_colors) {
+  available_colors <- unique(as.character(available_colors))
+  if (length(available_colors) == 0) {
+    return(character())
+  }
+
+  row_order <- tryCatch(cluster_calc[["heatmap_row_order"]], error = function(e) NULL)
+  row_order <- as.character(unlist(row_order, use.names = FALSE))
+  row_order <- row_order[!is.na(row_order) & nzchar(row_order) & row_order %in% available_colors]
+  if (length(row_order) == 0) {
+    heatmap_info <- tryCatch(.hc_heatmap_cache_info(cluster_calc), error = function(e) NULL)
+    row_order <- if (!is.null(heatmap_info)) {
+      as.character(heatmap_info$row_order)
+    } else {
+      character()
+    }
+    row_order <- row_order[!is.na(row_order) & nzchar(row_order) & row_order %in% available_colors]
+  }
+
+  if (length(row_order) == 0) {
+    return(available_colors)
+  }
+  unique(c(row_order, setdiff(available_colors, row_order)))
+}
+
+.hc_resolve_modules_for_split <- function(modules,
+                                          available_colors,
+                                          module_label_map,
+                                          module_order = NULL) {
+  available_colors <- unique(as.character(available_colors))
+  module_order <- unique(as.character(module_order))
+  module_order <- module_order[!is.na(module_order) & nzchar(module_order) & module_order %in% available_colors]
+  if (length(module_order) == 0) {
+    module_order <- available_colors
+  } else {
+    module_order <- c(module_order, setdiff(available_colors, module_order))
+  }
   label_to_color <- stats::setNames(names(module_label_map), as.character(module_label_map))
 
   resolved_colors <- character(0)
@@ -797,9 +893,9 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
     resolved <- NA_character_
 
     if (is.numeric(x) && is.finite(x)) {
-      idx <- as.integer(round(x))
-      if (idx >= 1 && idx <= length(available_colors)) {
-        resolved <- available_colors[[idx]]
+      idx <- if (abs(x - round(x)) < 1e-8) as.integer(round(x)) else NA_integer_
+      if (!is.na(idx) && idx >= 1 && idx <= length(module_order)) {
+        resolved <- module_order[[idx]]
       } else {
         status <- "not_found"
       }
@@ -828,9 +924,15 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
     } else {
       NA_character_
     }
+    resolved_index <- if (!is.na(resolved)) {
+      match(resolved, module_order)
+    } else {
+      NA_integer_
+    }
 
     resolution_rows[[length(resolution_rows) + 1L]] <- data.frame(
       input = x_chr,
+      resolved_index = as.integer(resolved_index),
       resolved_color = resolved,
       resolved_label = resolved_label,
       status = status,
@@ -962,6 +1064,49 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
   out
 }
 
+.hc_order_split_member_levels <- function(membership,
+                                          member_levels,
+                                          gfc_all) {
+  member_levels <- as.character(member_levels)
+  if (length(member_levels) <= 1 || is.null(gfc_all) || !is.data.frame(gfc_all) || !("Gene" %in% colnames(gfc_all))) {
+    return(member_levels)
+  }
+
+  # Submodules are ordered by hierarchical clustering of their mean GFC
+  # profiles. Euclidean distance is invariant to column permutation, so the
+  # displayed heatmap column order has no bearing on this ordering.
+  value_idx <- .hc_gfc_value_col_idx(gfc_all)
+  if (length(value_idx) == 0) {
+    return(member_levels)
+  }
+
+  row_means <- lapply(member_levels, function(lvl) {
+    genes_k <- names(membership)[membership == as.integer(lvl)]
+    genes_k <- unique(genes_k[!is.na(genes_k) & genes_k != ""])
+    sub <- gfc_all[gfc_all$Gene %in% genes_k, value_idx, drop = FALSE]
+    if (nrow(sub) == 0) {
+      return(rep(NA_real_, length(value_idx)))
+    }
+    mat <- as.matrix(data.frame(lapply(sub, identity), check.names = FALSE))
+    storage.mode(mat) <- "numeric"
+    colMeans(mat, na.rm = TRUE)
+  })
+  profile_mat <- do.call(rbind, row_means)
+  rownames(profile_mat) <- member_levels
+  profile_mat[!is.finite(profile_mat)] <- 0
+
+  if (nrow(profile_mat) <= 1 || ncol(profile_mat) == 0) {
+    return(member_levels)
+  }
+  ordered <- tryCatch({
+    rownames(profile_mat)[stats::hclust(stats::dist(profile_mat), method = "complete")$order]
+  }, error = function(e) NULL)
+  if (is.null(ordered) || length(ordered) == 0) {
+    return(member_levels)
+  }
+  unique(c(as.character(ordered), setdiff(member_levels, ordered)))
+}
+
 .hc_build_child_cluster_rows <- function(template_row,
                                          membership,
                                          member_levels,
@@ -969,7 +1114,6 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
                                          child_labels,
                                          gfc_all) {
   out <- template_row[rep(1, length(member_levels)), , drop = FALSE]
-  gfc_cols <- setdiff(colnames(gfc_all), "Gene")
 
   for (k in seq_along(member_levels)) {
     lvl <- member_levels[[k]]
@@ -996,19 +1140,12 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
       out$vertexsize[[k]] <- 3
     }
 
-    if (length(gfc_cols) > 0) {
-      if ("conditions" %in% colnames(out)) {
-        out$conditions[[k]] <- paste0(gfc_cols, collapse = "#")
-      }
-      if ("grp_means" %in% colnames(out)) {
-        sub <- gfc_all[gfc_all$Gene %in% genes_k, gfc_cols, drop = FALSE]
-        means <- if (nrow(sub) > 0) {
-          colMeans(sub, na.rm = TRUE)
-        } else {
-          rep(NA_real_, length(gfc_cols))
-        }
-        out$grp_means[[k]] <- paste0(round(means, 3), collapse = ",")
-      }
+    gfc_means <- .hc_gfc_colmeans_for_genes(gfc_all, genes = genes_k)
+    if ("conditions" %in% colnames(out)) {
+      out$conditions[[k]] <- paste0(names(gfc_means), collapse = "#")
+    }
+    if ("grp_means" %in% colnames(out)) {
+      out$grp_means[[k]] <- paste0(round(gfc_means, 3), collapse = ",")
     }
   }
 
@@ -1077,6 +1214,10 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
   .hc_set_bridge_hcobject_slot(c("integrated_output", "knowledge_network"), NULL)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "labelled_network"), NULL)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "network_col_by_module"), NULL)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "heatmap_cluster"), NULL)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "heatmap_cluster_raw"), NULL)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "heatmap_matrix"), NULL)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "heatmap_row_order"), NULL)
 
   sat <- hcobject[["satellite_outputs"]]
   if (is.null(sat) || !is.list(sat)) {

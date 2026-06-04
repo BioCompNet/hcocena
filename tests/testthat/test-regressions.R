@@ -2741,3 +2741,62 @@ test_that("regression: htmlwidgets display inline during HTML knitting", {
   expect_true(any(grepl("hcocena-test-widget html-widget", out, fixed = TRUE)))
   expect_true(length(knitr::knit_meta()) > 0)
 })
+
+test_that("regression: htmlwidgets render through the viewer during RStudio notebook execution", {
+  skip_if_not_installed("htmlwidgets")
+
+  display_fun <- get(".hc_display_object", asNamespace("hcocena"))
+  widget <- htmlwidgets::createWidget(
+    name = "hcocena-test-widget",
+    x = list(value = 1),
+    package = "htmlwidgets"
+  )
+
+  viewed_url <- NULL
+  old_options <- options(
+    rstudio.notebook.executing = TRUE,
+    viewer = function(url, ...) {
+      viewed_url <<- url
+      invisible(url)
+    },
+    hcocena.htmlwidget_display = "auto",
+    hcocena.htmlwidget_emit_html = FALSE
+  )
+  on.exit(options(old_options), add = TRUE)
+
+  out <- capture.output(display_fun(widget))
+
+  # RStudio renders widgets through the `viewer` option, so the helper must hand
+  # the widget to the viewer and must NOT dump raw HTML to stdout (which would
+  # show up as plain text below the chunk).
+  expect_false(any(grepl("<!doctype html>", tolower(out), fixed = TRUE)))
+  expect_true(is.character(viewed_url) && nzchar(viewed_url))
+  expect_true(file.exists(viewed_url))
+  rendered_html <- paste(readLines(viewed_url, warn = FALSE), collapse = "\n")
+  expect_true(grepl("hcocena-test-widget html-widget", rendered_html, fixed = TRUE))
+})
+
+test_that("regression: htmlwidgets emit raw HTML only when explicitly opted in", {
+  skip_if_not_installed("htmlwidgets")
+  skip_if_not_installed("repr")
+
+  display_fun <- get(".hc_display_object", asNamespace("hcocena"))
+  widget <- htmlwidgets::createWidget(
+    name = "hcocena-test-widget",
+    x = list(value = 1),
+    package = "htmlwidgets"
+  )
+
+  old_options <- options(
+    rstudio.notebook.executing = TRUE,
+    viewer = function(...) stop("viewer should not be used", call. = FALSE),
+    hcocena.htmlwidget_display = "auto",
+    hcocena.htmlwidget_emit_html = TRUE
+  )
+  on.exit(options(old_options), add = TRUE)
+
+  out <- capture.output(display_fun(widget))
+
+  expect_true(any(grepl("hcocena-test-widget html-widget", out, fixed = TRUE)))
+  expect_true(any(grepl("<!doctype html>", tolower(out), fixed = TRUE)))
+})

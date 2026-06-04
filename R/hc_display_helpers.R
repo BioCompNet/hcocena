@@ -1,5 +1,13 @@
 .hc_display_htmlwidget <- function(x) {
-  if (isTRUE(getOption("knitr.in.progress", FALSE)) &&
+  display_mode <- base::tolower(base::as.character(
+    getOption("hcocena.htmlwidget_display", "auto")
+  )[[1]])
+  if (!display_mode %in% c("auto", "inline", "viewer")) {
+    display_mode <- "auto"
+  }
+
+  if (!identical(display_mode, "viewer") &&
+      isTRUE(getOption("knitr.in.progress", FALSE)) &&
       requireNamespace("knitr", quietly = TRUE) &&
       isTRUE(knitr::is_html_output())) {
     rendered <- tryCatch(
@@ -16,7 +24,39 @@
     }
   }
 
-  utils::getFromNamespace("print.htmlwidget", "htmlwidgets")(x)
+  # Emit a raw text/html representation only for front-ends that consume HTML
+  # written to stdout (e.g. some Jupyter/IRkernel setups). This is strictly
+  # opt-in: RStudio notebooks and the console must NOT take this path, otherwise
+  # the widget is dumped as raw HTML text below the chunk instead of rendering.
+  emit_html <- identical(display_mode, "inline") ||
+    isTRUE(getOption("hcocena.htmlwidget_emit_html", FALSE))
+
+  if (isTRUE(emit_html) &&
+      requireNamespace("repr", quietly = TRUE)) {
+    displayed <- tryCatch(
+      {
+        html <- repr::repr_html(x)
+        if (base::is.character(html) &&
+            base::length(html) > 0 &&
+            base::any(base::nzchar(html))) {
+          base::cat(html, sep = "\n")
+          TRUE
+        } else {
+          FALSE
+        }
+      },
+      error = function(e) FALSE
+    )
+    if (isTRUE(displayed)) {
+      return(invisible(x))
+    }
+  }
+
+  # Default path. The htmlwidget print method routes through the active `viewer`
+  # option: during an RStudio R Notebook chunk run RStudio sets that option to
+  # its inline renderer, so the widget shows up below the chunk; in a plain
+  # console session it opens the Viewer pane.
+  utils::getFromNamespace("print.htmlwidget", "htmlwidgets")(x, view = TRUE)
   invisible(x)
 }
 

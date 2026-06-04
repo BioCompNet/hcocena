@@ -120,6 +120,44 @@ browseVignettes("hcocena")
 The package ships toy data and prepared example objects in `inst/extdata` to
 support documentation, testing, and manual smoke tests.
 
+## Real-data regression checks
+
+Local real-data checks live behind an explicit opt-in runner. By default, the
+runner looks for the STAR protocol data in `../data` relative to this repository
+and writes ignored outputs to `realdata-output/`.
+
+`quick` uses the real Array/RNA-seq data with the top 2000 variable genes per
+layer. It runs integration, clustering, module heatmaps, module splitting,
+Hallmark/KEGG enrichment, and a module-label font-size probe. `full` keeps the
+same checks but uses the full imported gene set and broader enrichment defaults.
+
+```bash
+Rscript scripts/run_realdata_regression.R --mode quick
+Rscript scripts/run_realdata_regression.R --mode quick --update-reference
+Rscript scripts/run_realdata_regression.R --mode full
+```
+
+Set `HCOCENA_REALDATA_DIR` to point at another data directory. Normal package
+tests skip the real-data run; enable it explicitly with:
+
+```bash
+HCOCENA_RUN_REALDATA=true HCOCENA_REALDATA_MODE=quick Rscript -e "testthat::test_file('tests/testthat/test-realdata-regression.R')"
+```
+
+PowerShell:
+
+```powershell
+$env:HCOCENA_RUN_REALDATA = "true"; $env:HCOCENA_REALDATA_MODE = "quick"; Rscript -e "testthat::test_file('tests/testthat/test-realdata-regression.R')"
+```
+
+The exported CSV/JSON artifacts are designed as golden-master inputs for later
+R/Python comparisons: QC metrics, edge lists, GFC matrices, module tables,
+split diagnostics, enrichment tables, heatmap matrices, and a module-label
+font-size probe. Each run also writes a `visual_check_report_<mode>.pdf` with
+the generated plot variants, non-default plot parameters, and image pages for
+manual inspection, including the pre-split heatmap, post-split heatmap, and
+combined enrichment plot.
+
 ## GitHub workflows
 
 This repository also ships longer GitHub-oriented walkthroughs:

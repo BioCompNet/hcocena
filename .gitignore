@@ -14,4 +14,7 @@ github-job-*.html
 job-*-logs.zip
 job-*-logs/
 tests/testthat/Rplots.pdf
+Rplots.pdf
 docker/project_data/*.rds
+realdata-output/
+realdata-reference/

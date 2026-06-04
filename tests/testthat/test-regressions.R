@@ -211,8 +211,8 @@ test_that("regression: heatmap gets subtle smart column gaps only at useful grou
 
 
 test_that("regression: additional heatmap paths reuse layer gap and layer-title logic", {
-  fun_enrich_path <- test_path("..", "..", "R", "functional_enrichment.R")
-  knowledge_path <- test_path("..", "..", "R", "plot_enrichment_upstream_network.R")
+  fun_enrich_path <- test_path("..", "..", "R", "hc_functional_enrichment.R")
+  knowledge_path <- test_path("..", "..", "R", "hc_plot_enrichment_upstream_network.R")
   if (!file.exists(fun_enrich_path) || !file.exists(knowledge_path)) {
     skip("Source files are not available in the installed-package test context.")
   }
@@ -1763,7 +1763,7 @@ test_that("regression: enrichment-related heatmap legends use standard font sett
 
 
 test_that("regression: enrichment plot body borders use the same thin line style as the main heatmap", {
-  fun_enrich_path <- test_path("..", "..", "R", "functional_enrichment.R")
+  fun_enrich_path <- test_path("..", "..", "R", "hc_functional_enrichment.R")
   if (!file.exists(fun_enrich_path)) {
     skip("Source files are not available in the installed-package test context.")
   }
@@ -1783,6 +1783,48 @@ test_that("regression: enrichment plot body borders use the same thin line style
   expect_true(grepl('panel_border_slices = panel_border_slices_all', fun_enrich_src, fixed = TRUE))
   expect_false(grepl('border_targets <- base::unique(base::c("GFC", "enrichment"', fun_enrich_src, fixed = TRUE))
   expect_false(grepl('border_targets <- base::unique(base::c("GFC", "enrichment_all"', fun_enrich_src, fixed = TRUE))
+})
+
+
+test_that("regression: enrichment module labels and all-db headers avoid visual overlap", {
+  fun_enrich_path <- test_path("..", "..", "R", "hc_functional_enrichment.R")
+  if (!file.exists(fun_enrich_path)) {
+    skip("Source files are not available in the installed-package test context.")
+  }
+
+  fun_enrich_src <- paste(
+    readLines(fun_enrich_path, warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl("module_label_fit <- .hc_module_label_fit_pt", fun_enrich_src, fixed = TRUE))
+  expect_true(grepl("module_box_anno <- .hc_module_label_box_annotation", fun_enrich_src, fixed = TRUE))
+  expect_true(grepl("label_fontsize_pt = module_label_fit$base_pt_size", fun_enrich_src, fixed = TRUE))
+  expect_true(grepl("panel_title_header_offset_mm_all <-", fun_enrich_src, fixed = TRUE))
+  expect_true(grepl("panel_title_offset_mm = panel_title_header_offset_mm_all", fun_enrich_src, fixed = TRUE))
+})
+
+
+test_that("regression: auxiliary heatmap module labels use the shared box-fit guard", {
+  llm_path <- test_path("..", "..", "R", "hc_plot_module_function_gemini.R")
+  upstream_path <- test_path("..", "..", "R", "hc_upstream_inference.R")
+  api_path <- test_path("..", "..", "R", "hc_api.R")
+  if (!file.exists(llm_path) || !file.exists(upstream_path) || !file.exists(api_path)) {
+    skip("Source files are not available in the installed-package test context.")
+  }
+
+  llm_src <- paste(readLines(llm_path, warn = FALSE), collapse = "\n")
+  upstream_src <- paste(readLines(upstream_path, warn = FALSE), collapse = "\n")
+  api_src <- paste(readLines(api_path, warn = FALSE), collapse = "\n")
+
+  expect_true(grepl("module_label_fit <- .hc_module_label_fit_pt", llm_src, fixed = TRUE))
+  expect_true(grepl("module_box_anno <- .hc_module_label_box_annotation", llm_src, fixed = TRUE))
+  expect_true(grepl("label_fontsize_pt = module_label_fit$base_pt_size", llm_src, fixed = TRUE))
+  expect_true(grepl("module_label_fit <- .hc_module_label_fit_pt", upstream_src, fixed = TRUE))
+  expect_true(grepl("module_box_anno <- .hc_module_label_box_annotation", upstream_src, fixed = TRUE))
+  expect_true(grepl("label_fontsize_pt = module_label_fit$base_pt_size", upstream_src, fixed = TRUE))
+  expect_true(grepl("is_combined_panel <- panel_key_chr %in% c(\"top_all_dbs\", \"top_all_dbs_mixed\")", api_src, fixed = TRUE))
+  expect_true(grepl("max(8, 0.50 * as.numeric(fontsize))", api_src, fixed = TRUE))
 })
 
 
@@ -1919,7 +1961,7 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
     mat_use = matrix(c(-1, 0.5, 1, -0.25), nrow = 2)
   )
   expect_equal(style$module_label_fontsize, 4.2)
-  expect_equal(style$module_label_pt_size, 0.42)
+  expect_equal(style$module_label_pt_size, 0.90)
   expect_equal(style$module_box_width_cm, 0.56)
   expect_equal(style$cell_size_mm, 4.4)
   expect_equal(style$gfc_colors, c("#112233", "#f7f7f7", "#cc3311"))
@@ -2204,6 +2246,77 @@ test_that("regression: split labels and significance suffixes expand module boxe
     ),
     0.62
   )
+})
+
+
+test_that("regression: module label auto-fit uses one safe size for all labels", {
+  fit_fun <- get(".hc_module_label_fit_pt", asNamespace("hcocena"))
+  effective_fontsize_fun <- get(".hc_module_label_effective_fontsize", asNamespace("hcocena"))
+  width_fun <- get(".hc_module_label_text_width_cm", asNamespace("hcocena"))
+
+  fit <- fit_fun(
+    module_label_pt_size = 0.55,
+    module_box_width_cm = 0.9,
+    module_labels_display = c("M1", "M4.12***"),
+    n_heat_rows = 13,
+    cell_size_mm = 5.4
+  )
+  fitted_widths <- width_fun(c("M1", "M4.12***"), fontsize_pt = fit$pt_size)
+
+  expect_true(fit$shrunk)
+  expect_true(fit$width_limited || fit$height_limited)
+  expect_equal(fit$pt_size[[1]], fit$pt_size[[2]])
+  expect_lt(fit$pt_size[[1]], fit$base_pt_size[[1]])
+  expect_true(all(fitted_widths <= fit$available_width_cm + 1e-6))
+  expect_lte(max(fit$pt_size), fit$available_height_pt + 1e-6)
+
+  short_fit <- fit_fun(
+    module_label_pt_size = 0.22,
+    module_box_width_cm = 0.9,
+    module_labels_display = c("M1", "M2"),
+    n_heat_rows = 20,
+    cell_size_mm = 5.4
+  )
+  expect_false(short_fit$shrunk)
+  expect_equal(short_fit$pt_size[[1]], short_fit$pt_size[[2]])
+
+  fontsize_fit <- fit_fun(
+    module_label_pt_size = 0.22,
+    module_box_width_cm = 1.2,
+    module_labels_display = "M1",
+    n_heat_rows = 10,
+    cell_size_mm = 5.4,
+    module_label_fontsize = 11,
+    use_fontsize_request = TRUE
+  )
+  expect_equal(fontsize_fit$base_pt_size[[1]], 11)
+
+  fill_fit <- fit_fun(
+    module_label_pt_size = 0.95,
+    module_box_width_cm = 0.80,
+    module_labels_display = c("M1", "M2", "M3"),
+    n_heat_rows = 5,
+    cell_size_mm = 7
+  )
+  fill_widths <- width_fun(c("M1", "M2", "M3"), fontsize_pt = fill_fit$pt_size)
+  expect_equal(fill_fit$pt_size[[1]], fill_fit$pt_size[[2]])
+  expect_gt(fill_fit$pt_size[[1]], 10)
+  expect_true(all(fill_widths <= fill_fit$available_width_cm + 1e-6))
+  expect_equal(effective_fontsize_fun(fill_fit, fallback_fontsize = 5), fill_fit$pt_size[[1]])
+
+  tiny_box_fit <- fit_fun(
+    module_label_pt_size = 0.9,
+    module_box_width_cm = 0.08,
+    module_labels_display = c("M1", "M123456789"),
+    n_heat_rows = 6,
+    cell_size_mm = 5.4,
+    module_label_fontsize = 80,
+    use_fontsize_request = TRUE
+  )
+  tiny_box_widths <- width_fun(c("M1", "M123456789"), fontsize_pt = tiny_box_fit$pt_size)
+  expect_equal(tiny_box_fit$pt_size[[1]], tiny_box_fit$pt_size[[2]])
+  expect_true(tiny_box_fit$below_preferred_min)
+  expect_true(all(tiny_box_widths <= tiny_box_fit$available_width_cm + 1e-6))
 })
 
 

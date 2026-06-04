@@ -34,12 +34,15 @@
 #' @param gene_count_mode Controls how gene counts per module are shown. One of "legacy", "bar_and_text", "bar", "text", "none".
 #'  Default is "text".
 #' @param module_label_preset Layout preset for module labels. One of "auto", "compact", "balanced", "presentation".
-#'  Presets adjust automatic sizing only; explicitly set sizing parameters still take precedence.
+#'  Presets adjust automatic sizing only; explicitly set sizing parameters still
+#'  define the requested style, with a final fit guard applied at draw time.
 #'  Default is "balanced".
 #' @param module_label_color Text color for labels drawn in module boxes.
 #' @param module_label_fontsize Optional numeric fontsize for module box labels. If NULL, a data-driven size is chosen.
 #' @param module_label_pt_size Optional numeric scale for label glyph size inside module boxes.
 #'  Uses `snpc` units in `anno_simple()`. If NULL, a data-driven size is chosen.
+#'  The drawn size is automatically capped to one common safe size per heatmap
+#'  so all module names fit inside their boxes without mixed label sizes.
 #' @param module_box_width_cm Optional numeric width (cm) for module boxes. If NULL, width adapts to label length and fontsize.
 #' @param gene_count_fontsize Optional numeric fontsize for textual gene counts. If NULL,
 #'  it defaults to the module label fontsize to keep both visually consistent.
@@ -319,6 +322,379 @@ plot_cluster_heatmap <- function(col_order = NULL,
   }
 
   draw_width
+}
+
+.hc_cluster_heatmap_cell_size_mm <- function(n_heat_rows,
+                                             n_heat_cols,
+                                             duplicate_condition_width_scale = 1,
+                                             module_box_width_cm_draw = 0,
+                                             overall_plot_scale = 1) {
+  cell_size_mm <- 5.4
+  if (n_heat_rows > 20) {
+    cell_size_mm <- 4.9
+  }
+  if (n_heat_rows > 30) {
+    cell_size_mm <- 4.3
+  }
+  if (n_heat_rows > 45) {
+    cell_size_mm <- 3.8
+  }
+  if (n_heat_cols > 10) {
+    cell_size_mm <- base::min(cell_size_mm, 4.6)
+  }
+  if (n_heat_cols <= 4 && n_heat_rows <= 24) {
+    min_body_w_mm <- if (n_heat_cols <= 3) 30 else 34
+    min_body_h_mm <- if (n_heat_rows <= 12) 90 else 108
+    max_cell_mm <- if (n_heat_rows <= 12) 10 else 8
+    boosted_cell_mm <- base::max(
+      min_body_w_mm / base::max(1, n_heat_cols),
+      min_body_h_mm / base::max(1, n_heat_rows)
+    )
+    cell_size_mm <- base::max(cell_size_mm, base::min(max_cell_mm, boosted_cell_mm))
+  }
+  if (duplicate_condition_width_scale > 1) {
+    target_module_box_to_cell_ratio <- 0.68
+    min_cell_mm_from_box_ratio <- (module_box_width_cm_draw * 10) / target_module_box_to_cell_ratio
+    min_cell_mm_from_box_ratio <- base::min(10, min_cell_mm_from_box_ratio)
+    cell_size_mm <- base::max(cell_size_mm, min_cell_mm_from_box_ratio)
+  }
+  cell_size_mm * overall_plot_scale
+}
+
+.hc_module_label_text_width_cm <- function(labels,
+                                           fontsize_pt,
+                                           fontface = "bold") {
+  labels_chr <- base::as.character(labels)
+  labels_chr[base::is.na(labels_chr)] <- ""
+  fontsize_pt <- base::as.numeric(fontsize_pt)
+  if (base::length(fontsize_pt) == 1) {
+    fontsize_pt <- base::rep(fontsize_pt, base::length(labels_chr))
+  }
+  base::mapply(
+    FUN = function(label, font_pt) {
+      if (!base::nzchar(label) || !base::is.finite(font_pt) || font_pt <= 0) {
+        return(0)
+      }
+      tryCatch(
+        grid::convertWidth(
+          grid::grobWidth(grid::textGrob(label, gp = grid::gpar(fontsize = font_pt, fontface = fontface))),
+          "cm",
+          valueOnly = TRUE
+        ),
+        error = function(e) {
+          base::nchar(label) * font_pt * 0.021
+        }
+      )
+    },
+    labels_chr,
+    fontsize_pt,
+    SIMPLIFY = TRUE,
+    USE.NAMES = FALSE
+  )
+}
+
+.hc_module_label_fit_pt <- function(module_label_pt_size,
+                                    module_box_width_cm,
+                                    module_labels_display = NULL,
+                                    n_heat_rows = 1,
+                                    cell_size_mm = 5.4,
+                                    module_label_fontsize = NULL,
+                                    use_fontsize_request = FALSE,
+                                    fontface = "bold") {
+  labels_chr <- base::as.character(module_labels_display)
+  labels_chr[base::is.na(labels_chr)] <- ""
+  n_labels <- base::length(labels_chr)
+  if (n_labels == 0) {
+    return(list(
+      pt_size = base::numeric(0),
+      base_pt_size = base::numeric(0),
+      available_width_cm = NA_real_,
+      available_height_pt = NA_real_,
+      width_limited = FALSE,
+      height_limited = FALSE,
+      shrunk = FALSE
+    ))
+  }
+
+  module_label_pt_size <- .hc_first_numeric_value(module_label_pt_size)
+  module_label_fontsize <- .hc_first_numeric_value(module_label_fontsize)
+  module_box_width_cm <- .hc_first_numeric_value(module_box_width_cm)
+  n_heat_rows <- base::max(1L, base::as.integer(n_heat_rows))
+  cell_size_mm <- .hc_first_numeric_value(cell_size_mm)
+  if (!base::is.finite(module_label_pt_size) || module_label_pt_size <= 0 ||
+    !base::is.finite(module_box_width_cm) || module_box_width_cm <= 0 ||
+    !base::is.finite(cell_size_mm) || cell_size_mm <= 0) {
+    return(list(
+      pt_size = base::rep(NA_real_, n_labels),
+      base_pt_size = base::rep(NA_real_, n_labels),
+      available_width_cm = NA_real_,
+      available_height_pt = NA_real_,
+      width_limited = FALSE,
+      height_limited = FALSE,
+      shrunk = FALSE
+    ))
+  }
+
+  annotation_height_cm <- (n_heat_rows * cell_size_mm) / 10
+  snpc_cm <- base::min(module_box_width_cm, annotation_height_cm)
+  base_pt <- if (isTRUE(use_fontsize_request) &&
+    base::is.finite(module_label_fontsize) &&
+    module_label_fontsize > 0) {
+    module_label_fontsize
+  } else {
+    module_label_pt_size * snpc_cm * 72 / 2.54
+  }
+  base_pt_vec <- base::rep(base_pt, n_labels)
+  width_fill <- 0.95
+  height_fill <- 0.95
+  available_width_cm <- base::max(0.02, module_box_width_cm * width_fill)
+  available_height_pt <- (cell_size_mm * 72 / 25.4) * height_fill
+
+  # `anno_simple(pch = "M1")` draws text-like symbols a little wider than a
+  # bare textGrob on some devices, so keep a tiny render guard while targeting
+  # 95% of the actual module box width.
+  symbol_width_guard <- 1.32
+  width_at_10pt <- .hc_module_label_text_width_cm(labels_chr, fontsize_pt = 10, fontface = fontface) *
+    symbol_width_guard
+  max_pt_by_width <- base::ifelse(
+    width_at_10pt > 0,
+    10 * available_width_cm / width_at_10pt,
+    Inf
+  )
+  preferred_min_pt <- 2.8
+  absolute_min_pt <- 0.2
+  finite_width_pt <- max_pt_by_width[base::is.finite(max_pt_by_width)]
+  width_limit_pt <- if (base::length(finite_width_pt) > 0) {
+    base::min(finite_width_pt)
+  } else {
+    Inf
+  }
+
+  common_pt <- base::min(base_pt, width_limit_pt, available_height_pt, na.rm = TRUE)
+  if (!base::is.finite(common_pt) || common_pt <= 0) {
+    common_pt <- base_pt
+  }
+  common_pt <- base::max(absolute_min_pt, common_pt)
+  if (common_pt >= preferred_min_pt ||
+    (width_limit_pt >= preferred_min_pt && available_height_pt >= preferred_min_pt && base_pt >= preferred_min_pt)) {
+    common_pt <- base::max(preferred_min_pt, common_pt)
+  }
+
+  fitted_pt <- base::rep(common_pt, n_labels)
+  fitted_width_cm <- .hc_module_label_text_width_cm(labels_chr, fontsize_pt = fitted_pt, fontface = fontface) *
+    symbol_width_guard
+  for (i in base::seq_len(5L)) {
+    max_width_cm <- base::max(fitted_width_cm, na.rm = TRUE)
+    if (!base::is.finite(max_width_cm) ||
+      max_width_cm <= available_width_cm ||
+      common_pt <= absolute_min_pt) {
+      break
+    }
+    common_pt <- base::pmax(
+      absolute_min_pt,
+      common_pt * (available_width_cm / max_width_cm) * 0.995
+    )
+    fitted_pt <- base::rep(common_pt, n_labels)
+    fitted_width_cm <- .hc_module_label_text_width_cm(labels_chr, fontsize_pt = fitted_pt, fontface = fontface) *
+      symbol_width_guard
+  }
+
+  list(
+    pt_size = fitted_pt,
+    base_pt_size = base_pt_vec,
+    fitted_width_cm = fitted_width_cm,
+    available_width_cm = available_width_cm,
+    available_height_pt = available_height_pt,
+    width_limited = base::any(max_pt_by_width < base_pt_vec - 1e-8, na.rm = TRUE),
+    height_limited = base::any(available_height_pt < base_pt_vec - 1e-8, na.rm = TRUE),
+    below_preferred_min = base::is.finite(common_pt) && common_pt < preferred_min_pt,
+    shrunk = base::any(fitted_pt < base_pt_vec - 1e-8, na.rm = TRUE)
+  )
+}
+
+.hc_module_label_effective_fontsize <- function(module_label_fit,
+                                                fallback_fontsize = NULL,
+                                                fallback_pt_size = NULL,
+                                                min_pt = 0.2) {
+  fit_pt <- tryCatch(
+    .hc_as_numeric_safely(module_label_fit$pt_size),
+    error = function(e) numeric(0)
+  )
+  fit_pt <- fit_pt[base::is.finite(fit_pt) & fit_pt > min_pt]
+  if (base::length(fit_pt) > 0) {
+    return(base::min(fit_pt))
+  }
+  fallback <- .hc_first_numeric_value(fallback_fontsize)
+  if (base::is.finite(fallback) && fallback > min_pt) {
+    return(fallback)
+  }
+  fallback <- .hc_first_numeric_value(fallback_pt_size)
+  if (base::is.finite(fallback) && fallback > min_pt) {
+    return(fallback)
+  }
+  5
+}
+
+.hc_module_label_box_annotation <- function(values,
+                                            colors,
+                                            labels = NULL,
+                                            label_color = "white",
+                                            label_fontsize_pt = NULL,
+                                            fontface = "bold",
+                                            width_cm,
+                                            border_gp = grid::gpar(col = "black", lwd = 0.5),
+                                            which = "row",
+                                            width_fill = 0.95,
+                                            height_fill = 0.90,
+                                            font_size_width_fill = 0.78,
+                                            min_visible_font_pt = 5.5,
+                                            minimum_sizing_label = "M4.2") {
+  values_chr <- base::as.character(values)
+  n_values <- base::length(values_chr)
+  labels_chr <- if (base::is.null(labels)) {
+    base::rep("", n_values)
+  } else {
+    label_names <- base::names(labels)
+    labels_raw <- base::as.character(labels)
+    if (base::length(labels_raw) == n_values) {
+      labels_raw
+    } else if (!base::is.null(label_names) &&
+      base::length(label_names) == base::length(labels_raw) &&
+      base::any(values_chr %in% base::as.character(label_names))) {
+      mapped <- base::as.character(labels_raw[base::match(values_chr, base::as.character(label_names))])
+      missing_mapped <- base::is.na(mapped) | !base::nzchar(mapped)
+      mapped[missing_mapped] <- values_chr[missing_mapped]
+      mapped
+    } else if (base::length(labels_raw) > 0) {
+      base::rep_len(labels_raw, n_values)
+    } else {
+      values_chr
+    }
+  }
+  labels_chr[base::is.na(labels_chr)] <- ""
+  if (base::length(labels_chr) != n_values && n_values > 0) {
+    labels_chr <- base::rep_len(labels_chr, n_values)
+  }
+
+  color_names <- base::names(colors)
+  colors_chr <- base::as.character(colors)
+  if (!base::is.null(color_names)) {
+    base::names(colors_chr) <- color_names
+  }
+  if (base::is.null(base::names(colors_chr))) {
+    base::names(colors_chr) <- base::as.character(colors_chr)
+  }
+  width_cm <- .hc_first_numeric_value(width_cm)
+  if (!base::is.finite(width_cm) || width_cm <= 0) {
+    width_cm <- 0.8
+  }
+  label_fontsize_pt <- .hc_as_numeric_safely(label_fontsize_pt)
+  label_fontsize_pt <- label_fontsize_pt[base::is.finite(label_fontsize_pt) & label_fontsize_pt > 0]
+  max_font_pt <- if (base::length(label_fontsize_pt) > 0) {
+    base::min(label_fontsize_pt)
+  } else {
+    Inf
+  }
+  border_col <- if (!base::is.null(border_gp$col)) border_gp$col else "black"
+  border_lwd <- if (!base::is.null(border_gp$lwd)) border_gp$lwd else 0.5
+
+  fills_chr <- base::as.character(base::unname(colors_chr[values_chr]))
+  missing_fill <- base::is.na(fills_chr) | !base::nzchar(fills_chr)
+  fills_chr[missing_fill] <- values_chr[missing_fill]
+  valid_fill <- base::vapply(fills_chr, function(cl) {
+    base::isTRUE(tryCatch({
+      grDevices::col2rgb(cl)
+      TRUE
+    }, error = function(e) FALSE))
+  }, FUN.VALUE = base::logical(1))
+  fills_chr[!valid_fill] <- "#d9d9d9"
+
+  draw_fun <- function(index, ...) {
+    n <- base::length(index)
+    if (n == 0) {
+      return(invisible(NULL))
+    }
+    y <- (n - base::seq_len(n) + 0.5) / n
+    fill <- fills_chr[index]
+    for (i in base::seq_len(n)) {
+      grid::grid.rect(
+        x = grid::unit(0.5, "npc"),
+        y = grid::unit(y[[i]], "npc"),
+        width = grid::unit(1, "npc"),
+        height = grid::unit(1 / n, "npc"),
+        gp = grid::gpar(fill = fill[[i]], col = border_col, lwd = border_lwd)
+      )
+    }
+
+    draw_labels <- labels_chr[index]
+    has_label <- !base::is.na(draw_labels) & base::nzchar(draw_labels)
+    if (!base::any(has_label)) {
+      return(invisible(NULL))
+    }
+    all_labels <- labels_chr[!base::is.na(labels_chr) & base::nzchar(labels_chr)]
+    minimum_sizing_label <- base::as.character(minimum_sizing_label)
+    minimum_sizing_label <- minimum_sizing_label[!base::is.na(minimum_sizing_label) &
+      base::nzchar(minimum_sizing_label)]
+    sizing_labels <- base::unique(base::c(all_labels, minimum_sizing_label))
+    target_width_cm <- grid::convertWidth(grid::unit(width_fill, "npc"), "cm", valueOnly = TRUE)
+    row_height_pt <- grid::convertHeight(grid::unit(1 / n, "npc"), "pt", valueOnly = TRUE)
+    target_height_pt <- base::max(row_height_pt * height_fill, min_visible_font_pt)
+    max_font_from_box_width_pt <- grid::convertWidth(
+      grid::unit(font_size_width_fill, "npc"),
+      "pt",
+      valueOnly = TRUE
+    )
+    width_at_10pt <- .hc_module_label_text_width_cm(sizing_labels, fontsize_pt = 10, fontface = fontface)
+    max_width_10pt <- base::max(width_at_10pt, na.rm = TRUE)
+    width_fit_pt <- if (base::is.finite(max_width_10pt) && max_width_10pt > 0) {
+      10 * target_width_cm / max_width_10pt
+    } else {
+      Inf
+    }
+    font_pt <- base::min(
+      max_font_pt,
+      width_fit_pt,
+      target_height_pt,
+      max_font_from_box_width_pt,
+      na.rm = TRUE
+    )
+    if (!base::is.finite(font_pt) || font_pt <= 0) {
+      font_pt <- base::min(width_fit_pt, target_height_pt, max_font_from_box_width_pt, na.rm = TRUE)
+    }
+    if (!base::is.finite(font_pt) || font_pt <= 0) {
+      font_pt <- 5
+    }
+    grid::grid.text(
+      draw_labels[has_label],
+      x = grid::unit(base::rep(0.5, base::sum(has_label)), "npc"),
+      y = grid::unit(y[has_label], "npc"),
+      gp = grid::gpar(col = label_color, fontsize = font_pt, fontface = fontface)
+    )
+    invisible(NULL)
+  }
+
+  ComplexHeatmap::AnnotationFunction(
+    fun = draw_fun,
+    fun_name = "module_label_boxes",
+    which = match.arg(which, c("column", "row")),
+    width = grid::unit(width_cm, "cm"),
+    n = n_values,
+    data_scale = c(0.5, 1.5),
+    var_import = list(
+      labels_chr = labels_chr,
+      fills_chr = fills_chr,
+      max_font_pt = max_font_pt,
+      label_color = label_color,
+      fontface = fontface,
+      width_fill = width_fill,
+      height_fill = height_fill,
+      font_size_width_fill = font_size_width_fill,
+      min_visible_font_pt = min_visible_font_pt,
+      minimum_sizing_label = minimum_sizing_label,
+      border_col = border_col,
+      border_lwd = border_lwd
+    )
+  )
 }
 
 .hc_heatmap_screen_fit_scale <- function(total_width_mm,
@@ -1355,6 +1731,12 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     base::max(base::nchar(module_labels_display), na.rm = TRUE)
   }
 
+  n_heat_rows <- base::nrow(mat_heatmap)
+  n_heat_cols <- base::ncol(mat_heatmap)
+  duplicate_condition_width_scale <- .hc_gfc_duplicate_condition_width_scale(
+    hcobject,
+    base::colnames(mat_heatmap)
+  )
   n_rows <- base::nrow(c_df)
   preset_scale_font <- switch(module_label_preset,
     compact = 0.82,
@@ -1389,7 +1771,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       base_width <- (max_chars * 0.09) + 0.15
     }
     module_box_width_cm <- base::max(
-      0.62,
+      0.80,
       base::min(
         4.8,
         base_width * preset_scale_width
@@ -1403,25 +1785,33 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     module_sig_integrated = module_sig_integrated,
     max_sig_stars = max_sig_stars
   )
+  cell_size_mm <- .hc_cluster_heatmap_cell_size_mm(
+    n_heat_rows = n_heat_rows,
+    n_heat_cols = n_heat_cols,
+    duplicate_condition_width_scale = duplicate_condition_width_scale,
+    module_box_width_cm_draw = module_box_width_cm_draw,
+    overall_plot_scale = overall_plot_scale
+  )
 
   if (!user_set_module_label_pt_size) {
     base_pt <- if (n_rows <= 10) {
-      0.45
+      0.95
     } else if (n_rows <= 15) {
-      0.30
+      0.90
     } else if (n_rows <= 25) {
-      0.26
+      0.82
     } else if (n_rows <= 40) {
-      0.22
+      0.72
     } else {
-      0.18
+      0.62
     }
-    # No penalty for label length; box width adapts to character count instead
+    # Request a large default glyph; the box-fit guard chooses the largest
+    # common rendered size that still fits every module label.
     char_penalty <- 1
     module_label_pt_size <- base::max(
       0.14,
       base::min(
-        0.55,
+        1.05,
         (base_pt * preset_scale_pt) / char_penalty
       )
     )
@@ -1434,10 +1824,33 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       base::min(0.55, module_label_pt_size * sig_pt_scale)
     )
   }
+  module_label_fit <- .hc_module_label_fit_pt(
+    module_label_pt_size = module_label_pt_size_draw,
+    module_box_width_cm = module_box_width_cm_draw,
+    module_labels_display = module_labels_display,
+    n_heat_rows = n_heat_rows,
+    cell_size_mm = cell_size_mm,
+    module_label_fontsize = module_label_fontsize,
+    use_fontsize_request = user_set_module_label_fontsize && !user_set_module_label_pt_size,
+    fontface = "bold"
+  )
+  module_label_pt_size_unit <- if (base::length(module_labels_display) > 0 &&
+    base::length(module_label_fit$pt_size) == base::length(module_labels_display)) {
+    grid::unit(module_label_fit$pt_size, "pt")
+  } else {
+    grid::unit(module_label_pt_size_draw, "snpc")
+  }
+  module_label_fontsize_draw <- .hc_module_label_effective_fontsize(
+    module_label_fit = module_label_fit,
+    fallback_fontsize = module_label_fontsize,
+    fallback_pt_size = module_label_pt_size_draw
+  )
 
   if (!user_set_gene_count_fontsize) {
-    # Keep numeric gene-count text aligned with module label size by default.
-    gene_count_fontsize <- module_label_fontsize
+    gene_count_fontsize <- base::max(
+      5,
+      base::min(10, module_label_fontsize_draw * 0.72)
+    )
   }
 
   if (!user_set_gene_count_pt_size) {
@@ -1476,14 +1889,15 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   } else {
     module_significance_width_cm
   }
-  module_box_anno <- ComplexHeatmap::anno_simple(
-    row_order,
-    col = cluster_colors,
-    pch = module_labels_display,
-    pt_gp = grid::gpar(col = module_label_color, fontsize = module_label_fontsize, fontface = "bold"),
-    pt_size = grid::unit(module_label_pt_size_draw, "snpc"),
-    simple_anno_size = grid::unit(module_box_width_cm_draw, "cm"),
-    gp = module_box_border_gp,
+  module_box_anno <- .hc_module_label_box_annotation(
+    values = row_order,
+    colors = cluster_colors,
+    labels = module_labels_display,
+    label_color = module_label_color,
+    label_fontsize_pt = module_label_fit$base_pt_size,
+    fontface = "bold",
+    width_cm = module_box_width_cm_draw,
+    border_gp = module_box_border_gp,
     which = "row"
   )
 
@@ -1706,19 +2120,37 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       module_sig_width_cm_scaled +
       (0.8 * anno_scale)
     row_annotation_total_width_cm <- base_row_width_cm + enrichment_total_width_cm
+    module_label_fit_use <- .hc_module_label_fit_pt(
+      module_label_pt_size = module_label_pt_size_draw,
+      module_box_width_cm = module_box_width_cm_use,
+      module_labels_display = module_labels_display,
+      n_heat_rows = n_heat_rows,
+      cell_size_mm = cell_size_mm * anno_scale,
+      module_label_fontsize = module_label_fontsize,
+      use_fontsize_request = user_set_module_label_fontsize && !user_set_module_label_pt_size,
+      fontface = "bold"
+    )
+    module_label_pt_size_unit_use <- if (base::length(module_labels_display) > 0 &&
+      base::length(module_label_fit_use$pt_size) == base::length(module_labels_display)) {
+      grid::unit(module_label_fit_use$pt_size, "pt")
+    } else {
+      grid::unit(module_label_pt_size_draw, "snpc")
+    }
+    module_label_fontsize_draw_use <- .hc_module_label_effective_fontsize(
+      module_label_fit = module_label_fit_use,
+      fallback_fontsize = module_label_fontsize,
+      fallback_pt_size = module_label_pt_size_draw
+    )
 
-    module_box_anno <- ComplexHeatmap::anno_simple(
-      row_order,
-      col = cluster_colors,
-      pch = module_labels_display,
-      pt_gp = grid::gpar(
-        col = module_label_color,
-        fontsize = module_label_fontsize,
-        fontface = "bold"
-      ),
-      pt_size = grid::unit(module_label_pt_size_draw, "snpc"),
-      simple_anno_size = grid::unit(module_box_width_cm_use, "cm"),
-      gp = module_box_border_gp,
+    module_box_anno <- .hc_module_label_box_annotation(
+      values = row_order,
+      colors = cluster_colors,
+      labels = module_labels_display,
+      label_color = module_label_color,
+      label_fontsize_pt = module_label_fit_use$base_pt_size,
+      fontface = "bold",
+      width_cm = module_box_width_cm_use,
+      border_gp = module_box_border_gp,
       which = "row"
     )
 
@@ -1985,10 +2417,6 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
 
   column_labels_display <- .hc_gfc_display_col_labels(hcobject, base::colnames(mat_heatmap))
   all_conditions <- .hc_gfc_display_count_labels(hcobject, base::colnames(mat_heatmap))
-  duplicate_condition_width_scale <- .hc_gfc_duplicate_condition_width_scale(
-    hcobject,
-    base::colnames(mat_heatmap)
-  )
   column_gap_k_enabled <- !base::is.numeric(k) || base::length(k) == 0 || base::all(k <= 0)
   column_gap_enabled <- (isTRUE(smart_column_gaps) || !base::is.null(column_gap_by)) &&
     isTRUE(column_gap_k_enabled)
@@ -2011,40 +2439,13 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   # --- 7. Plotting and Output ---
 
   # Keep module-expression tiles square-like for publication consistency.
-  n_heat_rows <- base::nrow(mat_heatmap)
-  n_heat_cols <- base::ncol(mat_heatmap)
-  cell_size_mm <- 5.4
-  if (n_heat_rows > 20) {
-    cell_size_mm <- 4.9
-  }
-  if (n_heat_rows > 30) {
-    cell_size_mm <- 4.3
-  }
-  if (n_heat_rows > 45) {
-    cell_size_mm <- 3.8
-  }
-  if (n_heat_cols > 10) {
-    cell_size_mm <- base::min(cell_size_mm, 4.6)
-  }
-  if (n_heat_cols <= 4 && n_heat_rows <= 24) {
-    min_body_w_mm <- if (n_heat_cols <= 3) 30 else 34
-    min_body_h_mm <- if (n_heat_rows <= 12) 90 else 108
-    max_cell_mm <- if (n_heat_rows <= 12) 10 else 8
-    boosted_cell_mm <- base::max(
-      min_body_w_mm / base::max(1, n_heat_cols),
-      min_body_h_mm / base::max(1, n_heat_rows)
-    )
-    cell_size_mm <- base::max(cell_size_mm, base::min(max_cell_mm, boosted_cell_mm))
-  }
-  if (duplicate_condition_width_scale > 1) {
-    # Keep module boxes visually narrower than one heatmap column when
-    # duplicated layer conditions add extra prefixed columns.
-    target_module_box_to_cell_ratio <- 0.68
-    min_cell_mm_from_box_ratio <- (module_box_width_cm_draw * 10) / target_module_box_to_cell_ratio
-    min_cell_mm_from_box_ratio <- base::min(10, min_cell_mm_from_box_ratio)
-    cell_size_mm <- base::max(cell_size_mm, min_cell_mm_from_box_ratio)
-  }
-  cell_size_mm <- cell_size_mm * overall_plot_scale
+  cell_size_mm <- .hc_cluster_heatmap_cell_size_mm(
+    n_heat_rows = n_heat_rows,
+    n_heat_cols = n_heat_cols,
+    duplicate_condition_width_scale = duplicate_condition_width_scale,
+    module_box_width_cm_draw = module_box_width_cm_draw,
+    overall_plot_scale = overall_plot_scale
+  )
   hm_width <- grid::unit((n_heat_cols * cell_size_mm) + column_gap_spec$total_gap_mm, "mm")
   hm_height <- grid::unit(n_heat_rows * cell_size_mm, "mm")
   max_col_chars <- if (base::length(column_labels_display) > 0) {
@@ -2088,7 +2489,8 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                         padding_obj = NULL,
                         heatmap_legend_side = "right",
                         annotation_legend_side = "right",
-                        context = "cluster heatmap") {
+                        context = "cluster heatmap",
+                        capture_current_device = FALSE) {
     draw_once <- function(obj,
                           lgd,
                           show_ann_legend = TRUE,
@@ -2111,18 +2513,47 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       }
       base::do.call(ComplexHeatmap::draw, args)
     }
-
-    first <- try(draw_once(ht_obj, legend_obj, show_ann_legend = TRUE), silent = TRUE)
-    if (!inherits(first, "try-error")) {
-      return(first)
+    run_attempt <- function(expr_fun) {
+      if (!isTRUE(capture_current_device)) {
+        return(list(result = expr_fun(), grob = NULL))
+      }
+      result <- NULL
+      grob <- grid::grid.grabExpr(
+        {
+          result <- expr_fun()
+        },
+        wrap = TRUE
+      )
+      list(result = result, grob = grob)
+    }
+    finish_attempt <- function(attempt) {
+      if (isTRUE(capture_current_device) && !base::is.null(attempt$grob)) {
+        grid::grid.newpage()
+        grid::grid.draw(attempt$grob)
+      }
+      attempt$result
     }
 
-    try(grid::grid.newpage(), silent = TRUE)
+    first <- try(
+      run_attempt(function() draw_once(ht_obj, legend_obj, show_ann_legend = TRUE)),
+      silent = TRUE
+    )
+    if (!inherits(first, "try-error")) {
+      return(finish_attempt(first))
+    }
+
+    if (!isTRUE(capture_current_device)) {
+      try(grid::grid.newpage(), silent = TRUE)
+    }
     second <- try(
-      draw_once(
-        deep_clone(ht_obj),
-        deep_clone(legend_obj),
-        show_ann_legend = TRUE
+      run_attempt(
+        function() {
+          draw_once(
+            deep_clone(ht_obj),
+            deep_clone(legend_obj),
+            show_ann_legend = TRUE
+          )
+        }
       ),
       silent = TRUE
     )
@@ -2133,15 +2564,21 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
         ".",
         call. = FALSE
       )
-      return(second)
+      return(finish_attempt(second))
     }
 
-    try(grid::grid.newpage(), silent = TRUE)
+    if (!isTRUE(capture_current_device)) {
+      try(grid::grid.newpage(), silent = TRUE)
+    }
     third <- try(
-      draw_once(
-        deep_clone(ht_obj),
-        NULL,
-        show_ann_legend = FALSE
+      run_attempt(
+        function() {
+          draw_once(
+            deep_clone(ht_obj),
+            NULL,
+            show_ann_legend = FALSE
+          )
+        }
       ),
       silent = TRUE
     )
@@ -2152,17 +2589,23 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
         ": annotation legends were disabled after viewport issues.",
         call. = FALSE
       )
-      return(third)
+      return(finish_attempt(third))
     }
 
-    try(grid::grid.newpage(), silent = TRUE)
+    if (!isTRUE(capture_current_device)) {
+      try(grid::grid.newpage(), silent = TRUE)
+    }
     fourth <- try(
-      draw_once(
-        deep_clone(ht_obj),
-        NULL,
-        show_ann_legend = FALSE,
-        show_heat_legend = TRUE,
-        use_padding = FALSE
+      run_attempt(
+        function() {
+          draw_once(
+            deep_clone(ht_obj),
+            NULL,
+            show_ann_legend = FALSE,
+            show_heat_legend = TRUE,
+            use_padding = FALSE
+          )
+        }
       ),
       silent = TRUE
     )
@@ -2173,17 +2616,23 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
         ": legends/padding were simplified after viewport issues.",
         call. = FALSE
       )
-      return(fourth)
+      return(finish_attempt(fourth))
     }
 
-    try(grid::grid.newpage(), silent = TRUE)
+    if (!isTRUE(capture_current_device)) {
+      try(grid::grid.newpage(), silent = TRUE)
+    }
     fifth <- try(
-      draw_once(
-        deep_clone(ht_obj),
-        NULL,
-        show_ann_legend = FALSE,
-        show_heat_legend = FALSE,
-        use_padding = FALSE
+      run_attempt(
+        function() {
+          draw_once(
+            deep_clone(ht_obj),
+            NULL,
+            show_ann_legend = FALSE,
+            show_heat_legend = FALSE,
+            use_padding = FALSE
+          )
+        }
       ),
       silent = TRUE
     )
@@ -2194,7 +2643,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
         ": all legends were disabled after viewport issues.",
         call. = FALSE
       )
-      return(fifth)
+      return(finish_attempt(fifth))
     }
 
     stop(fifth)
@@ -2441,7 +2890,8 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       padding_obj = draw_padding_screen,
       heatmap_legend_side = heatmap_legend_side_mode,
       annotation_legend_side = annotation_legend_side_mode,
-      context = "cluster heatmap current device"
+      context = "cluster heatmap current device",
+      capture_current_device = TRUE
     ),
     error = function(e) {
       warning(
@@ -2526,10 +2976,27 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   )
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_map"), module_label_map)
   .hc_set_bridge_hcobject_slot(c("satellite_outputs", "module_gene_list"), module_gene_list_tbl)
+  module_label_fit_pt <- .hc_as_numeric_safely(module_label_fit$pt_size)
+  module_label_fit_base_pt <- .hc_as_numeric_safely(module_label_fit$base_pt_size)
+  module_label_fit_pt <- module_label_fit_pt[base::is.finite(module_label_fit_pt)]
+  module_label_fit_base_pt <- module_label_fit_base_pt[base::is.finite(module_label_fit_base_pt)]
+  module_label_fit_min <- if (base::length(module_label_fit_pt) > 0) base::min(module_label_fit_pt) else NA_real_
+  module_label_fit_max <- if (base::length(module_label_fit_pt) > 0) base::max(module_label_fit_pt) else NA_real_
+  module_label_fit_requested_max <- if (base::length(module_label_fit_base_pt) > 0) {
+    base::max(module_label_fit_base_pt)
+  } else {
+    NA_real_
+  }
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_mode"), module_label_mode)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_numbering"), module_label_numbering)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_fontsize"), module_label_fontsize)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_pt_size"), module_label_pt_size)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_pt_size_effective_pt_min"), module_label_fit_min)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_pt_size_effective_pt_max"), module_label_fit_max)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_pt_size_requested_pt_max"), module_label_fit_requested_max)
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_auto_fit_shrunk"), isTRUE(module_label_fit$shrunk))
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_auto_fit_width_limited"), isTRUE(module_label_fit$width_limited))
+  .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_auto_fit_height_limited"), isTRUE(module_label_fit$height_limited))
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_box_width_cm"), module_box_width_cm)
   module_box_to_cell_ratio <- (.hc_first_numeric_value(module_box_width_cm) * 10) /
     .hc_first_numeric_value(cell_size_mm)

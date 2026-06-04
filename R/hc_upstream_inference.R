@@ -2291,14 +2291,36 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
   } else {
     base::max(0.22, base::min(0.90, 0.075 * label_fontsize))
   }
-  module_box_anno <- ComplexHeatmap::anno_simple(
-    keep_clusters,
-    col = module_color_map,
-    pch = module_labels,
-    pt_gp = grid::gpar(col = "white", fontsize = label_fontsize, fontface = "bold"),
-    pt_size = grid::unit(module_label_pt_size, "snpc"),
-    simple_anno_size = grid::unit(module_box_width_cm, "cm"),
-    gp = grid::gpar(col = "black"),
+  module_label_fit <- .hc_module_label_fit_pt(
+    module_label_pt_size = module_label_pt_size,
+    module_box_width_cm = module_box_width_cm,
+    module_labels_display = module_labels,
+    n_heat_rows = n_hc_rows,
+    cell_size_mm = hc_cell_mm,
+    module_label_fontsize = label_fontsize,
+    use_fontsize_request = FALSE,
+    fontface = "bold"
+  )
+  module_label_pt_size_unit <- if (base::length(module_labels) > 0 &&
+    base::length(module_label_fit$pt_size) == base::length(module_labels)) {
+    grid::unit(module_label_fit$pt_size, "pt")
+  } else {
+    grid::unit(module_label_pt_size, "snpc")
+  }
+  module_label_fontsize_draw <- .hc_module_label_effective_fontsize(
+    module_label_fit = module_label_fit,
+    fallback_fontsize = label_fontsize,
+    fallback_pt_size = module_label_pt_size
+  )
+  module_box_anno <- .hc_module_label_box_annotation(
+    values = keep_clusters,
+    colors = module_color_map,
+    labels = module_labels,
+    label_color = "white",
+    label_fontsize_pt = module_label_fit$base_pt_size,
+    fontface = "bold",
+    width_cm = module_box_width_cm,
+    border_gp = grid::gpar(col = "black"),
     which = "row"
   )
   right_anno <- ComplexHeatmap::HeatmapAnnotation(

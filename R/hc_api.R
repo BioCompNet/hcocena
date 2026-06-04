@@ -2049,14 +2049,19 @@ hc_unsplit_modules <- function(hc,
 
   panel_key_chr <- as.character(panel_key[[1]])
   title_drawn <- FALSE
+  is_combined_panel <- panel_key_chr %in% c("top_all_dbs", "top_all_dbs_mixed")
   slice_candidates <- if (identical(panel_key_chr, "top_all_dbs")) c(2L, 1L) else 1L
-  title_offset_mm <- max(4, 0.35 * as.numeric(fontsize))
+  title_offset_mm <- if (isTRUE(is_combined_panel)) {
+    max(8, 0.50 * as.numeric(fontsize))
+  } else {
+    max(4, 0.35 * as.numeric(fontsize))
+  }
   components <- try(ComplexHeatmap::list_components(), silent = TRUE)
   if (inherits(components, "try-error")) {
     components <- character(0)
   }
 
-  if (identical(panel_key_chr, "top_all_dbs") && length(components) > 0) {
+  if (isTRUE(is_combined_panel) && length(components) > 0) {
     body_pattern <- paste0("^", panel_target, "_heatmap_body_[0-9]+_[0-9]+$")
     body_components <- components[grepl(body_pattern, components)]
     if (length(body_components) >= 1) {

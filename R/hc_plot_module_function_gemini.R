@@ -679,7 +679,7 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
   }
   module_label_fontsize <- 4.2
   module_box_width_cm <- base::max(0.56, base::min(4.8, (max_label_chars * 0.09) + 0.15))
-  module_label_pt_size <- 0.42
+  module_label_pt_size <- 0.90
   cell_size_mm <- .hc_llm_default_heatmap_cell_size_mm(
     n_heat_rows = n_heat_rows,
     n_heat_cols = n_heat_cols,
@@ -953,15 +953,38 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
     grid_width = grid::unit(3.2 * overall_plot_scale, "mm"),
     legend_height = grid::unit(legend_height_mm, "mm")
   )
+  module_label_fit <- .hc_module_label_fit_pt(
+    module_label_pt_size = module_pt_size,
+    module_box_width_cm = module_box_width_cm,
+    module_labels_display = module_by_row,
+    n_heat_rows = nrow(mat_use),
+    cell_size_mm = cell_mm,
+    module_label_fontsize = label_fontsize,
+    use_fontsize_request = !base::is.null(module_label_fontsize) &&
+      base::is.null(module_label_pt_size),
+    fontface = "bold"
+  )
+  module_label_pt_size_unit <- if (base::length(module_by_row) > 0 &&
+    base::length(module_label_fit$pt_size) == base::length(module_by_row)) {
+    grid::unit(module_label_fit$pt_size, "pt")
+  } else {
+    grid::unit(module_pt_size, "snpc")
+  }
+  module_label_fontsize_draw <- .hc_module_label_effective_fontsize(
+    module_label_fit = module_label_fit,
+    fallback_fontsize = label_fontsize,
+    fallback_pt_size = module_pt_size
+  )
 
-  module_box_anno <- ComplexHeatmap::anno_simple(
-    module_by_row,
-    col = module_col_map,
-    pch = module_by_row,
-    pt_gp = grid::gpar(col = "white", fontsize = label_fontsize, fontface = "bold"),
-    pt_size = grid::unit(module_pt_size, "snpc"),
-    simple_anno_size = grid::unit(module_box_width_cm, "cm"),
-    gp = module_box_border_gp,
+  module_box_anno <- .hc_module_label_box_annotation(
+    values = module_by_row,
+    colors = module_col_map,
+    labels = module_by_row,
+    label_color = "white",
+    label_fontsize_pt = module_label_fit$base_pt_size,
+    fontface = "bold",
+    width_cm = module_box_width_cm,
+    border_gp = module_box_border_gp,
     which = "row"
   )
 

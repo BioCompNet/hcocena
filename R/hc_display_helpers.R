@@ -52,11 +52,14 @@
     }
   }
 
-  # Default path. The htmlwidget print method routes through the active `viewer`
-  # option: during an RStudio R Notebook chunk run RStudio sets that option to
-  # its inline renderer, so the widget shows up below the chunk; in a plain
-  # console session it opens the Viewer pane.
-  utils::getFromNamespace("print.htmlwidget", "htmlwidgets")(x, view = TRUE)
+  # Default path. Dispatch through the `print` generic exactly like a bare
+  # `print(widget)` in a chunk would. RStudio's notebook execution renders
+  # widgets inline only when they go through the generic dispatch (this works
+  # even from inside a function); calling `print.htmlwidget` directly (e.g. via
+  # getFromNamespace) bypasses that hook, so the widget ends up in the Viewer
+  # pane instead of inline below the chunk. View defaults to interactive(), the
+  # same as a top-level `print(widget)`.
+  print(x)
   invisible(x)
 }
 

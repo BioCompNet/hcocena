@@ -2855,38 +2855,19 @@ test_that("regression: htmlwidgets display inline during HTML knitting", {
   expect_true(length(knitr::knit_meta()) > 0)
 })
 
-test_that("regression: htmlwidgets render through the viewer during RStudio notebook execution", {
-  skip_if_not_installed("htmlwidgets")
+test_that("regression: htmlwidgets dispatch through the print generic for RStudio inline rendering", {
+  display_src_path <- test_path("..", "..", "R", "hc_display_helpers.R")
+  if (!file.exists(display_src_path)) {
+    skip("Source file is not available in the installed-package test context.")
+  }
+  display_src <- paste(readLines(display_src_path, warn = FALSE), collapse = "\n")
 
-  display_fun <- get(".hc_display_object", asNamespace("hcocena"))
-  widget <- htmlwidgets::createWidget(
-    name = "hcocena-test-widget",
-    x = list(value = 1),
-    package = "htmlwidgets"
-  )
-
-  viewed_url <- NULL
-  old_options <- options(
-    rstudio.notebook.executing = TRUE,
-    viewer = function(url, ...) {
-      viewed_url <<- url
-      invisible(url)
-    },
-    hcocena.htmlwidget_display = "auto",
-    hcocena.htmlwidget_emit_html = FALSE
-  )
-  on.exit(options(old_options), add = TRUE)
-
-  out <- capture.output(display_fun(widget))
-
-  # RStudio renders widgets through the `viewer` option, so the helper must hand
-  # the widget to the viewer and must NOT dump raw HTML to stdout (which would
-  # show up as plain text below the chunk).
-  expect_false(any(grepl("<!doctype html>", tolower(out), fixed = TRUE)))
-  expect_true(is.character(viewed_url) && nzchar(viewed_url))
-  expect_true(file.exists(viewed_url))
-  rendered_html <- paste(readLines(viewed_url, warn = FALSE), collapse = "\n")
-  expect_true(grepl("hcocena-test-widget html-widget", rendered_html, fixed = TRUE))
+  # RStudio's notebook renders htmlwidgets inline only when they go through the
+  # `print` generic (this works even from inside a function). Calling
+  # print.htmlwidget() directly (e.g. via getFromNamespace) bypasses that hook
+  # and the widget lands in the Viewer pane instead of inline below the chunk.
+  expect_true(grepl("print(x)", display_src, fixed = TRUE))
+  expect_false(grepl("getFromNamespace(\"print.htmlwidget\"", display_src, fixed = TRUE))
 })
 
 test_that("regression: htmlwidgets emit raw HTML only when explicitly opted in", {

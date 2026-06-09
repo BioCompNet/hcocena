@@ -190,7 +190,8 @@
                                        height,
                                        pointsize = 11,
                                        res = 300,
-                                       draw_page_fun) {
+                                       draw_page_fun,
+                                       display = FALSE) {
   if (!base::is.character(file) || base::length(file) != 1 || !base::nzchar(file)) {
     stop("`file` must be a non-empty file path.")
   }
@@ -245,6 +246,17 @@
     png_files[[idx]] <- png_file
   }
 
+  # Optionally replay each page on the active graphics device so the figures
+  # also appear inline (e.g. under an R Markdown chunk / in a notebook), in
+  # addition to the exported files. Gated to contexts where a display target
+  # exists, so batch runs do not spawn a stray Rplots.pdf.
+  if (isTRUE(display) &&
+    (base::interactive() || isTRUE(base::getOption("knitr.in.progress", FALSE)))) {
+    for (idx in base::seq_along(page_labels)) {
+      draw_page_fun(idx, page_labels[[idx]])
+    }
+  }
+
   list(
     pdf = pdf_file,
     png = png_files
@@ -270,4 +282,73 @@
       .hc_display_object(plot)
     }
   )
+}
+
+# Save a ggplot to both a (cairo) PDF and a PNG companion in one call.
+#
+# Drop-in replacement for `ggplot2::ggsave(filename = "...pdf", ...)`: the PDF
+# is written with `cairo_pdf` (matching the rest of the package) and a PNG of
+# the same dimensions is written next to it at `res` dpi. Extra `...` arguments
+# are forwarded to both saves; any `device` is ignored (PDF forces cairo_pdf,
+# PNG infers from the `.png` extension). The PNG failing only warns, so a PDF is
+# still produced.
+.hc_ggsave_pdf_png <- function(filename,
+                               plot,
+                               width,
+                               height,
+                               units = "in",
+                               res = 300,
+                               ...) {
+  if (!base::is.character(filename) || base::length(filename) != 1 || !base::nzchar(filename)) {
+    stop("`filename` must be a non-empty file path.")
+  }
+  dots <- base::list(...)
+  dots[["device"]] <- NULL
+  if (!base::is.null(dots[["dpi"]])) {
+    res <- dots[["dpi"]]
+    dots[["dpi"]] <- NULL
+  }
+
+  pdf_file <- .hc_export_path_with_ext(filename, "pdf")
+  png_file <- .hc_export_path_with_ext(filename, "png")
+
+  pdf_args <- base::c(
+    base::list(
+      filename = pdf_file,
+      plot = plot,
+      width = width,
+      height = height,
+      units = units,
+      device = grDevices::cairo_pdf
+    ),
+    dots
+  )
+  base::do.call(ggplot2::ggsave, pdf_args)
+
+  png_args <- base::c(
+    base::list(
+      filename = png_file,
+      plot = plot,
+      width = width,
+      height = height,
+      units = units,
+      dpi = res
+    ),
+    dots
+  )
+  if (base::is.null(png_args[["bg"]])) {
+    png_args[["bg"]] <- "white"
+  }
+  tryCatch(
+    base::do.call(ggplot2::ggsave, png_args),
+    error = function(e) {
+      base::warning(
+        "Could not write PNG companion ", png_file, ": ",
+        base::conditionMessage(e),
+        call. = FALSE
+      )
+    }
+  )
+
+  base::invisible(base::list(pdf = pdf_file, png = png_file))
 }

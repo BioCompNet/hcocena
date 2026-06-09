@@ -381,88 +381,88 @@ hc <- hc_plot_cluster_heatmap(
 
 <!-- ## AI-assisted module interpretation {#sat-llm} -->
 
-Purpose: summarize module biology using Gemini, OpenAI, or vLLM.
+Purpose: summarize module biology with an LLM. One generic function,
+`hc_module_function_llm()`, drives every provider — pick the model via
+`provider`/`model`, give `base_url` for a local server, and `api_key` when needed.
 
 Key parameters:
 - `module`: one label (e.g. `"M1"`) or `"all"`.
 - `biological_context`: study context to guide interpretation.
 - `system_instruction`: prompt constraints.
-- Provider/model params:
-  `llm`, `gemini_model`, `openai_model`, `vllm_model`, `vllm_base_url`.
+- `provider`: `"gemini"`, `"claude"`, `"openai"`, or `"vllm"` (local server).
+- `model` / `base_url` / `api_key`: model code, local endpoint, API key.
+
+List the models each provider currently offers:
+
+```{r eval=FALSE, message=TRUE, warning=FALSE}
+hc_list_llm_models(c("gemini", "openai", "claude"))
+hc_list_llm_models("vllm", base_url = "http://bn-hl-compute-8mi210-03.dzne.de:8000/v1")
+```
 
 ```{r eval=FALSE, fig.width=13, fig.height=10, out.width="100%", message=TRUE, warning=FALSE}
 biological_context <- "maturation of monocytes in preterm infants over the first year of life"
-gemini_api_key <- Sys.getenv("GEMINI_API_KEY")
-openai_api_key <- Sys.getenv("OPENAI_API_KEY")
+
+gemini_api_key    <- Sys.getenv("GEMINI_API_KEY")
+openai_api_key    <- Sys.getenv("OPENAI_API_KEY")
 anthropic_api_key <- Sys.getenv("ANTHROPIC_API_KEY")
 
-system_instruction <- paste("You are an expert transcriptomics analyst.",  "Task: Infer the overarching biological program from the provided list of co-expressed genes.",  "Use the provided biological context to inform your interpretation and synthesize it into a precise biological description.",  "For the 'contextual_state' field, strictly describe the specific cellular or transcriptional state.",  "Constraint 1: Start your descriptions directly with the relevant nouns or biological terms. Completely omit filler phrases like 'this module' or 'the genes'.",  "Constraint 2: Formulate your answer as a direct biological interpretation based on the supplied genes, without claiming any statistical enrichment tests.",  "Output: Return ONLY a valid JSON object matching the requested schema. Do not output markdown formatting, code blocks, or any conversational text.")
-
-hc <- hc_module_function_llm(
-  hc,
-  module = "M1",
-  biological_context = biological_context,
-  system_instruction = system_instruction,
-  llm = "gemini",
-  gemini_model = "gemini-3.1-pro-preview",
-  api_key = gemini_api_key,
-  timeout_sec = NULL,
-  pause_sec = NULL,
-  continue_on_error = TRUE
+system_instruction <- paste(
+  "You are an expert transcriptomics analyst.",
+  "Task: Infer the overarching biological program from the provided list of co-expressed genes.",
+  "Use the provided biological context to inform your interpretation and synthesize it into a precise biological description.",
+  "For the 'contextual_state' field, strictly describe the specific cellular or transcriptional state.",
+  "Constraint 1: Start your descriptions directly with the relevant nouns or biological terms. Completely omit filler phrases like 'this module' or 'the genes'.",
+  "Constraint 2: Formulate your answer as a direct biological interpretation based on the supplied genes, without claiming any statistical enrichment tests.",
+  "Output: Return ONLY a valid JSON object matching the requested schema. Do not output markdown formatting, code blocks, or any conversational text."
 )
 
-hc <- hc_module_function_llm(
-  hc,
-  module = "all",
-  biological_context = biological_context,
-  system_instruction = system_instruction,
-  llm = "gemini",
-  gemini_model = "gemini-3.1-pro-preview",
-  api_key = gemini_api_key,
-  timeout_sec = NULL,
-  pause_sec = NULL,
-  continue_on_error = TRUE
-)
-# 
-# #Optional providers:
-# hc <- hc_module_function_llm(hc, module = "all", llm = "openai",
-#   openai_model = "gpt-4.1-mini", api_key = openai_api_key)
+## Configure one entry per model: provider + model, plus base_url (for a local
+## server) and api_key where needed. Comment lines in/out to (de)activate models.
+models <- list(
+  gemini = list(provider = "gemini", model = "gemini-3.1-pro-preview",
+                api_key = gemini_api_key),
 
-hc <- hc_module_function_vllm(
-  hc,
-  module = "all",
-  biological_context = biological_context,
-  system_instruction = system_instruction,
-  vllm_model = "/data/qwen3.5-35b-a3b",
-  vllm_base_url = "http://bn-hl-compute-8mi210-03.dzne.de:8000/v1",
-  api_key = "EMPTY",
-  temperature = 0.8,
-  timeout_sec = 600,
-  max_genes = 1250,
-  continue_on_error = TRUE
+  qwen   = list(provider = "vllm",   model = "/data/qwen3.5-35b-a3b",
+                base_url = "http://bn-hl-compute-8mi210-03.dzne.de:8000/v1",
+                api_key  = "EMPTY",
+                temperature = 0.8, timeout_sec = 600, max_genes = 1250),
+
+  claude = list(provider = "claude", model = "claude-opus-4-6",
+                api_key = anthropic_api_key)
+
+  # openai = list(provider = "openai", model = "gpt-4.1-mini",
+  #               api_key = openai_api_key)
 )
 
-hc <- hc_module_function_llm(
-  hc = hc,
-  module = "all",
-  biological_context = biological_context,
-  system_instruction = system_instruction,
-  llm = "claude",
-  claude_model = "claude-sonnet-4-6",
-  api_key = anthropic_api_key,
-  timeout_sec = NULL,
-  pause_sec = NULL,
-  continue_on_error = TRUE
-)
+## One generic call per model; each result is stored in its own satellite slot.
+for (nm in names(models)) {
+  message("== LLM module function: ", nm, " ==")
+  hc <- tryCatch(
+    do.call(hc_module_function_llm, c(
+      list(
+        hc                 = hc,
+        module             = "all",
+        biological_context = biological_context,
+        system_instruction = system_instruction,
+        slot_name          = paste0("llm_module_function_", nm),
+        continue_on_error  = TRUE
+      ),
+      models[[nm]]
+    )),
+    error = function(e) {
+      warning("Skipping '", nm, "': ", conditionMessage(e), call. = FALSE)
+      hc
+    }
+  )
+}
 
-
-
-plots <- hc_plot_module_function_llm(hc)
+## Plot one model's interpretation (slot = llm_module_function_<name>).
+plots <- hc_plot_module_function_llm(hc, slot_name = "llm_module_function_gemini")
 print(plots$general_processes)
 print(plots$contextual_state)
 print(plots$key_regulators)
 
-#View(hc@satellite$llm_module_function_summary)
+# View(hc@satellite$llm_module_function_gemini_summary)
 ```
 
 

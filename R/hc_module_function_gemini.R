@@ -30,6 +30,8 @@
 #' @param label Optional label used for storing the result. Defaults to the
 #'   module name or `"custom_geneset"`. Can only be used for a single module or
 #'   a free gene set.
+#' @param provider Provider-neutral alias for `llm`. When supplied it takes
+#'   precedence over `llm`. Accepts the same values as `llm`.
 #' @param llm LLM provider. Supported values are `"gemini"`, `"claude"`,
 #'   `"anthropic"` (alias for `"claude"`), `"openai"`, `"chatgpt"` (alias for
 #'   `"openai"`), or `"vllm"` for a local OpenAI-compatible vLLM server.
@@ -45,6 +47,9 @@
 #'   Defaults to `"Qwen/Qwen2.5-VL-32B-Instruct"`.
 #' @param vllm_base_url Base URL for the local OpenAI-compatible vLLM server.
 #'   Only used when `llm = "vllm"`. Defaults to `"http://localhost:8000/v1"`.
+#' @param base_url Provider-neutral alias for the local server endpoint. When
+#'   supplied with `llm = "vllm"` it overrides `vllm_base_url`; for cloud
+#'   providers it is ignored (with a warning).
 #' @param model Optional generic model code. Mainly useful for OpenAI, or as a
 #'   provider-agnostic override.
 #' @param max_genes Maximum number of genes sent to the API. Use `Inf` or
@@ -89,12 +94,14 @@ hc_module_function_llm <- function(hc = NULL,
                                    context = NULL,
                                    biological_context = NULL,
                                    label = NULL,
+                                   provider = NULL,
                                    llm = c("gemini", "claude", "openai", "chatgpt", "vllm"),
                                    api_key = NULL,
                                    gemini_model = NULL,
                                    claude_model = NULL,
                                    vllm_model = NULL,
                                    vllm_base_url = NULL,
+                                   base_url = NULL,
                                    model = NULL,
                                    max_genes = Inf,
                                    temperature = 0.2,
@@ -117,6 +124,10 @@ hc_module_function_llm <- function(hc = NULL,
     stop("`hc` must be provided when `save_to_hc = TRUE`.")
   }
 
+  # `provider` is a sprechender alias for `llm`; when supplied it wins.
+  if (!base::is.null(provider) && base::nzchar(base::as.character(provider[[1]]))) {
+    llm <- provider
+  }
   llm <- base::tolower(base::as.character(llm[[1]]))
   if (!(llm %in% c("gemini", "claude", "anthropic", "openai", "chatgpt", "vllm"))) {
     stop("`llm` must be one of `gemini`, `claude`, `anthropic`, `openai`, `chatgpt`, or `vllm`.")
@@ -182,6 +193,19 @@ hc_module_function_llm <- function(hc = NULL,
   }
 
   api_key <- .hc_llm_resolve_api_key(api_key = api_key, llm = llm)
+  # `base_url` is a provider-neutral alias for the local server endpoint; it
+  # currently maps onto the OpenAI-compatible `vllm` provider.
+  if (!base::is.null(base_url) && base::nzchar(base::as.character(base_url[[1]]))) {
+    if (llm == "vllm") {
+      vllm_base_url <- base_url
+    } else {
+      warning(
+        "`base_url` currently applies only to local `vllm` models; ignoring it for provider `",
+        llm, "`.",
+        call. = FALSE
+      )
+    }
+  }
   vllm_base_url <- .hc_llm_resolve_vllm_base_url(vllm_base_url = vllm_base_url, llm = llm)
   timeout_sec <- .hc_llm_resolve_timeout(
     timeout_sec = timeout_sec,

@@ -268,6 +268,7 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5) {
     page_labels = page_labels,
     width = 15,
     height = 8,
+    display = TRUE,
     draw_page_fun = function(page_idx, page_label) {
       module_idx <- ((page_idx - 1L) %/% 2L) + 1L
       if ((page_idx %% 2L) == 1L) {

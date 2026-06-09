@@ -2461,7 +2461,7 @@ hc_plot_longitudinal_module_means <- function(hc,
     } else {
       as.numeric(save_height[[1]])
     }
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, ".pdf")),
       plot = p_mod,
       width = w,
@@ -2708,7 +2708,7 @@ hc_plot_longitudinal_module_clusters <- function(hc,
     }
     w_heat <- if (is.null(save_heatmap_width)) 13 else as.numeric(save_heatmap_width[[1]])
     h_heat <- if (is.null(save_heatmap_height)) 6.5 else as.numeric(save_heatmap_height[[1]])
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, "_Waves.pdf")),
       plot = p_waves,
       width = w_waves,
@@ -2716,7 +2716,7 @@ hc_plot_longitudinal_module_clusters <- function(hc,
       units = "in",
       device = grDevices::cairo_pdf
     )
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, "_Heatmap.pdf")),
       plot = p_heat,
       width = w_heat,
@@ -2933,7 +2933,7 @@ hc_plot_longitudinal_endotypes <- function(hc,
   if (isTRUE(save_pdf)) {
     out_dir <- .hc_resolve_output_dir(hc)
 
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, "_PCA.pdf")),
       plot = p_pca,
       width = pca_width,
@@ -2941,7 +2941,7 @@ hc_plot_longitudinal_endotypes <- function(hc,
       units = "in",
       device = grDevices::cairo_pdf
     )
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, "_ModuleWaves.pdf")),
       plot = p_waves,
       width = waves_width,
@@ -3636,7 +3636,7 @@ hc_plot_longitudinal_k_criterion <- function(hc,
 
   if (isTRUE(save_pdf)) {
     out_dir <- .hc_resolve_output_dir(hc)
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, "_Global.pdf")),
       plot = p_global,
       width = 7,
@@ -3644,7 +3644,7 @@ hc_plot_longitudinal_k_criterion <- function(hc,
       units = "in",
       device = grDevices::cairo_pdf
     )
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, "_Modules.pdf")),
       plot = p_module,
       width = 12,
@@ -3779,7 +3779,7 @@ hc_plot_longitudinal_cap <- function(hc,
 
   if (isTRUE(save_pdf)) {
     out_dir <- .hc_resolve_output_dir(hc)
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, "_Heatmap.pdf")),
       plot = p_cap,
       width = 13,
@@ -4072,7 +4072,7 @@ hc_plot_longitudinal_meta_embeddings <- function(hc,
   }
 
   if (isTRUE(save_pdf)) {
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, "_PCA.pdf")),
       plot = p_pca,
       width = 7,
@@ -4081,7 +4081,7 @@ hc_plot_longitudinal_meta_embeddings <- function(hc,
       device = grDevices::cairo_pdf
     )
     if (!is.null(p_umap)) {
-      ggplot2::ggsave(
+      .hc_ggsave_pdf_png(
         filename = base::file.path(out_dir, base::paste0(file_prefix, "_UMAP.pdf")),
         plot = p_umap,
         width = 7,
@@ -4091,7 +4091,7 @@ hc_plot_longitudinal_meta_embeddings <- function(hc,
       )
     }
     if (!is.null(p_cross)) {
-      ggplot2::ggsave(
+      .hc_ggsave_pdf_png(
         filename = base::file.path(out_dir, base::paste0(file_prefix, "_CrossTab.pdf")),
         plot = p_cross,
         width = 6.5,
@@ -4388,7 +4388,7 @@ hc_plot_longitudinal_meta_consensus <- function(hc,
   }
 
   if (isTRUE(save_pdf)) {
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, "_Matrix.pdf")),
       plot = p_heat,
       width = 7.5,
@@ -4397,7 +4397,7 @@ hc_plot_longitudinal_meta_consensus <- function(hc,
       device = grDevices::cairo_pdf
     )
     if (!is.null(p_k)) {
-      ggplot2::ggsave(
+      .hc_ggsave_pdf_png(
         filename = base::file.path(out_dir, base::paste0(file_prefix, "_KDiagnostics.pdf")),
         plot = p_k,
         width = 7.2,
@@ -4407,7 +4407,7 @@ hc_plot_longitudinal_meta_consensus <- function(hc,
       )
     }
     if (!is.null(p_stability)) {
-      ggplot2::ggsave(
+      .hc_ggsave_pdf_png(
         filename = base::file.path(out_dir, base::paste0(file_prefix, "_Stability.pdf")),
         plot = p_stability,
         width = 6.4,
@@ -4636,7 +4636,7 @@ hc_plot_longitudinal_meta_module_waves <- function(hc,
     } else {
       as.numeric(save_height[[1]])
     }
-    ggplot2::ggsave(
+    .hc_ggsave_pdf_png(
       filename = base::file.path(out_dir, base::paste0(file_prefix, ".pdf")),
       plot = p,
       width = w,
@@ -5716,7 +5716,7 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
 
     if (isTRUE(save_pdf)) {
       out_dir <- .hc_resolve_output_dir(hc)
-      ggplot2::ggsave(
+      .hc_ggsave_pdf_png(
         filename = base::file.path(out_dir, base::paste0(file_prefix, "_", db_token, ".pdf")),
         plot = p,
         width = save_width,
@@ -6517,7 +6517,7 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
 
     if (isTRUE(save_pdf)) {
       out_dir <- .hc_resolve_output_dir(hc)
-      ggplot2::ggsave(
+      .hc_ggsave_pdf_png(
         filename = base::file.path(out_dir, base::paste0(file_prefix, "_", db_token, ".pdf")),
         plot = p,
         width = save_width,

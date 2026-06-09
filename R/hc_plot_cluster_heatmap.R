@@ -692,7 +692,12 @@ plot_cluster_heatmap <- function(col_order = NULL,
       min_visible_font_pt = min_visible_font_pt,
       minimum_sizing_label = minimum_sizing_label,
       border_col = border_col,
-      border_lwd = border_lwd
+      border_lwd = border_lwd,
+      # `AnnotationFunction(var_import = ...)` re-homes `draw_fun` into an
+      # isolated environment whose parent is not the hcocena namespace, so the
+      # internal label-sizing helper must be imported explicitly or it cannot be
+      # found at draw time.
+      .hc_module_label_text_width_cm = .hc_module_label_text_width_cm
     )
   )
 }
@@ -2976,6 +2981,63 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
   )
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_map"), module_label_map)
   .hc_set_bridge_hcobject_slot(c("satellite_outputs", "module_gene_list"), module_gene_list_tbl)
+
+  # Mean-GFC-per-module-and-group table: the numeric values behind the heatmap
+  # cells (rows = modules, columns = sample groups). `mat_heatmap` is keyed by
+  # cluster colour, so relabel rows with the displayed module labels and keep the
+  # colour as a reference column.
+  module_gfc_means_tbl <- tryCatch(
+    {
+      ordered_colors <- base::as.character(row_order)
+      ordered_colors <- ordered_colors[ordered_colors %in% base::rownames(mat_heatmap)]
+      ordered_colors <- base::c(
+        ordered_colors,
+        base::setdiff(base::rownames(mat_heatmap), ordered_colors)
+      )
+      gfc_means_mat <- mat_heatmap[ordered_colors, , drop = FALSE]
+      row_labels <- base::as.character(module_export_map[ordered_colors])
+      missing_lab <- base::is.na(row_labels) | !base::nzchar(row_labels)
+      row_labels[missing_lab] <- ordered_colors[missing_lab]
+      base::data.frame(
+        module = row_labels,
+        cluster_color = ordered_colors,
+        base::as.data.frame(gfc_means_mat, check.names = FALSE, stringsAsFactors = FALSE),
+        check.names = FALSE,
+        stringsAsFactors = FALSE,
+        row.names = NULL
+      )
+    },
+    error = function(e) {
+      base::warning(
+        "Could not build module GFC means table: ",
+        base::conditionMessage(e),
+        call. = FALSE
+      )
+      NULL
+    }
+  )
+  if (!base::is.null(module_gfc_means_tbl)) {
+    module_gfc_means_file <- base::paste0(
+      hcobject[["working_directory"]][["dir_output"]],
+      hcobject[["global_settings"]][["save_folder"]],
+      "/Module_GFC_Means.xlsx"
+    )
+    tryCatch(
+      openxlsx::write.xlsx(
+        x = base::list(module_gfc_means = module_gfc_means_tbl),
+        file = module_gfc_means_file,
+        overwrite = TRUE
+      ),
+      error = function(e) {
+        base::warning(
+          "Could not write Module_GFC_Means.xlsx: ",
+          base::conditionMessage(e)
+        )
+      }
+    )
+    .hc_set_bridge_hcobject_slot(c("satellite_outputs", "module_gfc_means"), module_gfc_means_tbl)
+  }
+
   module_label_fit_pt <- .hc_as_numeric_safely(module_label_fit$pt_size)
   module_label_fit_base_pt <- .hc_as_numeric_safely(module_label_fit$base_pt_size)
   module_label_fit_pt <- module_label_fit_pt[base::is.finite(module_label_fit_pt)]

@@ -3493,24 +3493,26 @@ hub_node_detection <- function(cluster, top, save, tree_layout, TF_only, plot) {
     return(hub_out)
   }
 
-  # vertex size (5 for hub, 3 for non-hub):
-  vertex_size <- base::lapply(igraph::V(g)$name, function(node) {
-    if (node %in% hub_out$hub_nodes) {
-      5
-    } else {
-      3
-    }
-  }) %>% base::unlist()
+  # vertex size: non-hubs small & uniform, hubs scaled by their combined
+  # centrality rank so the strongest hub reads as the largest node.
+  rank_lookup <- stats::setNames(hub_out$rank_df$sum, hub_out$rank_df$node)
+  hub_sums <- rank_lookup[hub_out$hub_nodes]
+  hub_sizes <- if (base::length(hub_sums) > 0 &&
+    base::diff(base::range(hub_sums, na.rm = TRUE)) > 0) {
+    scales::rescale(hub_sums, to = base::c(6, 14))
+  } else {
+    base::rep(9, base::length(hub_sums))
+  }
+  base::names(hub_sizes) <- hub_out$hub_nodes
+  vertex_size <- base::vapply(igraph::V(g)$name, function(node) {
+    if (node %in% hub_out$hub_nodes) hub_sizes[[node]] else 2.5
+  }, FUN.VALUE = base::numeric(1))
 
   # layout:
   if (cluster == "all") {
     l <- hcobject[["integrated_output"]][["cluster_calc"]][["layout"]]
   } else {
-    if (tree_layout) {
-      l <- igraph::layout_as_tree(g)
-    } else {
-      l <- igraph::layout.lgl(g) # issues with >1 graph components?
-    }
+    l <- .hc_hub_network_layout(g, tree_layout = tree_layout)
     base::rownames(l) <- igraph::V(g)$name
   }
 
@@ -3519,17 +3521,43 @@ hub_node_detection <- function(cluster, top, save, tree_layout, TF_only, plot) {
   igraph::V(g)$size <- vertex_size
   igraph::V(g)$label <- NA
   igraph::V(g)$color <- hub_out$colour_df$colour
-  # plot network:
-  network_with_labels(
-    network = g,
-    gene_labels = hub_out$hub_nodes,
-    gene_ranks = base::seq_along(hub_out$hub_nodes),
-    l = l,
-    label_offset = 10,
-    title = base::c(cluster, top),
-    save = save,
-    plot = plot
-  )
+  # fade the non-hub background so the (fully opaque) hub nodes stand out.
+  is_hub <- igraph::V(g)$name %in% hub_out$hub_nodes
+  if (base::any(!is_hub)) {
+    igraph::V(g)$color[!is_hub] <- grDevices::adjustcolor(
+      igraph::V(g)$color[!is_hub],
+      alpha.f = 0.5
+    )
+  }
+  # plot network: modern ggplot2 style by default, with a graceful fallback to
+  # the classic base-graphics renderer when ggrepel is unavailable or the user
+  # opts out via options(hcocena.hub_network_style = "classic").
+  use_modern <- !base::identical(
+    base::getOption("hcocena.hub_network_style", "modern"), "classic"
+  ) && .hc_has_modern_hub_plot_deps()
+  if (use_modern) {
+    .hc_hub_network_modern_plot(
+      network = g,
+      hub_nodes = hub_out$hub_nodes,
+      gene_ranks = base::seq_along(hub_out$hub_nodes),
+      layout = l,
+      centrality = stats::setNames(hub_out$rank_df$sum, hub_out$rank_df$node),
+      title = base::c(cluster, top),
+      save = save,
+      plot = plot
+    )
+  } else {
+    network_with_labels(
+      network = g,
+      gene_labels = hub_out$hub_nodes,
+      gene_ranks = base::seq_along(hub_out$hub_nodes),
+      l = l,
+      label_offset = 10,
+      title = base::c(cluster, top),
+      save = save,
+      plot = plot
+    )
+  }
 
 
   return(hub_out)
@@ -3661,6 +3689,65 @@ combined_centrality <- function(network) {
 }
 
 
+#' Hub Network Layout
+#'
+#' Layout for the per-cluster hub networks. Prefers graphlayouts' stress layout
+#' (deterministic, cleanly separates components, avoids the hairball/cutoff
+#' issues of `layout.lgl`), falling back to a weighted Fruchterman-Reingold and
+#' finally `layout.lgl` so behaviour degrades gracefully when graphlayouts is
+#' unavailable or a layout cannot be computed.
+#' @noRd
+
+.hc_hub_network_layout <- function(g, tree_layout = FALSE) {
+  if (base::isTRUE(tree_layout)) {
+    return(igraph::layout_as_tree(g))
+  }
+  weights <- .hc_graph_edge_weights(g)
+  l <- .hc_with_seed(1L, tryCatch(
+    {
+      if (base::requireNamespace("graphlayouts", quietly = TRUE)) {
+        graphlayouts::layout_with_stress(g)
+      } else {
+        igraph::layout_with_fr(g, weights = weights)
+      }
+    },
+    error = function(e) NULL
+  ))
+  if (base::is.null(l) || !base::is.matrix(l) || base::nrow(l) != igraph::vcount(g)) {
+    l <- igraph::layout.lgl(g)
+  }
+  l
+}
+
+
+#' Rescale A Network Layout To A Stable Coordinate Range
+#'
+#' Maps layout coordinates into a `[0, target]` box while preserving the aspect
+#' ratio (the larger of the two spans is scaled to `target`). This decouples
+#' downstream label placement -- which uses an absolute offset -- from the
+#' native coordinate scale of the layout backend, so stress/FR layouts are no
+#' longer squished into a thin strip the way a fixed offset against their small
+#' coordinate range would cause.
+#' @noRd
+
+.hc_rescale_layout <- function(l, target = 100) {
+  l <- base::as.matrix(l)
+  if (base::nrow(l) == 0) {
+    return(l)
+  }
+  rng_x <- base::range(l[, 1], na.rm = TRUE)
+  rng_y <- base::range(l[, 2], na.rm = TRUE)
+  span <- base::max(base::diff(rng_x), base::diff(rng_y))
+  if (!base::is.finite(span) || span <= 0) {
+    return(l)
+  }
+  scale <- target / span
+  l[, 1] <- (l[, 1] - rng_x[1]) * scale
+  l[, 2] <- (l[, 2] - rng_y[1]) * scale
+  l
+}
+
+
 #' Weighted Degree Centrality
 #'
 #' Caclulates the weighted degree centrality of a node. Modified to be weighted from https://doi.org/10.1155/2019/9728742.
@@ -3756,7 +3843,7 @@ weighted_BC <- function(network) {
 #' @noRd
 
 centrality_colours <- function(rank_df, network) {
-  mypalette <- grDevices::colorRampPalette(base::c("#FFF7EC", "#FC8D59", "#7F0000"))
+  mypalette <- grDevices::colorRampPalette(base::c("#FEE8C8", "#FC8D59", "#B30000"))
   colour_df <- base::data.frame(
     sum = rank_df$sum,
     id = rank_df$id,
@@ -3764,6 +3851,122 @@ centrality_colours <- function(rank_df, network) {
   )
   colour_df <- colour_df[base::match(igraph::V(network), colour_df$id), ]
   return(colour_df)
+}
+
+
+#' Modern Hub-Network Renderer Dependencies
+#'
+#' TRUE when the optional packages for the ggplot2 hub-network style are present.
+#' @noRd
+
+.hc_has_modern_hub_plot_deps <- function() {
+  base::requireNamespace("ggplot2", quietly = TRUE) &&
+    base::requireNamespace("ggrepel", quietly = TRUE)
+}
+
+
+#' Plot A Hub Network (Modern ggplot2 Style)
+#'
+#' Renders the per-cluster hub network as a clean ggplot2 figure: the full
+#' network sits faintly in the background, the hub genes are drawn as bright
+#' nodes sized and coloured by their combined centrality, and only the hubs are
+#' labelled (directly at the node, with a white halo and short repelled
+#' connectors via ggrepel). `coord_equal()` keeps the network undistorted.
+#' Falls back to [network_with_labels()] is handled by the caller.
+#' @noRd
+
+.hc_hub_network_modern_plot <- function(network,
+                                        hub_nodes,
+                                        gene_ranks,
+                                        layout,
+                                        centrality,
+                                        title,
+                                        save,
+                                        plot,
+                                        label_fontsize = 3.6,
+                                        node_size_range = base::c(3, 8)) {
+  plot_title <- base::paste0("cluster '", title[1], "' hub genes [top ", title[2], "]")
+
+  node_names <- igraph::V(network)$name
+  coords <- base::as.matrix(layout)
+  if (!base::is.null(base::rownames(coords)) &&
+    base::all(node_names %in% base::rownames(coords))) {
+    coords <- coords[node_names, , drop = FALSE]
+  }
+
+  is_hub <- node_names %in% hub_nodes
+  nodes_df <- base::data.frame(
+    x = coords[, 1],
+    y = coords[, 2],
+    cent = base::as.numeric(centrality[node_names]),
+    is_hub = is_hub,
+    label = node_names,
+    stringsAsFactors = FALSE
+  )
+  hubs_df <- nodes_df[nodes_df$is_hub, , drop = FALSE]
+  bg_df <- nodes_df[!nodes_df$is_hub, , drop = FALSE]
+
+  el <- igraph::as_edgelist(network, names = FALSE)
+  edges_df <- if (base::nrow(el) > 0) {
+    base::data.frame(
+      x = coords[el[, 1], 1], y = coords[el[, 1], 2],
+      xend = coords[el[, 2], 1], yend = coords[el[, 2], 2]
+    )
+  } else {
+    base::data.frame(x = base::numeric(0), y = base::numeric(0),
+      xend = base::numeric(0), yend = base::numeric(0))
+  }
+
+  p <- ggplot2::ggplot()
+  if (base::nrow(edges_df) > 0) {
+    p <- p + ggplot2::geom_segment(
+      data = edges_df,
+      ggplot2::aes(x = x, y = y, xend = xend, yend = yend),
+      colour = "grey80", alpha = 0.18, linewidth = 0.15
+    )
+  }
+  if (base::nrow(bg_df) > 0) {
+    p <- p + ggplot2::geom_point(
+      data = bg_df, ggplot2::aes(x = x, y = y),
+      colour = "grey75", alpha = 0.45, size = 0.9
+    )
+  }
+  p <- p +
+    ggplot2::geom_point(
+      data = hubs_df,
+      ggplot2::aes(x = x, y = y, fill = cent, size = cent),
+      shape = 21, colour = "white", stroke = 0.9
+    ) +
+    ggplot2::scale_fill_viridis_c(option = "rocket", direction = -1, end = 0.92, name = "centrality") +
+    ggplot2::scale_size(range = node_size_range, guide = "none") +
+    ggrepel::geom_text_repel(
+      data = hubs_df,
+      ggplot2::aes(x = x, y = y, label = label),
+      fontface = "bold", size = label_fontsize, colour = "grey15",
+      bg.color = "white", bg.r = 0.18,
+      box.padding = 0.6, point.padding = 0.3, min.segment.length = 0,
+      segment.colour = "grey55", segment.size = 0.3,
+      max.overlaps = Inf, seed = 7
+    ) +
+    ggplot2::coord_equal(clip = "off") +
+    ggplot2::labs(title = plot_title) +
+    ggplot2::theme_void(base_size = 13) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 15),
+      plot.margin = ggplot2::margin(12, 18, 12, 18),
+      legend.position = "right"
+    )
+
+  if (isTRUE(save)) {
+    .hc_ggsave_pdf_png(
+      filename = .hc_output_file(base::paste0("Hub_genes_", title[1], "_module_network.pdf")),
+      plot = p, width = 10, height = 9, bg = "white"
+    )
+  }
+  if (isTRUE(plot)) {
+    base::print(p)
+  }
+  base::invisible(p)
 }
 
 
@@ -3775,12 +3978,23 @@ centrality_colours <- function(rank_df, network) {
 network_with_labels <- function(network, gene_labels, gene_ranks, l, label_offset, title, save, plot) {
   plot_title <- base::paste0("cluster '", title[1], "' hub genes [top ", title[2], "]")
 
+  # Normalise the layout to a stable coordinate scale and derive the side-label
+  # offset from the node spread. A fixed absolute offset squished small-scale
+  # layouts (stress/FR) into a thin vertical strip because it dwarfed the actual
+  # network extent; a proportional offset keeps a sensible aspect ratio for any
+  # layout backend.
+  l <- .hc_rescale_layout(l)
+  label_offset <- 0.55 * base::diff(base::range(l[, 1]))
+
   new_genes_df <- base::data.frame(name = base::paste0("label_", base::seq_along(gene_labels)), label = gene_labels %>% base::as.character())
-  mean_coord_x <- stats::median(l[, 1])
-  mean_coord_y <- stats::median(l[, 2])
   new_indeces <- base::match(new_genes_df$label, igraph::get.vertex.attribute(network)$name)
   new_genes_df$coords_x <- l[new_indeces, 1]
   new_genes_df$coords_y <- l[new_indeces, 2]
+  # Split the labels into the left/right (and up/down) columns around the median
+  # of the *hub* positions instead of all nodes, so the two columns stay roughly
+  # balanced even when the hubs cluster on one side of the layout.
+  mean_coord_x <- stats::median(new_genes_df$coords_x, na.rm = TRUE)
+  mean_coord_y <- stats::median(new_genes_df$coords_y, na.rm = TRUE)
   left_up <- dplyr::filter(new_genes_df, coords_x <= mean_coord_x & coords_y >= mean_coord_y) %>% dplyr::pull(., label)
   left_down <- dplyr::filter(new_genes_df, coords_x <= mean_coord_x & coords_y < mean_coord_y) %>% dplyr::pull(., label)
   right_up <- dplyr::filter(new_genes_df, coords_x > mean_coord_x & coords_y >= mean_coord_y) %>% dplyr::pull(., label)
@@ -3853,6 +4067,21 @@ network_with_labels <- function(network, gene_labels, gene_ranks, l, label_offse
     }
   })
 
+  # edge aesthetics: thin straight leader lines to the labels, co-expression
+  # edges scaled by weight and gently curved to reduce overplotting.
+  el <- igraph::get.edgelist(network2)
+  is_leader_edge <- el[, 2] %in% base::as.character(new_genes_df$name)
+  edge_weights <- .hc_graph_edge_weights(network2, default = NA_real_)
+  net_w <- edge_weights[!is_leader_edge]
+  new_edge_width <- base::rep(0.6, base::nrow(el))
+  if (base::any(!is_leader_edge) &&
+    base::diff(base::range(net_w, na.rm = TRUE)) > 0) {
+    new_edge_width[!is_leader_edge] <- scales::rescale(net_w, to = base::c(0.3, 2.2))
+  } else if (base::any(!is_leader_edge)) {
+    new_edge_width[!is_leader_edge] <- 0.8
+  }
+  new_edge_curved <- base::ifelse(is_leader_edge, 0, 0.12)
+
   vertex_shape <- base::lapply(igraph::V(network2)$name, function(x) {
     if (x %in% igraph::V(network)$name) {
       "circle"
@@ -3885,6 +4114,42 @@ network_with_labels <- function(network, gene_labels, gene_ranks, l, label_offse
       0
     }
   }) %>% base::unlist()
+
+  # outline the hub nodes (the labelled genes) so they stand out from the faded
+  # background; leave the rest borderless to avoid speckling dense networks.
+  is_hub_node <- igraph::V(network2)$name %in% base::as.character(gene_labels)
+  vertex_frame_color <- base::ifelse(is_hub_node, "black", NA)
+
+  # Normalise l2 into a centred square and plot with rescale = FALSE / asp = 1.
+  # igraph's default per-axis rescale stretches each axis to [-1, 1]
+  # independently; because the side labels widen only the x-range, that made
+  # the network render roughly twice as tall as wide. Scaling both axes by the
+  # same factor preserves the network's true aspect ratio.
+  # Centre the frame on the network-node centroid (not the bounding-box midpoint)
+  # so the dense core sits in the middle and a few peripheral nodes no longer pull
+  # the composition off to one side. Scale both axes by the same factor to keep
+  # the network undistorted (plotted with rescale = FALSE / asp = 1 below).
+  net_rows <- base::seq_len(igraph::vcount(network))
+  l2_cx <- stats::median(l2[net_rows, 1], na.rm = TRUE)
+  l2_cy <- stats::median(l2[net_rows, 2], na.rm = TRUE)
+  l2_scale <- base::max(base::diff(base::range(l2[, 1])), base::diff(base::range(l2[, 2]))) / 2
+  if (base::is.finite(l2_scale) && l2_scale > 0) {
+    l2[, 1] <- (l2[, 1] - l2_cx) / l2_scale
+    l2[, 2] <- (l2[, 2] - l2_cy) / l2_scale
+  }
+  # window reaches the farthest label on each axis (extra horizontal room for the
+  # label text) so nothing is clipped while the core stays centred.
+  x_reach <- base::max(base::abs(l2[, 1]), na.rm = TRUE)
+  y_reach <- base::max(base::abs(l2[, 2]), na.rm = TRUE)
+  plot_xlim <- base::c(-x_reach, x_reach) * 1.18
+  plot_ylim <- base::c(-y_reach, y_reach) * 1.08
+  if (!base::all(base::is.finite(plot_xlim)) || base::diff(plot_xlim) <= 0) {
+    plot_xlim <- base::c(-1.2, 1.2)
+  }
+  if (!base::all(base::is.finite(plot_ylim)) || base::diff(plot_ylim) <= 0) {
+    plot_ylim <- base::c(-1.2, 1.2)
+  }
+
   if (save == TRUE) {
     .hc_export_single_page_plot(
       file = .hc_output_file(base::paste0("Hub_genes_", title[1], "_module_network.pdf")),
@@ -3897,9 +4162,16 @@ network_with_labels <- function(network, gene_labels, gene_ranks, l, label_offse
           vertex.label = new_labels,
           vertex.label.cex = 1.5,
           layout = l2,
+          rescale = FALSE,
+          xlim = plot_xlim,
+          ylim = plot_ylim,
+          asp = 1,
           vertex.label.dist = 1,
           vertex.shape = vertex_shape,
+          vertex.frame.color = vertex_frame_color,
           edge.color = new_edge_color,
+          edge.width = new_edge_width,
+          edge.curved = new_edge_curved,
           vertex.label.color = new_label_color
         )
         graphics::title(plot_title, cex.main = 3)
@@ -3910,7 +4182,10 @@ network_with_labels <- function(network, gene_labels, gene_ranks, l, label_offse
     igraph::plot.igraph(network2,
       vertex.size = vertex_size, vertex.label = new_labels, vertex.label.cex = 0.75,
       layout = l2, main = plot_title, vertex.label.dist = 1, vertex.shape = vertex_shape,
-      edge.color = new_edge_color, vertex.label.color = new_label_color
+      rescale = FALSE, xlim = plot_xlim, ylim = plot_ylim, asp = 1,
+      vertex.frame.color = vertex_frame_color, edge.color = new_edge_color,
+      edge.width = new_edge_width, edge.curved = new_edge_curved,
+      vertex.label.color = new_label_color
     )
   }
 }

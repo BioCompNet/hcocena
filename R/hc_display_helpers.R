@@ -73,7 +73,18 @@
     return(base::invisible(x))
   }
 
+  if (inherits(x, "hc_llm_heatmap_plot")) {
+    print(x)
+    return(base::invisible(x))
+  }
+
   if (inherits(x, "gtable")) {
+    grid::grid.newpage()
+    grid::grid.draw(x)
+    return(base::invisible(x))
+  }
+
+  if (inherits(x, "grob")) {
     grid::grid.newpage()
     grid::grid.draw(x)
     return(base::invisible(x))

@@ -1595,6 +1595,51 @@ test_that("split_modules resolves numeric inputs by current heatmap row order", 
 })
 
 
+test_that("split_modules maps resolution values per requested module", {
+  resolution_fun <- get(".hc_split_resolution_by_module", asNamespace("hcocena"))
+  target_colors <- c("blue", "red", "green", "gold")
+  resolved_labels <- c("M2", "M3", "M4", "M8")
+  resolution_table <- data.frame(
+    input = resolved_labels,
+    resolved_color = target_colors,
+    resolved_label = resolved_labels,
+    status = "ok",
+    stringsAsFactors = FALSE
+  )
+
+  expect_equal(
+    resolution_fun(0.8, target_colors, resolved_labels, resolution_table),
+    stats::setNames(rep(0.8, 4), target_colors)
+  )
+  expect_equal(
+    resolution_fun(c(0.8, 0.8, 0.9, 0.3), target_colors, resolved_labels, resolution_table),
+    stats::setNames(c(0.8, 0.8, 0.9, 0.3), target_colors)
+  )
+  expect_equal(
+    resolution_fun(
+      c(M2 = 0.8, M3 = 0.8, green = 0.9, M8 = 0.3),
+      target_colors,
+      resolved_labels,
+      resolution_table
+    ),
+    stats::setNames(c(0.8, 0.8, 0.9, 0.3), target_colors)
+  )
+
+  expect_error(
+    resolution_fun(c(0.8, 0.9), target_colors, resolved_labels, resolution_table),
+    "one value per resolved module"
+  )
+  expect_error(
+    resolution_fun(c(M2 = 0.8, M9 = 0.9), target_colors, resolved_labels, resolution_table),
+    "Unmatched: M9"
+  )
+  expect_error(
+    resolution_fun(c(M2 = 0.8, M3 = 0.8), target_colors, resolved_labels, resolution_table),
+    "Missing"
+  )
+})
+
+
 test_that("split_modules normalizes label maps and preserves duplicate GFC columns in children", {
   normalize_fun <- get(".hc_normalize_module_label_map_for_split", asNamespace("hcocena"))
   child_fun <- get(".hc_build_child_cluster_rows", asNamespace("hcocena"))
@@ -2018,6 +2063,28 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
     save = FALSE
   )
   expect_s3_class(p_heat, "hc_llm_heatmap_plot")
+
+  out_dir <- file.path(tempdir(), paste0("hc_llm_heatmap_export_", Sys.getpid()))
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  hc@config@paths <- S4Vectors::DataFrame(dir_output = out_dir)
+  hc@config@global <- S4Vectors::DataFrame(save_folder = "exports")
+  p_heat_export <- llm_plot(
+    hc,
+    fields = "general_processes",
+    save = TRUE,
+    file_stem = "llm_heatmap_test"
+  )
+  heatmap_exports <- attr(p_heat_export, "output_files", exact = TRUE)
+  expect_true(file.exists(heatmap_exports$pdf))
+  expect_true(file.exists(heatmap_exports$png))
+  if (requireNamespace("png", quietly = TRUE)) {
+    read_png <- getExportedValue("png", "readPNG")
+    png_img <- read_png(heatmap_exports$png)
+    rgb_img <- png_img[, , seq_len(min(3L, dim(png_img)[[3L]])), drop = FALSE]
+    expect_gt(stats::sd(as.numeric(rgb_img)), 0.02)
+    expect_gt(mean(rgb_img), 0.1)
+    expect_lt(mean(rgb_img), 0.99)
+  }
 })
 
 
@@ -2052,6 +2119,48 @@ test_that("regression: llm plot export writes pdf and png into configured output
   expect_true(file.exists(export_files$png))
   expect_match(export_files$pdf, "exports")
   expect_match(export_files$pdf, "llm_test_M1_general_processes\\.pdf$")
+
+  if (requireNamespace("png", quietly = TRUE)) {
+    read_png <- getExportedValue("png", "readPNG")
+    png_img <- read_png(export_files$png)
+    rgb_img <- png_img[, , seq_len(min(3L, dim(png_img)[[3L]])), drop = FALSE]
+    border_rgb <- c(
+      as.numeric(rgb_img[1L, , , drop = FALSE]),
+      as.numeric(rgb_img[dim(rgb_img)[[1L]], , , drop = FALSE]),
+      as.numeric(rgb_img[, 1L, , drop = FALSE]),
+      as.numeric(rgb_img[, dim(rgb_img)[[2L]], , drop = FALSE])
+    )
+    expect_gt(mean(border_rgb), 0.85)
+    expect_gt(mean(rgb_img), 0.4)
+  }
+})
+
+
+test_that("regression: llm plot supports RAG comparison fields", {
+  hc <- methods::new("HCoCenaExperiment")
+  hc@satellite <- S4Vectors::SimpleList(list(
+    llm_module_function = list(module_1 = list(status = "ok")),
+    llm_module_function_summary = data.frame(
+      module = "M1",
+      module_color = "steelblue",
+      general_processes = "Interferon signaling",
+      contextual_state = "Context-only state",
+      key_regulators = "STAT1 / IRF7",
+      with_rag_contextual_state = "RAG-supported contextual state",
+      stringsAsFactors = FALSE
+    )
+  ))
+
+  plots <- hcocena::hc_plot_module_function_llm(
+    hc,
+    with_heatmap = FALSE,
+    fields = c("contextual_state", "contextual_state_rag"),
+    save = FALSE
+  )
+
+  expect_named(plots, c("contextual_state", "contextual_state_rag"))
+  expect_true("RAG-supported contextual state" %in% plots$contextual_state_rag$data$term_plot)
+  expect_true("Context-only state" %in% plots$contextual_state$data$term_plot)
 })
 
 
@@ -2480,6 +2589,197 @@ test_that("regression: llm request helpers use ellmer backends", {
   expect_true(grepl("max_tokens = 8000", vllm_src, fixed = TRUE))
   expect_true(grepl("chat_template_kwargs = list", vllm_src, fixed = TRUE))
   expect_true(grepl("enable_thinking = FALSE", vllm_src, fixed = TRUE))
+})
+
+
+test_that("regression: llm RAG mode injects retrieved passages and stores citations", {
+  fun <- get("hc_module_function_llm", asNamespace("hcocena"))
+  default_rag_url <- get(".hc_llm_default_rag_url", asNamespace("hcocena"))
+  withr::local_envvar(HCOCENA_RAG_URL = NA_character_)
+  expect_equal(
+    default_rag_url(),
+    "https://limesbcnr-007901.iaas.uni-bonn.de/api/rag/query"
+  )
+
+  expect_true(all(c(
+    "use_rag",
+    "rag_query",
+    "rag_url",
+    "rag_top_k",
+    "rag_themes",
+    "rag_min_relevance",
+    "rag_connect_timeout_sec",
+    "rag_continue_on_error",
+    "compare_interpretation_levels"
+  ) %in% names(formals(fun))))
+
+  captured_prompts <- character(0)
+  captured_payload <- NULL
+  testthat::local_mocked_bindings(
+    .hc_llm_request_rag = function(query, url, category, top_k, themes, timeout_sec, connect_timeout_sec = NULL) {
+      captured_payload <<- list(
+        query = query,
+        url = url,
+        category = category,
+        top_k = top_k,
+        themes = themes,
+        timeout_sec = timeout_sec,
+        connect_timeout_sec = connect_timeout_sec
+      )
+      list(
+        query = query,
+        answer = "",
+        context = list(
+          list(
+            chunk = "Prenatal and early postnatal life are key periods of immune development.",
+            section = "Introduction",
+            relevance = 0.84,
+            paper = list(
+              title = "Neonatal innate immunity",
+              apa_citation = "Battersby, A. J. (2016). Antimicrobial immunity in early life.",
+              doi = "10.1000/example"
+            )
+          ),
+          list(
+            chunk = "Low relevance passage that should be filtered out.",
+            section = "Results",
+            relevance = 0.2,
+            paper = list(
+              title = "Unrelated paper",
+              apa_citation = "Unrelated, A. (2010). Unrelated.",
+              doi = ""
+            )
+          )
+        ),
+        cited_papers = list(
+          list(
+            title = "Neonatal innate immunity",
+            apa_citation = "Battersby, A. J. (2016). Antimicrobial immunity in early life.",
+            doi = "10.1000/example"
+          )
+        )
+      )
+    },
+    .hc_llm_request_vllm = function(api_key,
+                                    model,
+                                    prompt,
+                                    system_instruction,
+                                    temperature,
+                                    timeout_sec,
+                                    base_url) {
+      captured_prompts <<- c(captured_prompts, prompt)
+      result_text <- if (grepl("Retrieved DoRAG literature context", prompt, fixed = TRUE)) {
+        '{"general_processes":"rag-supported neonatal innate immune development","contextual_state":"literature-supported interferon-high neonatal state","key_regulators":"STAT1 / IRF7"}'
+      } else if (grepl("The biological context is: none provided", prompt, fixed = TRUE)) {
+        '{"general_processes":"gene-only interferon signaling","contextual_state":"interferon-high inflammatory state","key_regulators":"STAT1 / IRF7"}'
+      } else {
+        '{"general_processes":"context-aware neonatal immune development","contextual_state":"neonatal interferon-high immune state","key_regulators":"STAT1 / IRF7"}'
+      }
+      list(result_text = result_text, raw_response_text = result_text)
+    },
+    .package = "hcocena"
+  )
+
+  out <- fun(
+    genes = c("STAT1", "IRF7", "CXCL10"),
+    context = "neonatal immune system development",
+    llm = "vllm",
+    use_rag = TRUE,
+    rag_query = "neonatal immune system development",
+    rag_url = "http://example.test/api/rag/query",
+    rag_top_k = 2,
+    rag_themes = "Innate Immunity",
+    rag_connect_timeout_sec = 45,
+    rag_min_relevance = 0.5,
+    compare_interpretation_levels = TRUE,
+    save_to_hc = FALSE,
+    verbose = FALSE
+  )
+
+  expect_equal(captured_payload$query, "neonatal immune system development")
+  expect_equal(captured_payload$url, "http://example.test/api/rag/query")
+  expect_equal(captured_payload$category, "DoRAG")
+  expect_equal(captured_payload$top_k, 2L)
+  expect_equal(captured_payload$themes, "Innate Immunity")
+  expect_equal(captured_payload$connect_timeout_sec, 45)
+  expect_equal(length(captured_prompts), 3L)
+  expect_true(grepl("The biological context is: none provided", captured_prompts[[1]], fixed = TRUE))
+  expect_false(grepl("neonatal immune system development", captured_prompts[[1]], fixed = TRUE))
+  expect_true(grepl("neonatal immune system development", captured_prompts[[2]], fixed = TRUE))
+  expect_false(grepl("Retrieved DoRAG literature context", captured_prompts[[2]], fixed = TRUE))
+  expect_true(grepl("Retrieved DoRAG literature context", captured_prompts[[3]], fixed = TRUE))
+  expect_true(grepl("Prenatal and early postnatal life", captured_prompts[[3]], fixed = TRUE))
+  expect_false(grepl("Low relevance passage", captured_prompts[[3]], fixed = TRUE))
+
+  expect_equal(out$rag_query, "neonatal immune system development")
+  expect_equal(length(out$rag$context), 1L)
+  expect_true(grepl("Battersby", out$rag_context_text, fixed = TRUE))
+  expect_equal(out$primary_interpretation_level, "with_rag")
+  expect_named(out$interpretation_levels, c("without_context", "with_context", "with_rag"))
+  expect_equal(out$response$general_processes, "rag-supported neonatal innate immune development")
+  expect_equal(
+    out$interpretation_levels$without_context$response$general_processes,
+    "gene-only interferon signaling"
+  )
+  expect_equal(
+    out$interpretation_levels$with_context$response$general_processes,
+    "context-aware neonatal immune development"
+  )
+
+  summary_fun <- get(".hc_llm_summary_from_results", asNamespace("hcocena"))
+  summary_tbl <- summary_fun(list(out), hc = NULL)
+  expect_true(summary_tbl$rag_used[[1]])
+  expect_equal(summary_tbl$rag_context_count[[1]], 1L)
+  expect_true(grepl("Battersby", summary_tbl$rag_citations[[1]], fixed = TRUE))
+  expect_equal(summary_tbl$primary_interpretation_level[[1]], "with_rag")
+  expect_equal(summary_tbl$without_context_general_processes[[1]], "gene-only interferon signaling")
+  expect_equal(summary_tbl$with_context_general_processes[[1]], "context-aware neonatal immune development")
+  expect_equal(summary_tbl$with_rag_general_processes[[1]], "rag-supported neonatal innate immune development")
+})
+
+
+test_that("regression: llm RAG continue-on-error falls back to context interpretation", {
+  fun <- get("hc_module_function_llm", asNamespace("hcocena"))
+  captured_prompts <- character(0)
+
+  testthat::local_mocked_bindings(
+    .hc_llm_request_rag = function(...) {
+      stop("DoRAG retrieval request failed: Timeout was reached", call. = FALSE)
+    },
+    .hc_llm_request_vllm = function(api_key,
+                                    model,
+                                    prompt,
+                                    system_instruction,
+                                    temperature,
+                                    timeout_sec,
+                                    base_url) {
+      captured_prompts <<- c(captured_prompts, prompt)
+      result_text <- if (grepl("The biological context is: none provided", prompt, fixed = TRUE)) {
+        '{"general_processes":"gene-only signal","contextual_state":"gene-only state","key_regulators":"STAT1"}'
+      } else {
+        '{"general_processes":"context-aware signal","contextual_state":"context-aware state","key_regulators":"STAT1 / IRF7"}'
+      }
+      list(result_text = result_text, raw_response_text = result_text)
+    },
+    .package = "hcocena"
+  )
+
+  out <- fun(
+    genes = c("STAT1", "IRF7"),
+    context = "neonatal immune system development",
+    llm = "vllm",
+    use_rag = TRUE,
+    rag_continue_on_error = TRUE,
+    compare_interpretation_levels = TRUE,
+    save_to_hc = FALSE,
+    verbose = FALSE
+  )
+
+  expect_equal(length(captured_prompts), 2L)
+  expect_equal(out$primary_interpretation_level, "with_context")
+  expect_named(out$interpretation_levels, c("without_context", "with_context"))
+  expect_true(grepl("Timeout was reached", out$rag_error_message, fixed = TRUE))
+  expect_equal(out$response$general_processes, "context-aware signal")
 })
 
 

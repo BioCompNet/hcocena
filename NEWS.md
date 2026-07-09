@@ -7,6 +7,16 @@
   gap size control.
 - Switched functional-enrichment defaults to consistent term selection across
   modules and wrappers.
+- Added optional DoRAG retrieval support to `hc_module_function_llm()` so LLM
+  module summaries can be grounded in retrieved passages and stored citations.
+- Added `compare_interpretation_levels = TRUE` for side-by-side LLM
+  interpretations without biological context, with context, and with DoRAG.
+- Added `rag_connect_timeout_sec` and `rag_continue_on_error` to make DoRAG
+  retrieval robust to unreachable or slow RAG servers.
+- Extended `hc_plot_module_function_llm()` to plot RAG comparison fields such
+  as `contextual_state_rag`.
+- Allowed `hc_split_modules()` to use one Leiden `resolution` value per
+  selected module.
 - Clarified that `hc_read_data()` now removes zero-variance genes and drops
   non-numeric helper columns from object-based count inputs, which can shift
   `hc_suggest_topvar()` inflection points slightly compared with older

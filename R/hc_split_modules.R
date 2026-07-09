@@ -21,7 +21,10 @@
 #'  `"cluster_fast_greedy"`, `"cluster_infomap"`, `"cluster_walktrap"`,
 #'  `"cluster_label_prop"` or `"auto"`.
 #' @param no_of_iterations Number of Leiden iterations (used only for Leiden).
-#' @param resolution Leiden resolution (used only for Leiden).
+#' @param resolution Leiden resolution (used only for Leiden). Use either one
+#'  positive value for all selected modules or one positive value per selected
+#'  module in the same order as `modules`. Named vectors may use module labels
+#'  or module colors.
 #' @param resolution_grid Optional numeric vector of candidate resolutions to
 #'  test before splitting. For each candidate, hCoCena reports how many
 #'  submodules would be retained after size filtering.
@@ -61,8 +64,11 @@
   if (!is.numeric(no_of_iterations) || length(no_of_iterations) != 1 || !is.finite(no_of_iterations) || no_of_iterations < 1) {
     stop("`no_of_iterations` must be a positive numeric scalar.")
   }
-  if (!is.numeric(resolution) || length(resolution) != 1 || !is.finite(resolution) || resolution <= 0) {
-    stop("`resolution` must be a positive numeric scalar.")
+  if (!is.numeric(resolution) ||
+    length(resolution) == 0 ||
+    any(!is.finite(resolution)) ||
+    any(resolution <= 0)) {
+    stop("`resolution` must contain positive finite numeric value(s).")
   }
   if (!is.null(resolution_grid) &&
     (!is.numeric(resolution_grid) || length(resolution_grid) == 0 || any(!is.finite(resolution_grid)) || any(resolution_grid <= 0))) {
@@ -189,6 +195,21 @@
       "Use module labels (e.g. M3), module colors, or module indices."
     )
   }
+  resolution_by_module <- .hc_split_resolution_by_module(
+    resolution = resolution,
+    target_colors = target_colors,
+    resolved_labels = resolved$resolved_labels,
+    resolution_table = resolved$resolution_table
+  )
+  resolved$resolution_table$resolution <- NA_real_
+  resolution_match <- match(
+    as.character(resolved$resolution_table$resolved_color),
+    names(resolution_by_module)
+  )
+  has_resolution_match <- !is.na(resolution_match)
+  resolved$resolution_table$resolution[has_resolution_match] <- as.numeric(
+    resolution_by_module[resolution_match[has_resolution_match]]
+  )
 
   if (isTRUE(verbose)) {
     message(
@@ -230,6 +251,8 @@
         modules = as.character(modules),
         cluster_algo = cluster_algo,
         no_of_iterations = as.integer(round(no_of_iterations)),
+        resolution = resolution,
+        resolution_by_module = resolution_by_module,
         resolution_grid = resolution_grid,
         partition_type = partition_type,
         seed = as.integer(round(seed)),
@@ -301,11 +324,13 @@
     genes <- unique(genes)
 
     if (length(genes) < 3) {
+      this_resolution <- as.numeric(resolution_by_module[[this_color]])
       row_ptr <- row_ptr + 1L
       new_rows[[row_ptr]] <- row_i
       split_summary_rows[[length(split_summary_rows) + 1L]] <- data.frame(
         parent_color = this_color,
         parent_label = parent_label,
+        resolution = this_resolution,
         parent_genes = length(genes),
         n_submodules_raw = 1L,
         n_submodules = 1L,
@@ -318,11 +343,12 @@
     }
 
     subgraph <- igraph::induced_subgraph(merged_net, vids = genes)
+    this_resolution <- as.numeric(resolution_by_module[[this_color]])
     membership <- .hc_split_membership(
       graph_obj = subgraph,
       cluster_algo = cluster_algo,
       no_of_iterations = as.integer(round(no_of_iterations)),
-      resolution = resolution,
+      resolution = this_resolution,
       partition_type = partition_type,
       seed = as.integer(round(seed))
     )
@@ -333,6 +359,7 @@
       split_summary_rows[[length(split_summary_rows) + 1L]] <- data.frame(
         parent_color = this_color,
         parent_label = parent_label,
+        resolution = this_resolution,
         parent_genes = length(genes),
         n_submodules_raw = 1L,
         n_submodules = 1L,
@@ -366,6 +393,7 @@
         split_summary_rows[[length(split_summary_rows) + 1L]] <- data.frame(
           parent_color = this_color,
           parent_label = parent_label,
+          resolution = this_resolution,
           parent_genes = length(genes),
           n_submodules_raw = n_sub_raw,
           n_submodules = 0L,
@@ -381,6 +409,7 @@
       split_summary_rows[[length(split_summary_rows) + 1L]] <- data.frame(
         parent_color = this_color,
         parent_label = parent_label,
+        resolution = this_resolution,
         parent_genes = length(genes),
         n_submodules_raw = n_sub_raw,
         n_submodules = 1L,
@@ -430,6 +459,7 @@
     split_summary_rows[[length(split_summary_rows) + 1L]] <- data.frame(
       parent_color = this_color,
       parent_label = parent_label,
+      resolution = this_resolution,
       parent_genes = length(genes),
       n_submodules_raw = n_sub_raw,
       n_submodules = n_sub,
@@ -498,6 +528,7 @@
       cluster_algo = cluster_algo,
       no_of_iterations = as.integer(round(no_of_iterations)),
       resolution = resolution,
+      resolution_by_module = resolution_by_module,
       partition_type = partition_type,
       seed = as.integer(round(seed)),
       drop_small_submodules = drop_small_submodules,
@@ -955,6 +986,130 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
     resolved_labels = resolved_labels,
     resolution_table = resolution_table
   )
+}
+
+.hc_split_resolution_by_module <- function(resolution,
+                                           target_colors,
+                                           resolved_labels,
+                                           resolution_table = NULL) {
+  if (!is.numeric(resolution) ||
+    length(resolution) == 0 ||
+    any(!is.finite(resolution)) ||
+    any(resolution <= 0)) {
+    stop("`resolution` must contain positive finite numeric value(s).")
+  }
+
+  target_colors <- unique(as.character(target_colors))
+  resolved_labels <- as.character(resolved_labels)
+  if (length(target_colors) == 0) {
+    return(stats::setNames(numeric(0), character(0)))
+  }
+  if (length(resolved_labels) != length(target_colors)) {
+    resolved_labels <- target_colors
+  }
+
+  resolution_names <- names(resolution)
+  resolution <- as.numeric(resolution)
+  if (!is.null(resolution_names) && length(resolution_names) == length(resolution)) {
+    names(resolution) <- as.character(resolution_names)
+  }
+
+  resolution_names <- names(resolution)
+  resolution_names_trimmed <- if (is.null(resolution_names)) {
+    character(length(resolution))
+  } else {
+    trimws(as.character(resolution_names))
+  }
+  has_any_names <- any(!is.na(resolution_names_trimmed) & nzchar(resolution_names_trimmed))
+  if (!has_any_names) {
+    if (length(resolution) == 1) {
+      return(stats::setNames(rep(as.numeric(resolution[[1]]), length(target_colors)), target_colors))
+    }
+    if (length(resolution) != length(target_colors)) {
+      stop(
+        "`resolution` must be length 1 or have one value per resolved module (",
+        length(target_colors), "); got ", length(resolution), "."
+      )
+    }
+    return(stats::setNames(as.numeric(resolution), target_colors))
+  }
+
+  resolution_names <- resolution_names_trimmed
+  if (length(resolution_names) != length(resolution) ||
+    any(is.na(resolution_names) | !nzchar(resolution_names))) {
+    stop("All values in a named `resolution` vector must have non-empty names.")
+  }
+
+  input_to_color <- character(0)
+  if (!is.null(resolution_table) &&
+    is.data.frame(resolution_table) &&
+    all(c("input", "resolved_color") %in% colnames(resolution_table))) {
+    ok <- !is.na(resolution_table$resolved_color)
+    if (any(ok)) {
+      input_to_color <- stats::setNames(
+        as.character(resolution_table$resolved_color[ok]),
+        as.character(resolution_table$input[ok])
+      )
+    }
+  }
+
+  out <- stats::setNames(rep(NA_real_, length(target_colors)), target_colors)
+  unmatched <- character(0)
+  duplicated_targets <- character(0)
+
+  for (i in seq_along(resolution)) {
+    nm <- resolution_names[[i]]
+    matched_color <- character(0)
+
+    if (nm %in% target_colors) {
+      matched_color <- nm
+    } else {
+      label_hits <- target_colors[resolved_labels == nm]
+      input_hits <- input_to_color[names(input_to_color) == nm]
+      matched_color <- unique(c(label_hits, unname(input_hits)))
+      matched_color <- matched_color[matched_color %in% target_colors]
+    }
+
+    if (length(matched_color) == 0) {
+      unmatched <- c(unmatched, nm)
+      next
+    }
+    if (length(matched_color) > 1) {
+      duplicated_targets <- c(duplicated_targets, nm)
+      next
+    }
+
+    color <- matched_color[[1]]
+    if (!is.na(out[[color]]) && !isTRUE(all.equal(out[[color]], as.numeric(resolution[[i]])))) {
+      duplicated_targets <- c(duplicated_targets, nm)
+      next
+    }
+    out[[color]] <- as.numeric(resolution[[i]])
+  }
+
+  if (length(unmatched) > 0) {
+    stop(
+      "`resolution` names must match requested module labels, module colors, or input module identifiers. ",
+      "Unmatched: ", paste(unique(unmatched), collapse = ", "), "."
+    )
+  }
+  if (length(duplicated_targets) > 0) {
+    stop(
+      "`resolution` names must map to one unique requested module. Ambiguous or conflicting names: ",
+      paste(unique(duplicated_targets), collapse = ", "), "."
+    )
+  }
+
+  missing_idx <- which(is.na(out))
+  if (length(missing_idx) > 0) {
+    missing_desc <- paste0(resolved_labels[missing_idx], " (", target_colors[missing_idx], ")")
+    stop(
+      "`resolution` must provide one value for each resolved module. Missing: ",
+      paste(missing_desc, collapse = ", "), "."
+    )
+  }
+
+  out
 }
 
 .hc_split_membership <- function(graph_obj,

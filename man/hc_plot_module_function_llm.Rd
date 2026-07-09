@@ -42,8 +42,14 @@ hc_plot_module_function_gemini(...)
 \item{modules}{Optional character vector to subset modules.}
 
 \item{fields}{Character vector selecting which LLM fields to plot. Supported
-values are \code{"general_processes"}, \code{"contextual_state"}, and
-\code{"key_regulators"}. Defaults to all three.}
+values include \code{"general_processes"}, \code{"contextual_state"},
+\code{"key_regulators"}, and comparison fields from
+\code{compare_interpretation_levels = TRUE}, such as
+\code{"without_context_contextual_state"}, \code{"with_context_contextual_state"},
+and \code{"with_rag_contextual_state"}. The aliases
+\code{"contextual_state_without_context"}, \code{"contextual_state_with_context"},
+and \code{"contextual_state_rag"} are also accepted. Defaults to the three
+top-level fields.}
 
 \item{max_chars}{Maximum number of characters shown per term. Default is
 \code{90}.}

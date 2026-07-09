@@ -78,7 +78,8 @@
                                 height,
                                 pointsize = 11,
                                 dpi = NULL,
-                                onefile = TRUE) {
+                                onefile = TRUE,
+                                bg = "white") {
   if (requireNamespace("Cairo", quietly = TRUE)) {
     if (!base::is.null(dpi)) {
       Cairo::Cairo(
@@ -88,7 +89,9 @@
         pointsize = pointsize,
         dpi = dpi,
         type = "pdf",
-        units = "in"
+        units = "in",
+        bg = bg,
+        canvas = bg
       )
     } else {
       Cairo::CairoPDF(
@@ -96,7 +99,8 @@
         width = width,
         height = height,
         pointsize = pointsize,
-        onefile = onefile
+        onefile = onefile,
+        bg = bg
       )
     }
   } else {
@@ -105,7 +109,8 @@
       width = width,
       height = height,
       pointsize = pointsize,
-      onefile = onefile
+      onefile = onefile,
+      bg = bg
     )
   }
 }
@@ -125,6 +130,17 @@
     pointsize = pointsize,
     bg = bg
   )
+}
+
+.hc_draw_white_page_background <- function() {
+  grid::grid.rect(
+    x = 0.5,
+    y = 0.5,
+    width = 1,
+    height = 1,
+    gp = grid::gpar(fill = "white", col = NA)
+  )
+  invisible(NULL)
 }
 
 .hc_export_single_page_plot <- function(file,
@@ -155,6 +171,7 @@
   render_page <- function(open_device) {
     open_device()
     on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
+    .hc_draw_white_page_background()
     draw_fun()
     invisible(NULL)
   }
@@ -219,6 +236,7 @@
   )
   on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
   for (idx in base::seq_along(page_labels)) {
+    .hc_draw_white_page_background()
     draw_page_fun(idx, page_labels[[idx]])
   }
   grDevices::dev.off()
@@ -240,6 +258,7 @@
       pointsize = pointsize
     )
     on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
+    .hc_draw_white_page_background()
     draw_page_fun(idx, page_labels[[idx]])
     grDevices::dev.off()
     on.exit(NULL, add = FALSE)
@@ -323,6 +342,9 @@
     ),
     dots
   )
+  if (base::is.null(pdf_args[["bg"]])) {
+    pdf_args[["bg"]] <- "white"
+  }
   base::do.call(ggplot2::ggsave, pdf_args)
 
   png_args <- base::c(

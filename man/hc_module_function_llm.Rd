@@ -13,17 +13,31 @@ hc_module_function_llm(
   context = NULL,
   biological_context = NULL,
   label = NULL,
+  provider = NULL,
   llm = c("gemini", "claude", "openai", "chatgpt", "vllm"),
   api_key = NULL,
   gemini_model = NULL,
   claude_model = NULL,
   vllm_model = NULL,
   vllm_base_url = NULL,
+  base_url = NULL,
   model = NULL,
   max_genes = Inf,
   temperature = 0.2,
   timeout_sec = 60,
   pause_sec = 0,
+  use_rag = FALSE,
+  rag_query = NULL,
+  rag_url = NULL,
+  rag_category = "DoRAG",
+  rag_top_k = 10,
+  rag_themes = NULL,
+  rag_timeout_sec = 120,
+  rag_connect_timeout_sec = 30,
+  rag_min_relevance = NULL,
+  rag_max_context_chars = 12000,
+  rag_continue_on_error = FALSE,
+  compare_interpretation_levels = FALSE,
   continue_on_error = FALSE,
   save_to_hc = !base::is.null(hc),
   slot_name = "llm_module_function",
@@ -56,6 +70,9 @@ context for the interpretation. Preferred over \code{context}.}
 module name or \code{"custom_geneset"}. Can only be used for a single module or
 a free gene set.}
 
+\item{provider}{Provider-neutral alias for \code{llm}. When supplied it takes
+precedence over \code{llm}. Accepts the same values as \code{llm}.}
+
 \item{llm}{LLM provider. Supported values are \code{"gemini"}, \code{"claude"},
 \code{"anthropic"} (alias for \code{"claude"}), \code{"openai"}, \code{"chatgpt"} (alias for
 \code{"openai"}), or \code{"vllm"} for a local OpenAI-compatible vLLM server.}
@@ -77,6 +94,10 @@ Defaults to \code{"Qwen/Qwen2.5-VL-32B-Instruct"}.}
 \item{vllm_base_url}{Base URL for the local OpenAI-compatible vLLM server.
 Only used when \code{llm = "vllm"}. Defaults to \code{"http://localhost:8000/v1"}.}
 
+\item{base_url}{Provider-neutral alias for the local server endpoint. When
+supplied with \code{llm = "vllm"} it overrides \code{vllm_base_url}; for cloud
+providers it is ignored (with a warning).}
+
 \item{model}{Optional generic model code. Mainly useful for OpenAI, or as a
 provider-agnostic override.}
 
@@ -91,6 +112,52 @@ requests unless overridden explicitly.}
 
 \item{pause_sec}{Pause in seconds between module requests. Useful for
 \code{module = "all"}. Use \code{0} or \code{NULL} for no pause. Default is \code{0}.}
+
+\item{use_rag}{Logical. If \code{TRUE}, retrieves literature passages from the
+DoRAG raw retrieval API and injects them into the LLM prompt as optional
+supporting context. Default is \code{FALSE}.}
+
+\item{rag_query}{Optional retrieval query. If \code{NULL}, a query is built from
+the biological context, module label, and submitted genes. A single string
+is reused for all modules; a named character vector can map module labels
+to queries; a character vector with one entry per module is used in order.
+Advanced users may pass a function with arguments \code{label}, \code{module},
+\code{genes}, and \code{context_text}.}
+
+\item{rag_url}{DoRAG raw retrieval API endpoint. If \code{NULL}, uses
+\code{HCOCENA_RAG_URL} or
+\code{"https://limesbcnr-007901.iaas.uni-bonn.de/api/rag/query"}.}
+
+\item{rag_category}{Retrieval category sent to DoRAG. Default is \code{"DoRAG"}.}
+
+\item{rag_top_k}{Number of passages requested after reranking. Default is
+\code{10}.}
+
+\item{rag_themes}{Optional biological theme filter passed to DoRAG, for
+example \code{"Microbiome Science"} or \code{c("Microbiome Science", "Innate Immunity")}.}
+
+\item{rag_timeout_sec}{DoRAG request timeout in seconds. Use \code{0} or \code{NULL}
+to disable the timeout. Default is \code{120}.}
+
+\item{rag_connect_timeout_sec}{DoRAG connection timeout in seconds. This
+controls how long to wait while establishing the TCP connection to the
+RAG server. Use \code{0} or \code{NULL} to use the system default. Default is \code{30}.}
+
+\item{rag_min_relevance}{Optional minimum rerank score. Retrieved passages
+below this score are omitted from the prompt after retrieval.}
+
+\item{rag_max_context_chars}{Maximum number of characters of formatted DoRAG
+context injected into each LLM prompt. Use \code{Inf} or \code{NULL} to disable this
+limit. Default is \code{12000}.}
+
+\item{rag_continue_on_error}{Logical. If \code{TRUE}, a failed DoRAG request is
+stored in the result and the LLM interpretation continues without RAG
+passages. Default is \code{FALSE}.}
+
+\item{compare_interpretation_levels}{Logical. If \code{TRUE}, stores separate
+LLM interpretations for comparison: \code{without_context}, \code{with_context},
+and, when \code{use_rag = TRUE}, \code{with_rag}. The top-level \code{response} remains
+the final requested interpretation. Default is \code{FALSE}.}
 
 \item{continue_on_error}{Logical. If \code{TRUE}, continue with the next module
 when one request fails and store the error in the result summary.}
@@ -132,7 +199,6 @@ The function name is retained for backward compatibility, but it can now use
 Gemini, OpenAI-compatible APIs, and local vLLM servers via \code{llm}.
 }
 \examples{
-hc <- hc_init()
 \donttest{
 if (nzchar(Sys.getenv("OPENAI_API_KEY"))) {
   res <- hc_module_function_llm(

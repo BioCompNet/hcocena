@@ -33,7 +33,10 @@ One of \code{"cluster_leiden"} (default), \code{"cluster_louvain"},
 
 \item{no_of_iterations}{Number of Leiden iterations (used only for Leiden).}
 
-\item{resolution}{Leiden resolution (used only for Leiden).}
+\item{resolution}{Leiden resolution (used only for Leiden). Use either one
+positive value for all selected modules or one positive value per selected
+module in the same order as \code{modules}. Named vectors may use module labels
+or module colors.}
 
 \item{resolution_grid}{Optional numeric vector of candidate resolutions to
 test before splitting. For each candidate, hCoCena reports how many

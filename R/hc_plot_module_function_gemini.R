@@ -10,8 +10,14 @@
 #'   `"llm_module_function"`.
 #' @param modules Optional character vector to subset modules.
 #' @param fields Character vector selecting which LLM fields to plot. Supported
-#'   values are `"general_processes"`, `"contextual_state"`, and
-#'   `"key_regulators"`. Defaults to all three.
+#'   values include `"general_processes"`, `"contextual_state"`,
+#'   `"key_regulators"`, and comparison fields from
+#'   `compare_interpretation_levels = TRUE`, such as
+#'   `"without_context_contextual_state"`, `"with_context_contextual_state"`,
+#'   and `"with_rag_contextual_state"`. The aliases
+#'   `"contextual_state_without_context"`, `"contextual_state_with_context"`,
+#'   and `"contextual_state_rag"` are also accepted. Defaults to the three
+#'   top-level fields.
 #' @param max_chars Maximum number of characters shown per term. Default is
 #'   `90`.
 #' @param text_size Numeric text size passed to `ggplot2::geom_text()`.
@@ -158,9 +164,10 @@ hc_plot_module_function_llm <- function(hc,
   if (!is.numeric(dpi) || length(dpi) != 1 || is.na(dpi) || dpi <= 0) {
     stop("`dpi` must be a single positive number.")
   }
+  field_map <- .hc_llm_plot_field_map()
   fields <- unique(as.character(fields))
   fields <- fields[!is.na(fields) & fields != ""]
-  valid_fields <- c("general_processes", "contextual_state", "key_regulators")
+  valid_fields <- names(field_map$source)
   if (length(fields) == 0 || !all(fields %in% valid_fields)) {
     stop("`fields` must contain one or more of: ", paste(valid_fields, collapse = ", "), ".")
   }
@@ -195,7 +202,8 @@ hc_plot_module_function_llm <- function(hc,
   summary_tbl$module <- as.character(summary_tbl$module)
   summary_tbl$module_color <- as.character(summary_tbl$module_color)
   summary_tbl$module_color[is.na(summary_tbl$module_color) | summary_tbl$module_color == ""] <- "grey70"
-  for (nm in valid_fields) {
+  needed_summary_fields <- unique(unname(field_map$source[fields]))
+  for (nm in needed_summary_fields) {
     if (!nm %in% colnames(summary_tbl)) {
       summary_tbl[[nm]] <- NA_character_
     }
@@ -205,26 +213,21 @@ hc_plot_module_function_llm <- function(hc,
   summary_tbl$label_color <- vapply(summary_tbl$module_color, .hc_llm_contrast_text_color, FUN.VALUE = character(1))
   summary_tbl$module_factor <- factor(summary_tbl$module, levels = rev(summary_tbl$module))
 
-  title_map <- c(
-    general_processes = "General processes",
-    contextual_state = "Contextual state",
-    key_regulators = "Key regulators"
-  )
-
   out <- lapply(fields, function(field_nm) {
     field_tbl <- summary_tbl
+    source_nm <- unname(field_map$source[[field_nm]])
     field_tbl$term_plot <- vapply(
       ifelse(
-        is.na(field_tbl[[field_nm]]) | field_tbl[[field_nm]] == "",
+        is.na(field_tbl[[source_nm]]) | field_tbl[[source_nm]] == "",
         "No interpretation available.",
-        field_tbl[[field_nm]]
+        field_tbl[[source_nm]]
       ),
       .hc_llm_prepare_display_title,
       FUN.VALUE = character(1),
       max_chars = as.integer(max_chars[[1]])
     )
 
-    plot_title <- paste0(title, ": ", title_map[[field_nm]])
+    plot_title <- paste0(title, ": ", field_map$title[[field_nm]])
 
     if (isTRUE(with_heatmap) && !is.null(heatmap_info) && isTRUE(heatmap_info$draw_supported)) {
       combined_grob <- .hc_llm_capture_combined_heatmap_grob(
@@ -333,6 +336,56 @@ hc_plot_module_function_llm <- function(hc,
 #' @export
 hc_plot_module_function_gemini <- function(...) {
   hc_plot_module_function_llm(...)
+}
+
+.hc_llm_plot_field_map <- function() {
+  source <- c(
+    general_processes = "general_processes",
+    contextual_state = "contextual_state",
+    key_regulators = "key_regulators",
+    without_context_general_processes = "without_context_general_processes",
+    without_context_contextual_state = "without_context_contextual_state",
+    without_context_key_regulators = "without_context_key_regulators",
+    with_context_general_processes = "with_context_general_processes",
+    with_context_contextual_state = "with_context_contextual_state",
+    with_context_key_regulators = "with_context_key_regulators",
+    with_rag_general_processes = "with_rag_general_processes",
+    with_rag_contextual_state = "with_rag_contextual_state",
+    with_rag_key_regulators = "with_rag_key_regulators",
+    general_processes_without_context = "without_context_general_processes",
+    contextual_state_without_context = "without_context_contextual_state",
+    key_regulators_without_context = "without_context_key_regulators",
+    general_processes_with_context = "with_context_general_processes",
+    contextual_state_with_context = "with_context_contextual_state",
+    key_regulators_with_context = "with_context_key_regulators",
+    general_processes_rag = "with_rag_general_processes",
+    contextual_state_rag = "with_rag_contextual_state",
+    key_regulators_rag = "with_rag_key_regulators"
+  )
+  title <- c(
+    general_processes = "General processes",
+    contextual_state = "Contextual state",
+    key_regulators = "Key regulators",
+    without_context_general_processes = "General processes without context",
+    without_context_contextual_state = "Contextual state without context",
+    without_context_key_regulators = "Key regulators without context",
+    with_context_general_processes = "General processes with context",
+    with_context_contextual_state = "Contextual state with context",
+    with_context_key_regulators = "Key regulators with context",
+    with_rag_general_processes = "General processes with RAG",
+    with_rag_contextual_state = "Contextual state with RAG",
+    with_rag_key_regulators = "Key regulators with RAG",
+    general_processes_without_context = "General processes without context",
+    contextual_state_without_context = "Contextual state without context",
+    key_regulators_without_context = "Key regulators without context",
+    general_processes_with_context = "General processes with context",
+    contextual_state_with_context = "Contextual state with context",
+    key_regulators_with_context = "Key regulators with context",
+    general_processes_rag = "General processes with RAG",
+    contextual_state_rag = "Contextual state with RAG",
+    key_regulators_rag = "Key regulators with RAG"
+  )
+  list(source = source, title = title)
 }
 
 .hc_llm_plot_output_dir <- function(hc) {

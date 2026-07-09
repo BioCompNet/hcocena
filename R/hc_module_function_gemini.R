@@ -60,6 +60,40 @@
 #'   requests unless overridden explicitly.
 #' @param pause_sec Pause in seconds between module requests. Useful for
 #'   `module = "all"`. Use `0` or `NULL` for no pause. Default is `0`.
+#' @param use_rag Logical. If `TRUE`, retrieves literature passages from the
+#'   DoRAG raw retrieval API and injects them into the LLM prompt as optional
+#'   supporting context. Default is `FALSE`.
+#' @param rag_query Optional retrieval query. If `NULL`, a query is built from
+#'   the biological context, module label, and submitted genes. A single string
+#'   is reused for all modules; a named character vector can map module labels
+#'   to queries; a character vector with one entry per module is used in order.
+#'   Advanced users may pass a function with arguments `label`, `module`,
+#'   `genes`, and `context_text`.
+#' @param rag_url DoRAG raw retrieval API endpoint. If `NULL`, uses
+#'   `HCOCENA_RAG_URL` or
+#'   `"https://limesbcnr-007901.iaas.uni-bonn.de/api/rag/query"`.
+#' @param rag_category Retrieval category sent to DoRAG. Default is `"DoRAG"`.
+#' @param rag_top_k Number of passages requested after reranking. Default is
+#'   `10`.
+#' @param rag_themes Optional biological theme filter passed to DoRAG, for
+#'   example `"Microbiome Science"` or `c("Microbiome Science", "Innate Immunity")`.
+#' @param rag_timeout_sec DoRAG request timeout in seconds. Use `0` or `NULL`
+#'   to disable the timeout. Default is `120`.
+#' @param rag_connect_timeout_sec DoRAG connection timeout in seconds. This
+#'   controls how long to wait while establishing the TCP connection to the
+#'   RAG server. Use `0` or `NULL` to use the system default. Default is `30`.
+#' @param rag_min_relevance Optional minimum rerank score. Retrieved passages
+#'   below this score are omitted from the prompt after retrieval.
+#' @param rag_max_context_chars Maximum number of characters of formatted DoRAG
+#'   context injected into each LLM prompt. Use `Inf` or `NULL` to disable this
+#'   limit. Default is `12000`.
+#' @param rag_continue_on_error Logical. If `TRUE`, a failed DoRAG request is
+#'   stored in the result and the LLM interpretation continues without RAG
+#'   passages. Default is `FALSE`.
+#' @param compare_interpretation_levels Logical. If `TRUE`, stores separate
+#'   LLM interpretations for comparison: `without_context`, `with_context`,
+#'   and, when `use_rag = TRUE`, `with_rag`. The top-level `response` remains
+#'   the final requested interpretation. Default is `FALSE`.
 #' @param continue_on_error Logical. If `TRUE`, continue with the next module
 #'   when one request fails and store the error in the result summary.
 #' @param save_to_hc Logical. If `TRUE`, store the result in `hc@satellite` and
@@ -107,6 +141,18 @@ hc_module_function_llm <- function(hc = NULL,
                                    temperature = 0.2,
                                    timeout_sec = 60,
                                    pause_sec = 0,
+                                   use_rag = FALSE,
+                                   rag_query = NULL,
+                                   rag_url = NULL,
+                                   rag_category = "DoRAG",
+                                   rag_top_k = 10,
+                                   rag_themes = NULL,
+                                   rag_timeout_sec = 120,
+                                   rag_connect_timeout_sec = 30,
+                                   rag_min_relevance = NULL,
+                                   rag_max_context_chars = 12000,
+                                   rag_continue_on_error = FALSE,
+                                   compare_interpretation_levels = FALSE,
                                    continue_on_error = FALSE,
                                    save_to_hc = !base::is.null(hc),
                                    slot_name = "llm_module_function",
@@ -191,6 +237,24 @@ hc_module_function_llm <- function(hc = NULL,
   if (!base::is.logical(verbose) || base::length(verbose) != 1 || base::is.na(verbose)) {
     stop("`verbose` must be TRUE or FALSE.")
   }
+  if (!base::is.logical(compare_interpretation_levels) ||
+    base::length(compare_interpretation_levels) != 1 ||
+    base::is.na(compare_interpretation_levels)) {
+    stop("`compare_interpretation_levels` must be TRUE or FALSE.")
+  }
+  rag_options <- .hc_llm_resolve_rag_options(
+    use_rag = use_rag,
+    rag_query = rag_query,
+    rag_url = rag_url,
+    rag_category = rag_category,
+    rag_top_k = rag_top_k,
+    rag_themes = rag_themes,
+    rag_timeout_sec = rag_timeout_sec,
+    rag_connect_timeout_sec = rag_connect_timeout_sec,
+    rag_min_relevance = rag_min_relevance,
+    rag_max_context_chars = rag_max_context_chars,
+    rag_continue_on_error = rag_continue_on_error
+  )
 
   api_key <- .hc_llm_resolve_api_key(api_key = api_key, llm = llm)
   # `base_url` is a provider-neutral alias for the local server endpoint; it
@@ -294,6 +358,8 @@ hc_module_function_llm <- function(hc = NULL,
     continue_on_error = continue_on_error,
     system_instruction = system_instruction,
     response_schema = .hc_llm_response_schema(),
+    rag_options = rag_options,
+    compare_interpretation_levels = compare_interpretation_levels,
     verbose = verbose
   )
 
@@ -354,6 +420,8 @@ hc_module_function_vllm <- function(...) {
                                    continue_on_error,
                                    system_instruction,
                                    response_schema,
+                                   rag_options,
+                                   compare_interpretation_levels,
                                    verbose) {
   results <- vector("list", length = base::length(gene_infos))
   for (i in base::seq_along(gene_infos)) {
@@ -377,6 +445,10 @@ hc_module_function_vllm <- function(...) {
         timeout_sec = timeout_sec,
         system_instruction = system_instruction,
         response_schema = response_schema,
+        rag_options = rag_options,
+        compare_interpretation_levels = compare_interpretation_levels,
+        index = i,
+        n_inputs = base::length(gene_infos),
         verbose = verbose
       ),
       error = function(e) {
@@ -555,6 +627,10 @@ hc_module_function_vllm <- function(...) {
                                   timeout_sec,
                                   system_instruction,
                                   response_schema,
+                                  rag_options = NULL,
+                                  compare_interpretation_levels = FALSE,
+                                  index = 1L,
+                                  n_inputs = 1L,
                                   verbose) {
   genes_all <- .hc_gemini_normalize_genes(gene_info$genes)
   if (base::length(genes_all) == 0) {
@@ -563,6 +639,10 @@ hc_module_function_vllm <- function(...) {
 
   genes_use <- .hc_llm_limit_genes(genes = genes_all, max_genes = max_genes)
   truncated <- base::length(genes_use) < base::length(genes_all)
+  rag_result <- NULL
+  rag_query_used <- NULL
+  rag_context_text <- NULL
+  rag_error_message <- NA_character_
 
   if (isTRUE(verbose)) {
     if (truncated) {
@@ -583,16 +663,238 @@ hc_module_function_vllm <- function(...) {
     }
   }
 
+  if (!base::is.null(rag_options)) {
+    rag_query_used <- .hc_llm_resolve_rag_query(
+      rag_query = rag_options$query,
+      label = label,
+      module = gene_info$module,
+      genes = genes_use,
+      context_text = context_text,
+      index = index,
+      n_inputs = n_inputs
+    )
+    if (isTRUE(verbose)) {
+      message(
+        "DoRAG retrieval: requesting ",
+        rag_options$top_k,
+        " passages for `", label, "`."
+      )
+    }
+    rag_raw <- tryCatch(
+      .hc_llm_request_rag(
+        query = rag_query_used,
+        url = rag_options$url,
+        category = rag_options$category,
+        top_k = rag_options$top_k,
+        themes = rag_options$themes,
+        timeout_sec = rag_options$timeout_sec,
+        connect_timeout_sec = rag_options$connect_timeout_sec
+      ),
+      error = function(e) {
+        if (!isTRUE(rag_options$continue_on_error)) {
+          stop(e)
+        }
+        rag_error_message <<- base::conditionMessage(e)
+        if (isTRUE(verbose)) {
+          message(
+            "DoRAG retrieval failed for `",
+            label,
+            "`; continuing without RAG passages: ",
+            rag_error_message
+          )
+        }
+        NULL
+      }
+    )
+    if (base::is.null(rag_raw)) {
+      rag_result <- list(
+        query = rag_query_used,
+        answer = "",
+        context = list(),
+        cited_papers = list(),
+        status = "error",
+        error_message = rag_error_message
+      )
+    } else {
+      rag_result <- .hc_llm_prepare_rag_result(
+        rag_result = rag_raw,
+        min_relevance = rag_options$min_relevance
+      )
+      rag_context_text <- .hc_llm_format_rag_context(
+        rag_result = rag_result,
+        max_chars = rag_options$max_context_chars
+      )
+      rag_result$status <- "ok"
+      rag_result$error_message <- NA_character_
+    }
+    if (isTRUE(verbose)) {
+      message(
+        "DoRAG retrieval: using ",
+        .hc_llm_rag_context_count(rag_result),
+        " retrieved passages for `", label, "`."
+      )
+    }
+  }
+
+  run_level <- function(level, level_context_text, level_rag_context_text) {
+    .hc_llm_interpretation_level(
+      level = level,
+      label = label,
+      genes = genes_use,
+      total_gene_count = base::length(genes_all),
+      context_text = level_context_text,
+      truncated = truncated,
+      rag_context_text = level_rag_context_text,
+      llm = llm,
+      api_key = api_key,
+      model = model,
+      vllm_base_url = vllm_base_url,
+      temperature = temperature,
+      timeout_sec = timeout_sec,
+      system_instruction = system_instruction,
+      response_schema = response_schema
+    )
+  }
+
+  has_rag_context <- !base::is.null(rag_context_text) &&
+    base::nzchar(base::as.character(rag_context_text[[1]]))
+  primary_level <- if (has_rag_context) {
+    "with_rag"
+  } else if (base::nzchar(context_text)) {
+    "with_context"
+  } else {
+    "without_context"
+  }
+
+  interpretation_levels <- NULL
+  if (isTRUE(compare_interpretation_levels)) {
+    if (isTRUE(verbose)) {
+      message("LLM module summary: running comparison levels for `", label, "`.")
+    }
+    interpretation_levels <- list(
+      without_context = run_level(
+        level = "without_context",
+        level_context_text = "",
+        level_rag_context_text = NULL
+      ),
+      with_context = run_level(
+        level = "with_context",
+        level_context_text = context_text,
+        level_rag_context_text = NULL
+      )
+    )
+    if (has_rag_context) {
+      interpretation_levels$with_rag <- run_level(
+        level = "with_rag",
+        level_context_text = context_text,
+        level_rag_context_text = rag_context_text
+      )
+    }
+    primary <- interpretation_levels[[primary_level]]
+  } else {
+    primary <- run_level(
+      level = primary_level,
+      level_context_text = context_text,
+      level_rag_context_text = rag_context_text
+    )
+  }
+
+  out <- list(
+    label = label,
+    module = gene_info$module,
+    genes_input = genes_all,
+    genes_sent = genes_use,
+    gene_count_input = base::length(genes_all),
+    gene_count_sent = base::length(genes_use),
+    truncated = truncated,
+    context = if (base::nzchar(context_text)) context_text else NULL,
+    llm = llm,
+    model = model,
+    status = "ok",
+    error_message = NA_character_,
+    prompt = primary$prompt,
+    response = primary$response,
+    response_text = primary$response_text,
+    raw_response_text = primary$raw_response_text,
+    rag = rag_result,
+    rag_query = rag_query_used,
+    rag_error_message = rag_error_message,
+    rag_context_text = if (!base::is.null(rag_context_text) && base::nzchar(rag_context_text)) rag_context_text else NULL,
+    primary_interpretation_level = primary_level,
+    timestamp = base::as.character(Sys.time())
+  )
+  if (!base::is.null(interpretation_levels)) {
+    out$interpretation_levels <- interpretation_levels
+  }
+  out
+}
+
+.hc_llm_interpretation_level <- function(level,
+                                         label,
+                                         genes,
+                                         total_gene_count,
+                                         context_text,
+                                         truncated,
+                                         rag_context_text,
+                                         llm,
+                                         api_key,
+                                         model,
+                                         vllm_base_url,
+                                         temperature,
+                                         timeout_sec,
+                                         system_instruction,
+                                         response_schema) {
   prompt <- .hc_gemini_build_prompt(
     label = label,
-    genes = genes_use,
-    total_gene_count = base::length(genes_all),
+    genes = genes,
+    total_gene_count = total_gene_count,
     context_text = context_text,
     truncated = truncated,
+    rag_context_text = rag_context_text,
     llm = llm
   )
 
-  req_result <- if (llm == "gemini") {
+  req_result <- .hc_llm_request_by_provider(
+    llm = llm,
+    api_key = api_key,
+    model = model,
+    prompt = prompt,
+    system_instruction = system_instruction,
+    response_schema = response_schema,
+    temperature = temperature,
+    timeout_sec = timeout_sec,
+    vllm_base_url = vllm_base_url
+  )
+  result_text <- req_result$result_text
+
+  list(
+    level = level,
+    context = if (base::nzchar(context_text)) context_text else NULL,
+    rag_used = !base::is.null(rag_context_text) &&
+      base::nzchar(base::as.character(rag_context_text[[1]])),
+    rag_context_text = if (!base::is.null(rag_context_text) &&
+      base::nzchar(base::as.character(rag_context_text[[1]]))) {
+      base::as.character(rag_context_text[[1]])
+    } else {
+      NULL
+    },
+    prompt = prompt,
+    response = .hc_llm_parse_module_response(result_text),
+    response_text = result_text,
+    raw_response_text = req_result$raw_response_text
+  )
+}
+
+.hc_llm_request_by_provider <- function(llm,
+                                        api_key,
+                                        model,
+                                        prompt,
+                                        system_instruction,
+                                        response_schema,
+                                        temperature,
+                                        timeout_sec,
+                                        vllm_base_url) {
+  if (llm == "gemini") {
     .hc_llm_request_gemini(
       api_key = api_key,
       model = model,
@@ -632,9 +934,10 @@ hc_module_function_vllm <- function(...) {
       timeout_sec = timeout_sec
     )
   }
+}
 
-  result_text <- req_result$result_text
-  parsed_result <- tryCatch(
+.hc_llm_parse_module_response <- function(result_text) {
+  tryCatch(
     jsonlite::fromJSON(result_text, simplifyVector = TRUE),
     error = function(e) {
       list(
@@ -645,26 +948,6 @@ hc_module_function_vllm <- function(...) {
       )
     }
   )
-
-  list(
-    label = label,
-    module = gene_info$module,
-    genes_input = genes_all,
-    genes_sent = genes_use,
-    gene_count_input = base::length(genes_all),
-    gene_count_sent = base::length(genes_use),
-    truncated = truncated,
-    context = if (base::nzchar(context_text)) context_text else NULL,
-    llm = llm,
-    model = model,
-    status = "ok",
-    error_message = NA_character_,
-    prompt = prompt,
-    response = parsed_result,
-    response_text = result_text,
-    raw_response_text = req_result$raw_response_text,
-    timestamp = base::as.character(Sys.time())
-  )
 }
 
 .hc_llm_limit_genes <- function(genes, max_genes) {
@@ -672,6 +955,512 @@ hc_module_function_vllm <- function(...) {
     return(genes)
   }
   utils::head(genes, base::as.integer(max_genes[[1]]))
+}
+
+.hc_llm_default_rag_url <- function() {
+  Sys.getenv("HCOCENA_RAG_URL", unset = "https://limesbcnr-007901.iaas.uni-bonn.de/api/rag/query")
+}
+
+.hc_llm_resolve_rag_options <- function(use_rag,
+                                        rag_query,
+                                        rag_url,
+                                        rag_category,
+                                        rag_top_k,
+                                        rag_themes,
+                                        rag_timeout_sec,
+                                        rag_connect_timeout_sec,
+                                        rag_min_relevance,
+                                        rag_max_context_chars,
+                                        rag_continue_on_error) {
+  if (!base::is.logical(use_rag) || base::length(use_rag) != 1 || base::is.na(use_rag)) {
+    stop("`use_rag` must be TRUE or FALSE.")
+  }
+  if (!isTRUE(use_rag)) {
+    return(NULL)
+  }
+
+  if (base::is.null(rag_url) || !base::nzchar(base::as.character(rag_url[[1]]))) {
+    rag_url <- .hc_llm_default_rag_url()
+  } else {
+    rag_url <- base::as.character(rag_url[[1]])
+  }
+  rag_url <- base::trimws(rag_url)
+  if (!base::nzchar(rag_url)) {
+    stop("`rag_url` must be a non-empty URL when `use_rag = TRUE`.")
+  }
+
+  if (base::is.null(rag_category) || !base::nzchar(base::as.character(rag_category[[1]]))) {
+    stop("`rag_category` must be a non-empty character scalar.")
+  }
+  rag_category <- base::trimws(base::as.character(rag_category[[1]]))
+  if (!base::nzchar(rag_category)) {
+    stop("`rag_category` must be a non-empty character scalar.")
+  }
+
+  if (!base::is.numeric(rag_top_k) || base::length(rag_top_k) != 1 ||
+    base::is.na(rag_top_k[[1]]) || !base::is.finite(rag_top_k[[1]]) ||
+    rag_top_k[[1]] <= 0) {
+    stop("`rag_top_k` must be a single positive number.")
+  }
+  rag_top_k <- base::as.integer(rag_top_k[[1]])
+
+  if (!base::is.null(rag_timeout_sec)) {
+    if (!base::is.numeric(rag_timeout_sec) || base::length(rag_timeout_sec) != 1 ||
+      base::is.na(rag_timeout_sec[[1]]) || !base::is.finite(rag_timeout_sec[[1]])) {
+      stop("`rag_timeout_sec` must be NULL or a single finite numeric value >= 0.")
+    }
+  }
+  rag_timeout_sec <- .hc_llm_normalize_timeout(rag_timeout_sec)
+
+  if (!base::is.null(rag_connect_timeout_sec)) {
+    if (!base::is.numeric(rag_connect_timeout_sec) || base::length(rag_connect_timeout_sec) != 1 ||
+      base::is.na(rag_connect_timeout_sec[[1]]) || !base::is.finite(rag_connect_timeout_sec[[1]])) {
+      stop("`rag_connect_timeout_sec` must be NULL or a single finite numeric value >= 0.")
+    }
+  }
+  rag_connect_timeout_sec <- .hc_llm_normalize_timeout(rag_connect_timeout_sec)
+
+  if (!base::is.null(rag_min_relevance)) {
+    if (!base::is.numeric(rag_min_relevance) || base::length(rag_min_relevance) != 1 ||
+      base::is.na(rag_min_relevance[[1]]) || !base::is.finite(rag_min_relevance[[1]])) {
+      stop("`rag_min_relevance` must be NULL or a single finite numeric value.")
+    }
+    rag_min_relevance <- base::as.numeric(rag_min_relevance[[1]])
+  }
+
+  if (!base::is.null(rag_max_context_chars)) {
+    if (!base::is.numeric(rag_max_context_chars) || base::length(rag_max_context_chars) != 1 ||
+      base::is.na(rag_max_context_chars[[1]]) || rag_max_context_chars[[1]] <= 0) {
+      stop("`rag_max_context_chars` must be NULL, Inf, or a single positive number.")
+    }
+    if (!base::is.finite(rag_max_context_chars[[1]])) {
+      rag_max_context_chars <- NULL
+    } else {
+      rag_max_context_chars <- base::as.integer(rag_max_context_chars[[1]])
+    }
+  }
+
+  if (!base::is.null(rag_themes)) {
+    rag_themes <- base::as.character(rag_themes)
+    rag_themes <- base::trimws(rag_themes)
+    rag_themes <- base::unique(rag_themes[!base::is.na(rag_themes) & base::nzchar(rag_themes)])
+    if (base::length(rag_themes) == 0) {
+      rag_themes <- NULL
+    }
+  }
+
+  if (!base::is.logical(rag_continue_on_error) ||
+    base::length(rag_continue_on_error) != 1 ||
+    base::is.na(rag_continue_on_error)) {
+    stop("`rag_continue_on_error` must be TRUE or FALSE.")
+  }
+
+  if (!base::is.null(rag_query) && !base::is.function(rag_query)) {
+    query_names <- base::names(rag_query)
+    rag_query <- base::as.character(rag_query)
+    rag_query <- base::trimws(rag_query)
+    keep <- !base::is.na(rag_query) & base::nzchar(rag_query)
+    if (base::length(query_names) == base::length(rag_query)) {
+      query_names <- base::as.character(query_names)
+      query_names[base::is.na(query_names)] <- ""
+      query_names <- query_names[keep]
+    } else {
+      query_names <- NULL
+    }
+    rag_query <- rag_query[keep]
+    if (base::length(rag_query) == 0) {
+      stop("`rag_query` must contain at least one non-empty query when provided.")
+    }
+    if (!base::is.null(query_names)) {
+      base::names(rag_query) <- query_names
+    }
+  }
+
+  list(
+    query = rag_query,
+    url = rag_url,
+    category = rag_category,
+    top_k = rag_top_k,
+    themes = rag_themes,
+    timeout_sec = rag_timeout_sec,
+    connect_timeout_sec = rag_connect_timeout_sec,
+    min_relevance = rag_min_relevance,
+    max_context_chars = rag_max_context_chars,
+    continue_on_error = rag_continue_on_error
+  )
+}
+
+.hc_llm_resolve_rag_query <- function(rag_query,
+                                      label,
+                                      module,
+                                      genes,
+                                      context_text,
+                                      index,
+                                      n_inputs) {
+  if (base::is.null(rag_query)) {
+    return(.hc_llm_auto_rag_query(label = label, genes = genes, context_text = context_text))
+  }
+
+  if (base::is.function(rag_query)) {
+    query <- rag_query(
+      label = label,
+      module = module,
+      genes = genes,
+      context_text = context_text
+    )
+    return(.hc_llm_normalize_rag_query_scalar(query, context = "`rag_query` function result"))
+  }
+
+  query_names <- base::names(rag_query)
+  if (!base::is.null(query_names) && base::length(query_names) == base::length(rag_query)) {
+    query_names <- base::as.character(query_names)
+    idx <- base::match(base::as.character(label[[1]]), query_names)
+    if (base::is.na(idx) && !base::is.null(module)) {
+      idx <- base::match(base::as.character(module[[1]]), query_names)
+    }
+    if (!base::is.na(idx)) {
+      return(.hc_llm_normalize_rag_query_scalar(rag_query[[idx]], context = "`rag_query`"))
+    }
+  }
+
+  if (base::length(rag_query) == 1) {
+    return(.hc_llm_normalize_rag_query_scalar(rag_query[[1]], context = "`rag_query`"))
+  }
+
+  if (base::length(rag_query) == n_inputs) {
+    return(.hc_llm_normalize_rag_query_scalar(rag_query[[index]], context = "`rag_query`"))
+  }
+
+  stop(
+    "`rag_query` must be NULL, a single string, a named vector matching module labels, ",
+    "or a vector with one query per module.",
+    call. = FALSE
+  )
+}
+
+.hc_llm_auto_rag_query <- function(label, genes, context_text, max_genes = 60) {
+  genes <- .hc_gemini_normalize_genes(genes)
+  gene_text <- if (base::length(genes) > 0) {
+    base::paste(utils::head(genes, max_genes), collapse = ", ")
+  } else {
+    ""
+  }
+  parts <- base::c(
+    "Transcriptomic module biological function",
+    if (base::nzchar(context_text)) base::paste0("Biological context: ", context_text) else NULL,
+    if (!base::is.null(label) && base::nzchar(base::as.character(label[[1]]))) base::paste0("Module label: ", base::as.character(label[[1]])) else NULL,
+    if (base::nzchar(gene_text)) base::paste0("Genes: ", gene_text) else NULL
+  )
+  stringr::str_squish(base::paste(parts, collapse = "\n"))
+}
+
+.hc_llm_normalize_rag_query_scalar <- function(query, context = "`rag_query`") {
+  if (base::is.null(query) || base::length(query) == 0) {
+    stop(context, " must resolve to a non-empty character scalar.", call. = FALSE)
+  }
+  query <- base::as.character(query[[1]])
+  query <- base::trimws(query)
+  if (base::is.na(query) || !base::nzchar(query)) {
+    stop(context, " must resolve to a non-empty character scalar.", call. = FALSE)
+  }
+  query
+}
+
+.hc_llm_request_rag <- function(query,
+                                url,
+                                category,
+                                top_k,
+                                themes,
+                                timeout_sec,
+                                connect_timeout_sec = NULL) {
+  if (!base::requireNamespace("httr", quietly = TRUE)) {
+    stop("Package `httr` is required for DoRAG retrieval.", call. = FALSE)
+  }
+
+  payload <- list(
+    query = query,
+    category = category,
+    top_k = base::as.integer(top_k)
+  )
+  if (!base::is.null(themes) && base::length(themes) > 0) {
+    payload$themes <- themes
+  }
+
+  configs <- list(httr::add_headers("Content-Type" = "application/json"))
+  if (!base::is.null(timeout_sec)) {
+    configs <- base::c(configs, list(httr::timeout(base::as.numeric(timeout_sec[[1]]))))
+  }
+  if (!base::is.null(connect_timeout_sec)) {
+    configs <- base::c(configs, list(httr::config(connecttimeout = base::as.numeric(connect_timeout_sec[[1]]))))
+  }
+
+  resp <- tryCatch(
+    do.call(
+      httr::POST,
+      base::c(
+        list(
+          url = url,
+          body = payload,
+          encode = "json"
+        ),
+        configs
+      )
+    ),
+    error = function(e) {
+      stop("DoRAG retrieval request failed: ", base::conditionMessage(e), call. = FALSE)
+    }
+  )
+
+  txt <- tryCatch(
+    httr::content(resp, as = "text", encoding = "UTF-8"),
+    error = function(e) {
+      stop("Could not read DoRAG retrieval response: ", base::conditionMessage(e), call. = FALSE)
+    }
+  )
+  txt <- base::paste(base::as.character(txt), collapse = "")
+
+  if (httr::http_error(resp)) {
+    stop(
+      "DoRAG retrieval failed with HTTP ",
+      httr::status_code(resp),
+      if (base::nzchar(txt)) base::paste0(": ", stringr::str_trunc(stringr::str_squish(txt), 300)) else "",
+      call. = FALSE
+    )
+  }
+  if (!base::nzchar(txt)) {
+    stop("DoRAG retrieval response was empty.", call. = FALSE)
+  }
+
+  out <- tryCatch(
+    jsonlite::fromJSON(txt, simplifyVector = FALSE),
+    error = function(e) {
+      stop("Could not parse DoRAG retrieval JSON: ", base::conditionMessage(e), call. = FALSE)
+    }
+  )
+  if (!base::is.list(out)) {
+    stop("DoRAG retrieval response did not contain a JSON object.", call. = FALSE)
+  }
+  out$raw_response_text <- txt
+  out
+}
+
+.hc_llm_prepare_rag_result <- function(rag_result, min_relevance = NULL) {
+  if (base::is.null(rag_result) || !base::is.list(rag_result)) {
+    return(NULL)
+  }
+
+  context_entries <- .hc_llm_rag_context_list(rag_result[["context"]])
+  context_entries <- lapply(context_entries, .hc_llm_normalize_rag_context_entry)
+  context_entries <- context_entries[base::vapply(
+    context_entries,
+    function(x) base::nzchar(x$chunk),
+    FUN.VALUE = base::logical(1)
+  )]
+
+  if (!base::is.null(min_relevance)) {
+    context_entries <- context_entries[base::vapply(
+      context_entries,
+      function(x) !base::is.na(x$relevance) && x$relevance >= min_relevance,
+      FUN.VALUE = base::logical(1)
+    )]
+  }
+
+  cited_papers <- .hc_llm_unique_rag_papers(lapply(context_entries, function(x) x$paper))
+  if (base::length(cited_papers) == 0) {
+    cited_papers <- .hc_llm_unique_rag_papers(
+      lapply(.hc_llm_rag_context_list(rag_result[["cited_papers"]]), .hc_llm_normalize_rag_paper)
+    )
+  }
+
+  out <- list(
+    query = .hc_llm_rag_scalar(rag_result[["query"]]),
+    answer = .hc_llm_rag_scalar(rag_result[["answer"]]),
+    context = context_entries,
+    cited_papers = cited_papers
+  )
+  if (!base::is.null(rag_result[["raw_response_text"]])) {
+    out$raw_response_text <- .hc_llm_rag_scalar(rag_result[["raw_response_text"]])
+  }
+  out
+}
+
+.hc_llm_rag_context_list <- function(x) {
+  if (base::is.null(x)) {
+    return(list())
+  }
+  if (base::is.data.frame(x)) {
+    return(lapply(base::seq_len(base::nrow(x)), function(i) {
+      row <- base::as.list(x[i, , drop = FALSE])
+      lapply(row, function(v) {
+        if (base::length(v) == 1) v[[1]] else v
+      })
+    }))
+  }
+  if (base::is.list(x) && base::length(x) > 0 &&
+    any(base::names(x) %in% c("chunk", "section", "relevance", "paper", "apa_citation", "title", "doi"))) {
+    return(list(x))
+  }
+  if (base::is.list(x)) {
+    return(x)
+  }
+  list(x)
+}
+
+.hc_llm_normalize_rag_context_entry <- function(entry) {
+  if (!base::is.list(entry)) {
+    entry <- list(chunk = entry)
+  }
+  paper <- .hc_llm_normalize_rag_paper(entry[["paper"]])
+  list(
+    chunk = .hc_llm_rag_scalar(entry[["chunk"]]),
+    section = .hc_llm_rag_scalar(entry[["section"]]),
+    relevance = .hc_llm_rag_numeric(entry[["relevance"]]),
+    paper = paper
+  )
+}
+
+.hc_llm_normalize_rag_paper <- function(paper) {
+  if (base::is.null(paper)) {
+    paper <- list()
+  }
+  if (base::is.data.frame(paper)) {
+    paper <- if (base::nrow(paper) > 0) {
+      base::as.list(paper[1, , drop = FALSE])
+    } else {
+      list()
+    }
+  }
+  if (!base::is.list(paper)) {
+    paper <- list(apa_citation = paper)
+  }
+  list(
+    title = .hc_llm_rag_scalar(paper[["title"]]),
+    apa_citation = .hc_llm_rag_scalar(paper[["apa_citation"]]),
+    doi = .hc_llm_rag_scalar(paper[["doi"]])
+  )
+}
+
+.hc_llm_rag_scalar <- function(x, default = "") {
+  if (base::is.null(x) || base::length(x) == 0) {
+    return(default)
+  }
+  if (base::is.data.frame(x)) {
+    if (base::nrow(x) == 0 || base::ncol(x) == 0) {
+      return(default)
+    }
+    x <- x[[1]][[1]]
+  } else if (base::is.list(x) && base::length(x) == 1 && !base::is.list(x[[1]])) {
+    x <- x[[1]]
+  }
+  val <- base::as.character(x[[1]])
+  if (base::length(val) == 0 || base::is.na(val)) {
+    return(default)
+  }
+  base::trimws(val)
+}
+
+.hc_llm_rag_numeric <- function(x) {
+  if (base::is.null(x) || base::length(x) == 0) {
+    return(NA_real_)
+  }
+  val <- suppressWarnings(base::as.numeric(x[[1]]))
+  if (base::length(val) == 0 || base::is.na(val)) {
+    return(NA_real_)
+  }
+  val[[1]]
+}
+
+.hc_llm_unique_rag_papers <- function(papers) {
+  if (base::is.null(papers) || base::length(papers) == 0) {
+    return(list())
+  }
+  papers <- lapply(papers, .hc_llm_normalize_rag_paper)
+  keys <- base::vapply(
+    papers,
+    function(p) base::paste(p$apa_citation, p$title, p$doi, sep = "\r"),
+    FUN.VALUE = base::character(1)
+  )
+  has_value <- base::vapply(
+    papers,
+    function(p) base::any(base::nzchar(base::c(p$apa_citation, p$title, p$doi))),
+    FUN.VALUE = base::logical(1)
+  )
+  keep <- !base::duplicated(keys) & has_value
+  papers[keep]
+}
+
+.hc_llm_format_rag_context <- function(rag_result, max_chars = 12000) {
+  entries <- .hc_llm_rag_context_list(rag_result[["context"]])
+  if (base::length(entries) == 0) {
+    return("")
+  }
+
+  formatted_entries <- base::vapply(
+    base::seq_along(entries),
+    function(i) {
+      entry <- entries[[i]]
+      rel <- if (base::is.na(entry$relevance)) {
+        "NA"
+      } else {
+        base::format(base::round(entry$relevance, 3), nsmall = 3, trim = TRUE)
+      }
+      paper <- entry$paper
+      meta <- base::c(
+        base::paste0("[", i, "] relevance=", rel),
+        if (base::nzchar(entry$section)) base::paste0("section=", entry$section) else NULL,
+        if (base::nzchar(paper$title)) base::paste0("title=", paper$title) else NULL
+      )
+      base::paste(
+        base::paste(meta, collapse = " | "),
+        if (base::nzchar(paper$apa_citation)) base::paste0("Citation: ", paper$apa_citation) else NULL,
+        if (base::nzchar(paper$doi)) base::paste0("DOI: ", paper$doi) else NULL,
+        base::paste0("Passage: ", entry$chunk),
+        sep = "\n"
+      )
+    },
+    FUN.VALUE = base::character(1)
+  )
+
+  citations <- .hc_llm_rag_citations_text(rag_result)
+  out <- base::paste(
+    "Use these passages only as supporting literature evidence. The gene list remains the primary evidence.",
+    base::paste(formatted_entries, collapse = "\n\n"),
+    if (base::nzchar(citations)) base::paste0("Unique cited papers: ", citations) else NULL,
+    sep = "\n\n"
+  )
+
+  if (!base::is.null(max_chars) && base::nchar(out, type = "chars") > max_chars) {
+    out <- base::paste0(
+      base::substr(out, 1L, max_chars),
+      "\n[DoRAG context truncated to ", max_chars, " characters.]"
+    )
+  }
+  out
+}
+
+.hc_llm_rag_context_count <- function(rag_result) {
+  base::length(.hc_llm_rag_context_list(rag_result[["context"]]))
+}
+
+.hc_llm_rag_citations_text <- function(rag_result) {
+  papers <- .hc_llm_rag_context_list(rag_result[["cited_papers"]])
+  if (base::length(papers) == 0) {
+    return("")
+  }
+  citations <- base::vapply(
+    papers,
+    function(p) {
+      p <- .hc_llm_normalize_rag_paper(p)
+      out <- if (base::nzchar(p$apa_citation)) p$apa_citation else p$title
+      if (base::nzchar(p$doi)) {
+        out <- base::paste0(out, " DOI: ", p$doi)
+      }
+      out
+    },
+    FUN.VALUE = base::character(1)
+  )
+  citations <- base::unique(citations[base::nzchar(citations)])
+  base::paste(citations, collapse = " | ")
 }
 
 .hc_llm_error_result <- function(gene_info,
@@ -1150,6 +1939,7 @@ hc_module_function_vllm <- function(...) {
                                     total_gene_count,
                                     context_text,
                                     truncated,
+                                    rag_context_text = NULL,
                                     llm = "gemini") {
   trunc_note <- if (isTRUE(truncated)) {
     base::paste0(
@@ -1162,6 +1952,8 @@ hc_module_function_vllm <- function(...) {
   }
 
   biological_context <- if (base::nzchar(context_text)) context_text else "none provided"
+  has_rag_context <- !base::is.null(rag_context_text) &&
+    base::nzchar(base::as.character(rag_context_text[[1]]))
 
   prompt_instructions <- if (llm == "vllm") {
     base::paste(
@@ -1180,6 +1972,7 @@ hc_module_function_vllm <- function(...) {
       "Prefer specific states such as interferon-high inflammatory state, ribosome-high proliferative state, phagolysosomal activated state, antigen-presenting inflammatory state, platelet-like metabolic state, erythroid-skewed progenitor-like state, or macrophage-like transition state when supported.",
       "For `key_regulators`, list 2 to 5 likely transcription factors or signaling regulators separated by ' / '.",
       "If regulator evidence is weak, provide the most plausible regulators briefly rather than repeating the process.",
+      if (has_rag_context) "Use the retrieved DoRAG passages as optional literature support, but prioritize the supplied genes and biological context. Do not claim that RAG is statistical enrichment." else NULL,
       "Example style only:",
       '{"general_processes":"interferon signaling / antiviral innate immunity / antigen presentation","contextual_state":"activated interferon-high inflammatory monocyte state","key_regulators":"STAT1 / IRF7 / IRF9 / NFKB1"}'
     )
@@ -1197,7 +1990,8 @@ hc_module_function_vllm <- function(...) {
       "Provide `general_processes` as a short noun phrase listing the main biological program.",
       "Provide `contextual_state` as a short phrase describing the specific monocyte or transcriptional state in this study context.",
       "Provide `key_regulators` as a short phrase naming likely driving transcription factors or signaling regulators.",
-      "If regulator evidence is weak, state the most plausible regulators briefly rather than repeating the biological process."
+      "If regulator evidence is weak, state the most plausible regulators briefly rather than repeating the biological process.",
+      if (has_rag_context) "Use the retrieved DoRAG passages as optional literature support, but prioritize the supplied genes and biological context. Do not claim that RAG is statistical enrichment." else NULL
     )
   }
 
@@ -1207,6 +2001,14 @@ hc_module_function_vllm <- function(...) {
     base::paste0("Label: ", label),
     base::paste0("Gene-count note: ", trunc_note),
     base::paste0("Genes:\n", base::paste(genes, collapse = ", ")),
+    if (has_rag_context) {
+      base::paste0(
+        "Retrieved DoRAG literature context:\n",
+        base::as.character(rag_context_text[[1]])
+      )
+    } else {
+      NULL
+    },
     sep = "\n"
   )
 }
@@ -1396,6 +2198,21 @@ hc_module_function_vllm <- function(...) {
       gene_count_input = base::integer(0),
       gene_count_sent = base::integer(0),
       truncated = base::logical(0),
+      rag_used = base::logical(0),
+      rag_query = base::character(0),
+      rag_context_count = base::integer(0),
+      rag_citations = base::character(0),
+      rag_error_message = base::character(0),
+      primary_interpretation_level = base::character(0),
+      without_context_general_processes = base::character(0),
+      without_context_contextual_state = base::character(0),
+      without_context_key_regulators = base::character(0),
+      with_context_general_processes = base::character(0),
+      with_context_contextual_state = base::character(0),
+      with_context_key_regulators = base::character(0),
+      with_rag_general_processes = base::character(0),
+      with_rag_contextual_state = base::character(0),
+      with_rag_key_regulators = base::character(0),
       status = base::character(0),
       error_message = base::character(0),
       timestamp = base::character(0),
@@ -1421,6 +2238,21 @@ hc_module_function_vllm <- function(...) {
       gene_count_input = base::integer(0),
       gene_count_sent = base::integer(0),
       truncated = base::logical(0),
+      rag_used = base::logical(0),
+      rag_query = base::character(0),
+      rag_context_count = base::integer(0),
+      rag_citations = base::character(0),
+      rag_error_message = base::character(0),
+      primary_interpretation_level = base::character(0),
+      without_context_general_processes = base::character(0),
+      without_context_contextual_state = base::character(0),
+      without_context_key_regulators = base::character(0),
+      with_context_general_processes = base::character(0),
+      with_context_contextual_state = base::character(0),
+      with_context_key_regulators = base::character(0),
+      with_rag_general_processes = base::character(0),
+      with_rag_contextual_state = base::character(0),
+      with_rag_key_regulators = base::character(0),
       status = base::character(0),
       error_message = base::character(0),
       timestamp = base::character(0),
@@ -1445,6 +2277,21 @@ hc_module_function_vllm <- function(...) {
       gene_count_input = .hc_llm_result_scalar(res, c("gene_count_input"), default = NA_integer_, mode = "integer"),
       gene_count_sent = .hc_llm_result_scalar(res, c("gene_count_sent"), default = NA_integer_, mode = "integer"),
       truncated = .hc_llm_result_scalar(res, c("truncated"), default = FALSE, mode = "logical"),
+      rag_used = .hc_llm_result_rag_used(res),
+      rag_query = .hc_llm_result_scalar(res, c("rag_query")),
+      rag_context_count = .hc_llm_result_rag_context_count(res),
+      rag_citations = .hc_llm_result_rag_citations(res),
+      rag_error_message = .hc_llm_result_scalar(res, c("rag_error_message")),
+      primary_interpretation_level = .hc_llm_result_scalar(res, c("primary_interpretation_level")),
+      without_context_general_processes = .hc_llm_result_level_scalar(res, "without_context", "general_processes"),
+      without_context_contextual_state = .hc_llm_result_level_scalar(res, "without_context", "contextual_state"),
+      without_context_key_regulators = .hc_llm_result_level_scalar(res, "without_context", "key_regulators"),
+      with_context_general_processes = .hc_llm_result_level_scalar(res, "with_context", "general_processes"),
+      with_context_contextual_state = .hc_llm_result_level_scalar(res, "with_context", "contextual_state"),
+      with_context_key_regulators = .hc_llm_result_level_scalar(res, "with_context", "key_regulators"),
+      with_rag_general_processes = .hc_llm_result_level_scalar(res, "with_rag", "general_processes"),
+      with_rag_contextual_state = .hc_llm_result_level_scalar(res, "with_rag", "contextual_state"),
+      with_rag_key_regulators = .hc_llm_result_level_scalar(res, "with_rag", "key_regulators"),
       status = .hc_llm_result_scalar(res, c("status")),
       error_message = .hc_llm_result_scalar(res, c("error_message")),
       timestamp = .hc_llm_result_scalar(res, c("timestamp")),
@@ -1567,6 +2414,43 @@ hc_module_function_vllm <- function(...) {
   val
 }
 
+.hc_llm_result_level_scalar <- function(res, level, field, default = NA_character_) {
+  val <- .hc_llm_result_field(res, c("interpretation_levels", level, "response", field))
+  val <- .hc_llm_clean_text(val)
+  if (base::is.null(val) || base::length(val) == 0) {
+    return(default)
+  }
+  val <- base::as.character(val[[1]])
+  if (base::length(val) == 0 || base::is.na(val) || !base::nzchar(val)) {
+    return(default)
+  }
+  val
+}
+
+.hc_llm_result_rag_used <- function(res) {
+  !base::is.null(.hc_llm_result_field(res, c("rag")))
+}
+
+.hc_llm_result_rag_context_count <- function(res) {
+  rag <- .hc_llm_result_field(res, c("rag"))
+  if (base::is.null(rag)) {
+    return(0L)
+  }
+  base::as.integer(.hc_llm_rag_context_count(rag))
+}
+
+.hc_llm_result_rag_citations <- function(res) {
+  rag <- .hc_llm_result_field(res, c("rag"))
+  if (base::is.null(rag)) {
+    return(NA_character_)
+  }
+  citations <- .hc_llm_rag_citations_text(rag)
+  if (!base::nzchar(citations)) {
+    return(NA_character_)
+  }
+  citations
+}
+
 .hc_llm_short_title_fallback <- function(term, max_chars = 64) {
   if (base::is.null(term) || base::length(term) == 0) {
     return("No interpretation available")
@@ -1661,6 +2545,21 @@ hc_module_function_vllm <- function(...) {
         gene_count_input = .hc_llm_result_scalar(res, c("gene_count_input"), default = NA_integer_, mode = "integer"),
         gene_count_sent = .hc_llm_result_scalar(res, c("gene_count_sent"), default = NA_integer_, mode = "integer"),
         truncated = .hc_llm_result_scalar(res, c("truncated"), default = FALSE, mode = "logical"),
+        rag_used = .hc_llm_result_rag_used(res),
+        rag_query = .hc_llm_result_scalar(res, c("rag_query")),
+        rag_context_count = .hc_llm_result_rag_context_count(res),
+        rag_citations = .hc_llm_result_rag_citations(res),
+        rag_error_message = .hc_llm_result_scalar(res, c("rag_error_message")),
+        primary_interpretation_level = .hc_llm_result_scalar(res, c("primary_interpretation_level")),
+        without_context_general_processes = .hc_llm_result_level_scalar(res, "without_context", "general_processes"),
+        without_context_contextual_state = .hc_llm_result_level_scalar(res, "without_context", "contextual_state"),
+        without_context_key_regulators = .hc_llm_result_level_scalar(res, "without_context", "key_regulators"),
+        with_context_general_processes = .hc_llm_result_level_scalar(res, "with_context", "general_processes"),
+        with_context_contextual_state = .hc_llm_result_level_scalar(res, "with_context", "contextual_state"),
+        with_context_key_regulators = .hc_llm_result_level_scalar(res, "with_context", "key_regulators"),
+        with_rag_general_processes = .hc_llm_result_level_scalar(res, "with_rag", "general_processes"),
+        with_rag_contextual_state = .hc_llm_result_level_scalar(res, "with_rag", "contextual_state"),
+        with_rag_key_regulators = .hc_llm_result_level_scalar(res, "with_rag", "key_regulators"),
         status = .hc_llm_result_scalar(res, c("status")),
         error_message = .hc_llm_result_scalar(res, c("error_message")),
         prompt = .hc_llm_result_scalar(res, c("prompt")),

@@ -76,6 +76,8 @@ The container prepares a workspace at `/home/rstudio/hcocena` and includes:
 - visible workflow notebooks under `/home/rstudio/hcocena/github_workflows/`
   including `hcocena_main.Rmd` and `hcocena_satellite.Rmd`
 - preinstalled optional packages for common workflows, including
+  `DESeq2`, `limma`, `sva`, `edgeR`, `tximport`, `apeglm`, `ashr`,
+  `EnhancedVolcano`, `pheatmap`, `org.Hs.eg.db`, `org.Mm.eg.db`,
   `CALIBERrfimpute`, `RCy3`, `SpatialExperiment`, and `GSVA`
 - empty `count_data`, `annotation_data`, and `output` directories
 

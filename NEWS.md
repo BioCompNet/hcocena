@@ -15,6 +15,9 @@
   retrieval robust to unreachable or slow RAG servers.
 - Extended `hc_plot_module_function_llm()` to plot RAG comparison fields such
   as `contextual_state_rag`.
+- Added common RNA-seq differential-expression packages to the Docker image,
+  including `DESeq2`, `limma`, `sva`, `edgeR`, and supporting visualization,
+  shrinkage, import, and organism annotation packages.
 - Allowed `hc_split_modules()` to use one Leiden `resolution` value per
   selected module.
 - Clarified that `hc_read_data()` now removes zero-variance genes and drops

@@ -13,14 +13,18 @@ integration and downstream analysis of transcriptomics datasets.
   - `02_hcocena_satellite.Rmd`
   - `03_hcocena_main_seq_only.Rmd`
 - additional notebooks under `/home/rstudio/hcocena/github_workflows/`
+- RNA-seq and differential-expression packages including `DESeq2`, `limma`,
+  `sva`, `edgeR`, `tximport`, `apeglm`, `ashr`, `EnhancedVolcano`,
+  `pheatmap`, `org.Hs.eg.db`, and `org.Mm.eg.db`
 
 ## Recommended tags
 
 - `latest` for the current image and quick-start commands
-- `1.98` for a pinned, reproducible setup
+- `1.99` for a pinned, reproducible setup
 
 Older tags still kept for older reproducible runs:
 
+- `1.98`
 - `1.97`
 - `1.96`
 - `1.95`
@@ -43,7 +47,7 @@ Run RStudio Server:
 docker run --rm -p 8787:8787 -e PASSWORD=hcocena therealtomek/hcocena:latest
 ```
 
-For reproducible runs, replace `latest` with a pinned tag such as `1.98`.
+For reproducible runs, replace `latest` with a pinned tag such as `1.99`.
 
 Then open:
 

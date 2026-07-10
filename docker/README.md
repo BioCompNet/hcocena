@@ -18,7 +18,9 @@ The image includes:
 - workflow notebooks directly in the workspace root:
   `01_hcocena_main.Rmd`, `02_hcocena_satellite.Rmd`, `03_hcocena_main_seq_only.Rmd`
 - preinstalled optional packages for common workflows, including
-  `graphlayouts`, `ellmer`, `CALIBERrfimpute`, `RCy3`, `SpatialExperiment`, and `GSVA`
+  `graphlayouts`, `ellmer`, `DESeq2`, `limma`, `sva`, `edgeR`, `tximport`,
+  `apeglm`, `ashr`, `EnhancedVolcano`, `pheatmap`, `org.Hs.eg.db`,
+  `org.Mm.eg.db`, `CALIBERrfimpute`, `RCy3`, `SpatialExperiment`, and `GSVA`
 - empty `count_data`, `annotation_data`, and `output` directories
 
 RStudio Server is exposed on port `8787` by the base image.

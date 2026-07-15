@@ -1702,6 +1702,42 @@ test_that("split-module labels trigger preserve-existing heatmap numbering", {
 })
 
 
+test_that("cluster heatmap view resolves module order and full GFC scale", {
+  resolve_modules <- get(".hc_heatmap_view_resolve_modules", asNamespace("hcocena"))
+  resolve_scale <- get(".hc_heatmap_view_resolve_gfc_scale_limits", asNamespace("hcocena"))
+
+  cluster_calc <- list(
+    cluster_information = data.frame(
+      color = c("red", "blue", "green"),
+      cluster_included = c("yes", "yes", "yes"),
+      stringsAsFactors = FALSE
+    ),
+    heatmap_matrix = matrix(
+      c(-5, 1, 3, 2, -1, 4),
+      nrow = 3,
+      dimnames = list(c("red", "blue", "green"), c("T1", "T2"))
+    ),
+    heatmap_row_order = c("blue", "red", "green"),
+    module_label_map = c(red = "M1", blue = "M2", green = "M3")
+  )
+
+  resolved <- resolve_modules(
+    modules = c("M3", 1, "red"),
+    cluster_calc = cluster_calc
+  )
+  expect_equal(resolved$target_colors, c("green", "blue", "red"))
+  expect_equal(resolved$resolved_labels, c("M3", "M2", "M1"))
+
+  hc <- methods::new("HCoCenaExperiment")
+  hc@integration@cluster <- S4Vectors::SimpleList(cluster_calc)
+  expect_equal(resolve_scale(hc, cluster_calc), c(-5, 5))
+  cluster_calc[["gfc_scale_limits"]] <- c(-3, 3)
+  expect_equal(resolve_scale(hc, cluster_calc), c(-3, 3))
+  expect_true("modules" %in% names(formals(hcocena::hc_plot_cluster_heatmap_view)))
+  expect_true("write_module_tables" %in% names(formals(get("plot_cluster_heatmap_new", asNamespace("hcocena")))))
+})
+
+
 test_that("cluster colour palette is unique (merge_clusters keys modules by colour)", {
   palette <- hcocena:::get_cluster_colours()
   expect_false(any(duplicated(palette)))

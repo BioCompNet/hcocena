@@ -162,7 +162,8 @@
                                             module_significance_show_qvalue = FALSE,
                                             module_significance_width_cm = 1.6,
                                             module_significance_p_cutoffs = c(0.001, 0.01, 0.05),
-                                            module_significance_annotation_name = "sig") {
+                                            module_significance_annotation_name = "sig",
+                                            write_module_tables = TRUE) {
   plot_cluster_heatmap_new(
     col_order = col_order,
     row_order = row_order,
@@ -210,7 +211,8 @@
     module_significance_show_qvalue = module_significance_show_qvalue,
     module_significance_width_cm = module_significance_width_cm,
     module_significance_p_cutoffs = module_significance_p_cutoffs,
-    module_significance_annotation_name = module_significance_annotation_name
+    module_significance_annotation_name = module_significance_annotation_name,
+    write_module_tables = write_module_tables
   )
 }
 
@@ -260,7 +262,8 @@ plot_cluster_heatmap <- function(col_order = NULL,
                                  module_significance_show_qvalue = FALSE,
                                  module_significance_width_cm = 1.6,
                                  module_significance_p_cutoffs = c(0.001, 0.01, 0.05),
-                                 module_significance_annotation_name = "sig") {
+                                 module_significance_annotation_name = "sig",
+                                 write_module_tables = TRUE) {
   .hc_alias_warning("plot_cluster_heatmap")
   if (missing(module_label_numbering) &&
     .hc_module_label_map_has_split_labels(
@@ -789,7 +792,8 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
                                      module_significance_show_qvalue = FALSE,
                                      module_significance_width_cm = 1.6,
                                      module_significance_p_cutoffs = c(0.001, 0.01, 0.05),
-                                     module_significance_annotation_name = "sig") {
+                                     module_significance_annotation_name = "sig",
+                                     write_module_tables = TRUE) {
   pdf_width_is_default <- isTRUE(all.equal(as.numeric(pdf_width), 50))
   pdf_height_is_default <- isTRUE(all.equal(as.numeric(pdf_height), 30))
 
@@ -949,6 +953,11 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     base::length(module_significance_annotation_name) != 1 ||
     !base::nzchar(module_significance_annotation_name)) {
     stop("`module_significance_annotation_name` must be a non-empty string.")
+  }
+  if (!base::is.logical(write_module_tables) ||
+    base::length(write_module_tables) != 1 ||
+    base::is.na(write_module_tables)) {
+    stop("`write_module_tables` must be TRUE or FALSE.")
   }
   overall_plot_scale <- base::max(0.5, base::min(3, overall_plot_scale))
   if (base::is.null(gfc_colors)) {
@@ -2959,26 +2968,28 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       stringsAsFactors = FALSE
     )
   }
-  module_gene_list_file <- base::paste0(
-    hcobject[["working_directory"]][["dir_output"]],
-    hcobject[["global_settings"]][["save_folder"]],
-    "/Module_Gene_List.xlsx"
-  )
-  tryCatch(
-    {
-      openxlsx::write.xlsx(
-        x = list(module_gene_list = module_gene_list_tbl),
-        file = module_gene_list_file,
-        overwrite = TRUE
-      )
-    },
-    error = function(e) {
-      warning(
-        "Could not write Module_Gene_List.xlsx: ",
-        base::conditionMessage(e)
-      )
-    }
-  )
+  if (base::isTRUE(write_module_tables)) {
+    module_gene_list_file <- base::paste0(
+      hcobject[["working_directory"]][["dir_output"]],
+      hcobject[["global_settings"]][["save_folder"]],
+      "/Module_Gene_List.xlsx"
+    )
+    tryCatch(
+      {
+        openxlsx::write.xlsx(
+          x = list(module_gene_list = module_gene_list_tbl),
+          file = module_gene_list_file,
+          overwrite = TRUE
+        )
+      },
+      error = function(e) {
+        warning(
+          "Could not write Module_Gene_List.xlsx: ",
+          base::conditionMessage(e)
+        )
+      }
+    )
+  }
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "module_label_map"), module_label_map)
   .hc_set_bridge_hcobject_slot(c("satellite_outputs", "module_gene_list"), module_gene_list_tbl)
 
@@ -3017,24 +3028,26 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     }
   )
   if (!base::is.null(module_gfc_means_tbl)) {
-    module_gfc_means_file <- base::paste0(
-      hcobject[["working_directory"]][["dir_output"]],
-      hcobject[["global_settings"]][["save_folder"]],
-      "/Module_GFC_Means.xlsx"
-    )
-    tryCatch(
-      openxlsx::write.xlsx(
-        x = base::list(module_gfc_means = module_gfc_means_tbl),
-        file = module_gfc_means_file,
-        overwrite = TRUE
-      ),
-      error = function(e) {
-        base::warning(
-          "Could not write Module_GFC_Means.xlsx: ",
-          base::conditionMessage(e)
-        )
-      }
-    )
+    if (base::isTRUE(write_module_tables)) {
+      module_gfc_means_file <- base::paste0(
+        hcobject[["working_directory"]][["dir_output"]],
+        hcobject[["global_settings"]][["save_folder"]],
+        "/Module_GFC_Means.xlsx"
+      )
+      tryCatch(
+        openxlsx::write.xlsx(
+          x = base::list(module_gfc_means = module_gfc_means_tbl),
+          file = module_gfc_means_file,
+          overwrite = TRUE
+        ),
+        error = function(e) {
+          base::warning(
+            "Could not write Module_GFC_Means.xlsx: ",
+            base::conditionMessage(e)
+          )
+        }
+      )
+    }
     .hc_set_bridge_hcobject_slot(c("satellite_outputs", "module_gfc_means"), module_gfc_means_tbl)
   }
 

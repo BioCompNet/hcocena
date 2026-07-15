@@ -911,7 +911,9 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
   resolved_colors <- character(0)
   resolution_rows <- list()
   input_vec <- modules
-  if (is.numeric(input_vec)) {
+  if (is.list(input_vec)) {
+    input_vec <- as.list(input_vec)
+  } else if (is.numeric(input_vec)) {
     input_vec <- as.list(input_vec)
   } else {
     input_vec <- as.list(as.character(input_vec))
@@ -936,6 +938,13 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
         resolved <- x_chr
       } else if (x_chr %in% names(label_to_color)) {
         resolved <- as.character(label_to_color[[x_chr]])
+      } else if (grepl("^[0-9]+$", x_chr)) {
+        idx <- suppressWarnings(as.integer(x_chr))
+        if (!is.na(idx) && idx >= 1 && idx <= length(module_order)) {
+          resolved <- module_order[[idx]]
+        } else {
+          status <- "not_found"
+        }
       } else {
         status <- "not_found"
       }

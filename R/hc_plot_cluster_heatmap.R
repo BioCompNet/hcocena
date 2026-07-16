@@ -10,7 +10,8 @@
 #'  If `NULL` and `cluster_columns = FALSE`, the column order from the previous
 #'  main hCoCena heatmap is reused when available.
 #'  If `cluster_columns = TRUE`, this order is overwritten by clustering.
-#' @param row_order Like col_order but with cluster names.
+#' @param row_order Like col_order but with module colors, module labels (for
+#'   example `"M1"`), or numeric module indices in the current heatmap order.
 #' @param cluster_columns A Boolean, whether or not to cluster the columns of
 #'  the heatmap. Default is FALSE so the main hCoCena column order is preserved.
 #' @param cluster_rows Like cluster_columns but for rows.
@@ -276,6 +277,79 @@ plot_cluster_heatmap <- function(col_order = NULL,
     .hc_run_modern_bridge,
     c(list(fun = hc_plot_cluster_heatmap), args)
   ))
+}
+
+.hc_resolve_cluster_heatmap_row_order <- function(row_order,
+                                                  cluster_calc,
+                                                  available_colors,
+                                                  module_prefix = "M") {
+  if (base::is.null(row_order)) {
+    return(NULL)
+  }
+
+  available_colors <- base::unique(base::as.character(available_colors))
+  available_colors <- available_colors[!base::is.na(available_colors) & base::nzchar(available_colors)]
+  if (base::length(available_colors) == 0) {
+    stop("No valid module rows available before applying `row_order`.")
+  }
+
+  stored_module_prefix <- tryCatch(
+    cluster_calc[["module_prefix"]],
+    error = function(e) NULL
+  )
+  if (!base::is.null(stored_module_prefix) &&
+    base::length(stored_module_prefix) == 1 &&
+    !base::is.na(stored_module_prefix) &&
+    base::nzchar(base::as.character(stored_module_prefix[[1]]))) {
+    module_prefix <- base::as.character(stored_module_prefix[[1]])
+  }
+
+  module_label_map <- .hc_normalize_module_label_map_for_split(
+    module_label_map = tryCatch(cluster_calc[["module_label_map"]], error = function(e) NULL),
+    available_colors = available_colors,
+    module_prefix = module_prefix
+  )
+  module_order <- .hc_split_module_order(
+    cluster_calc = cluster_calc,
+    available_colors = available_colors
+  )
+  resolved <- .hc_resolve_modules_for_split(
+    modules = row_order,
+    available_colors = available_colors,
+    module_label_map = module_label_map,
+    module_order = module_order
+  )
+  unresolved <- resolved$resolution_table[
+    base::as.character(resolved$resolution_table$status) != "ok", ,
+    drop = FALSE
+  ]
+  if (base::nrow(unresolved) > 0) {
+    unresolved_inputs <- base::unique(base::as.character(unresolved$input))
+    available_labels <- base::unique(base::as.character(module_label_map[module_order]))
+    available_labels <- available_labels[!base::is.na(available_labels) & base::nzchar(available_labels)]
+    available_preview <- if (base::length(available_labels) > 0) {
+      out <- base::paste(utils::head(available_labels, 12L), collapse = ", ")
+      if (base::length(available_labels) > 12L) {
+        out <- base::paste0(out, ", ...")
+      }
+      base::paste0("\nAvailable module labels: ", out)
+    } else {
+      ""
+    }
+    stop(
+      "Unknown entries in `row_order`: ",
+      base::paste(unresolved_inputs, collapse = ", "),
+      "\nUse module labels, module colors, or numeric indices.",
+      available_preview
+    )
+  }
+
+  out <- base::as.character(resolved$target_colors)
+  out <- out[!base::is.na(out) & base::nzchar(out)]
+  if (base::length(out) == 0) {
+    stop("No valid module rows available after applying `row_order`.")
+  }
+  out
 }
 
 .hc_module_label_map_has_split_labels <- function(module_label_map) {
@@ -1194,6 +1268,15 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
 
   # Filter for included clusters (non-white)
   c_df <- dplyr::filter(hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]], cluster_included == "yes")
+  available_row_colors <- base::unique(base::as.character(c_df$color))
+  if (!base::is.null(row_order)) {
+    row_order <- .hc_resolve_cluster_heatmap_row_order(
+      row_order = row_order,
+      cluster_calc = hcobject[["integrated_output"]][["cluster_calc"]],
+      available_colors = available_row_colors,
+      module_prefix = module_prefix
+    )
+  }
 
   # --- 2. Build Heatmap Matrix (GFC Values) ---
   target_clusters <- if (!base::is.null(row_order)) row_order else base::unique(c_df$color)

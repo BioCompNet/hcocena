@@ -1705,6 +1705,7 @@ test_that("split-module labels trigger preserve-existing heatmap numbering", {
 test_that("cluster heatmap view resolves module order and full GFC scale", {
   resolve_modules <- get(".hc_heatmap_view_resolve_modules", asNamespace("hcocena"))
   resolve_scale <- get(".hc_heatmap_view_resolve_gfc_scale_limits", asNamespace("hcocena"))
+  resolve_row_order <- get(".hc_resolve_cluster_heatmap_row_order", asNamespace("hcocena"))
 
   cluster_calc <- list(
     cluster_information = data.frame(
@@ -1727,6 +1728,22 @@ test_that("cluster heatmap view resolves module order and full GFC scale", {
   )
   expect_equal(resolved$target_colors, c("green", "blue", "red"))
   expect_equal(resolved$resolved_labels, c("M3", "M2", "M1"))
+  expect_equal(
+    resolve_row_order(
+      row_order = c("M3", "1", "red"),
+      cluster_calc = cluster_calc,
+      available_colors = c("red", "blue", "green")
+    ),
+    c("green", "blue", "red")
+  )
+  expect_error(
+    resolve_row_order(
+      row_order = "M9",
+      cluster_calc = cluster_calc,
+      available_colors = c("red", "blue", "green")
+    ),
+    "Unknown entries in `row_order`"
+  )
 
   hc <- methods::new("HCoCenaExperiment")
   hc@integration@cluster <- S4Vectors::SimpleList(cluster_calc)

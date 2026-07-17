@@ -4112,7 +4112,7 @@ hc_plot_longitudinal_meta_embeddings <- function(hc,
       base::as.character(table_file_prefix[[1]])
     }
     if (identical(table_format, "xlsx") && requireNamespace("openxlsx", quietly = TRUE)) {
-      openxlsx::write.xlsx(
+      .hc_write_xlsx_atomic(
         x = meta_tables,
         file = base::file.path(out_dir, base::paste0(tbl_prefix, "_Meta_Clustering_Summary.xlsx")),
         overwrite = TRUE
@@ -4423,7 +4423,7 @@ hc_plot_longitudinal_meta_consensus <- function(hc,
       out_dir <- .hc_resolve_output_dir(hc)
     }
     if (identical(table_format, "xlsx") && requireNamespace("openxlsx", quietly = TRUE)) {
-      openxlsx::write.xlsx(
+      .hc_write_xlsx_atomic(
         x = list(Consensus_K_Table = summary_tbl),
         file = base::file.path(out_dir, base::paste0(file_prefix, "_Summary.xlsx")),
         overwrite = TRUE
@@ -5739,7 +5739,7 @@ hc_plot_longitudinal_enrichment_waves <- function(hc,
 
     if (isTRUE(export_excel) && requireNamespace("openxlsx", quietly = TRUE)) {
       out_dir <- .hc_resolve_output_dir(hc)
-      openxlsx::write.xlsx(
+      .hc_write_xlsx_atomic(
         x = list(
           top_terms = top_export,
           mean_trajectories = mean_df,
@@ -6542,7 +6542,7 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
 
     if (isTRUE(export_excel) && requireNamespace("openxlsx", quietly = TRUE)) {
       out_dir <- .hc_resolve_output_dir(hc)
-      openxlsx::write.xlsx(
+      .hc_write_xlsx_atomic(
         x = list(
           top_terms = top_export,
           meta_mean = mean_df,

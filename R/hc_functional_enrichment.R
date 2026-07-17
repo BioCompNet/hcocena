@@ -1501,7 +1501,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           significant_enrichments = significant_summary
         )
         .hc_set_bridge_hcobject_slot(c("satellite_outputs", "enrichments", base::paste0("top_", i)), output)
-        openxlsx::write.xlsx(
+        .hc_write_xlsx_atomic(
           x = build_enrichment_export(
             res_list = res,
             all_summary_tbl = all_summary,
@@ -1570,7 +1570,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
           significant_enrichments = significant_summary
         )
         .hc_set_bridge_hcobject_slot(c("satellite_outputs", "enrichments", base::paste0("top_", i)), output)
-        openxlsx::write.xlsx(
+        .hc_write_xlsx_atomic(
           x = build_enrichment_export(
             res_list = res,
             all_summary_tbl = all_summary,
@@ -1963,7 +1963,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
         padding = draw_padding
       )
 
-      openxlsx::write.xlsx(
+      .hc_write_xlsx_atomic(
         x = build_enrichment_export(
           res_list = res,
           all_summary_tbl = all_summary,
@@ -2697,7 +2697,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     module_gene_list = module_gene_list_tbl
   )
   xlsx_tables_all_dbs[[top_all_sheet_name]] <- combined_selected_summary
-  openxlsx::write.xlsx(
+  .hc_write_xlsx_atomic(
     x = xlsx_tables_all_dbs,
     file = base::paste0(
       hcobject[["working_directory"]][["dir_output"]],
@@ -2706,7 +2706,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     ),
     overwrite = TRUE
   )
-  openxlsx::write.xlsx(
+  .hc_write_xlsx_atomic(
     x = list(module_gene_list = module_gene_list_tbl),
     file = base::paste0(
       hcobject[["working_directory"]][["dir_output"]],

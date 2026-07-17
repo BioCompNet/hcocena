@@ -1113,7 +1113,8 @@ hc_read_supplementary <- function(hc) {
                                                  bayes,
                                                  prior,
                                                  alpha,
-                                                 corr_method) {
+                                                 corr_method,
+                                                 corr_backend) {
   for (x in base::seq_len(base::length(hcobject[["layers"]]))) {
     .hc_set_bridge_hcobject_slot(
       c("layer_specific_outputs", base::paste0("set", x), "part1"),
@@ -1125,7 +1126,8 @@ hc_read_supplementary <- function(hc) {
         padj = padj,
         export = export,
         import = import,
-        corr_method = corr_method
+        corr_method = corr_method,
+        corr_backend = corr_backend
       )
     )
   }
@@ -1138,12 +1140,16 @@ hc_read_supplementary <- function(hc) {
                                                bayes = FALSE,
                                                prior = 2,
                                                alpha = 0.5,
-                                               corr_method = "pearson") {
+                                               corr_method = "pearson",
+                                               corr_backend = "auto") {
   if (!inherits(hc, "HCoCenaExperiment")) {
     stop("`hc` must be a `HCoCenaExperiment`.")
   }
   if (!corr_method %in% c("pearson", "spearman")) {
     stop("Parameter 'corr_method' must be either 'pearson' or 'spearman'.")
+  }
+  if (!corr_backend %in% c("auto", "rcorr")) {
+    stop("Parameter 'corr_backend' must be either 'auto' or 'rcorr'.")
   }
   if (!(base::nrow(hc@config@layer) > 0 && "layer_id" %in% base::colnames(hc@config@layer))) {
     stop("No layers found. Run `hc_define_layers()` before `hc_run_expression_analysis_1()`.")
@@ -1158,7 +1164,8 @@ hc_read_supplementary <- function(hc) {
     bayes = bayes,
     prior = prior,
     alpha = alpha,
-    corr_method = corr_method
+    corr_method = corr_method,
+    corr_backend = corr_backend
   )
 }
 #
@@ -1174,7 +1181,8 @@ hc_run_expression_analysis_1 <- function(hc,
                                          bayes = FALSE,
                                          prior = 2,
                                          alpha = 0.5,
-                                         corr_method = "pearson") {
+                                         corr_method = "pearson",
+                                         corr_backend = "auto") {
   .hc_run_expression_analysis_1_impl(
     hc = hc,
     padj = padj,
@@ -1183,7 +1191,8 @@ hc_run_expression_analysis_1 <- function(hc,
     bayes = bayes,
     prior = prior,
     alpha = alpha,
-    corr_method = corr_method
+    corr_method = corr_method,
+    corr_backend = corr_backend
   )
 }
 

@@ -3,6 +3,120 @@
   base::paste0(tools::file_path_sans_ext(path), ext)
 }
 
+# Atomic, verified file write.
+#
+# Sync clients (Sciebo / ownCloud / OneDrive) can grab a file mid-write when the
+# output folder is a synced directory, producing a truncated or empty result
+# (e.g. an unreadable PDF or a zero-row .xlsx). `producer(tmp)` writes to a
+# sibling temporary file in the *same* directory; on success the temp file is
+# renamed onto `final_path` (an atomic operation on the same filesystem), so a
+# consumer never observes a half-written final file. If the finished file is
+# missing or smaller than `min_bytes`, an error is raised so the failure is
+# surfaced loudly instead of leaving a silently-broken output behind.
+.hc_write_atomic <- function(final_path, producer, min_bytes = 1) {
+  final_path <- base::as.character(final_path[[1]])
+  if (base::is.na(final_path) || !base::nzchar(final_path)) {
+    stop("`final_path` must be a non-empty file path.")
+  }
+  if (!base::is.function(producer)) {
+    stop("`producer` must be a function of one argument (the temp path).")
+  }
+
+  dir_path <- base::dirname(final_path)
+  if (!base::dir.exists(dir_path)) {
+    base::dir.create(dir_path, recursive = TRUE, showWarnings = FALSE)
+  }
+
+  # Keep the original extension on the temp file: graphics devices (Cairo),
+  # ggplot2::ggsave and openxlsx all infer the output format from the file
+  # extension, so the temp name must end in the same `.pdf`/`.png`/`.xlsx`.
+  ext <- tools::file_ext(final_path)
+  tmp_path <- base::paste0(
+    tools::file_path_sans_ext(final_path),
+    ".part-", base::Sys.getpid(), "-",
+    base::format(base::as.integer(stats::runif(1, 1L, 1e6L))),
+    if (base::nzchar(ext)) base::paste0(".", ext) else ""
+  )
+  base::on.exit(
+    if (base::file.exists(tmp_path)) base::try(base::file.remove(tmp_path), silent = TRUE),
+    add = TRUE
+  )
+
+  producer(tmp_path)
+
+  if (!base::file.exists(tmp_path) ||
+    base::is.na(base::file.info(tmp_path)$size) ||
+    base::file.info(tmp_path)$size < min_bytes) {
+    stop(base::sprintf(
+      "Temporary output '%s' was not written (or is empty).", tmp_path
+    ))
+  }
+
+  if (base::file.exists(final_path)) {
+    base::try(base::file.remove(final_path), silent = TRUE)
+  }
+  moved <- base::suppressWarnings(base::file.rename(tmp_path, final_path))
+  if (!isTRUE(moved)) {
+    # Rename can fail across filesystems or when the destination is locked;
+    # fall back to a copy so the final file is still produced.
+    moved <- base::file.copy(tmp_path, final_path, overwrite = TRUE)
+  }
+  if (!isTRUE(moved) ||
+    !base::file.exists(final_path) ||
+    base::is.na(base::file.info(final_path)$size) ||
+    base::file.info(final_path)$size < min_bytes) {
+    stop(base::sprintf(
+      "Failed to finalize output '%s' (write to a synced folder such as Sciebo/OneDrive may have been interrupted).",
+      final_path
+    ))
+  }
+
+  invisible(final_path)
+}
+
+# Verify a file that should already exist is present and non-empty; warn (do not
+# stop) so a failed export becomes visible in the log instead of silent.
+.hc_verify_output_file <- function(path, label = NULL, min_bytes = 1) {
+  if (base::is.null(path) || base::length(path) == 0) {
+    return(invisible(FALSE))
+  }
+  path <- base::as.character(path[[1]])
+  if (base::is.na(path) || !base::nzchar(path)) {
+    return(invisible(FALSE))
+  }
+  ok <- base::file.exists(path) &&
+    !base::is.na(base::file.info(path)$size) &&
+    base::file.info(path)$size >= min_bytes
+  if (!ok) {
+    base::warning(
+      base::sprintf(
+        "Expected output %s'%s' is missing or empty after writing. If the save folder is on a synced drive (Sciebo/OneDrive), the sync client may have interrupted the write; try a local output folder.",
+        if (!base::is.null(label)) base::paste0(label, " ") else "",
+        path
+      ),
+      call. = FALSE
+    )
+  }
+  invisible(ok)
+}
+
+# Atomic drop-in for `openxlsx::write.xlsx(x = ..., file = ..., ...)`: keep the
+# call site identical except for the function name. Writes the workbook to a
+# temporary sibling and atomically moves it onto `file`, so a synced output
+# folder (Sciebo/OneDrive) cannot leave a truncated / zero-row .xlsx behind.
+.hc_write_xlsx_atomic <- function(x, file, ...) {
+  dots <- base::list(...)
+  .hc_write_atomic(
+    final_path = file,
+    producer = function(tmp) {
+      base::do.call(
+        openxlsx::write.xlsx,
+        base::c(base::list(x = x, file = tmp), dots)
+      )
+    }
+  )
+}
+
 .hc_export_sanitize_stem <- function(x, default = "page") {
   x <- base::as.character(x[[1]])
   if (base::is.na(x) || !base::nzchar(x)) {
@@ -168,26 +282,31 @@
     png_height <- height
   }
 
-  render_page <- function(open_device) {
-    open_device()
-    on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
-    .hc_draw_white_page_background()
-    draw_fun()
-    invisible(NULL)
+  # Render to a temporary sibling file, then atomically move it onto the final
+  # path, so a synced output folder (Sciebo/OneDrive) cannot leave a truncated
+  # PDF/PNG behind.
+  render_page <- function(target, open_device) {
+    .hc_write_atomic(target, function(tmp) {
+      open_device(tmp)
+      on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
+      .hc_draw_white_page_background()
+      draw_fun()
+      invisible(NULL)
+    })
   }
 
-  render_page(function() {
+  render_page(pdf_file, function(f) {
     .hc_open_pdf_device(
-      file = pdf_file,
+      file = f,
       width = width,
       height = height,
       pointsize = pointsize,
       dpi = pdf_dpi
     )
   })
-  render_page(function() {
+  render_page(png_file, function(f) {
     .hc_open_png_device(
-      file = png_file,
+      file = f,
       width = png_width,
       height = png_height,
       res = res,
@@ -227,20 +346,23 @@
     page_labels
   )
 
-  .hc_open_pdf_device(
-    file = pdf_file,
-    width = width,
-    height = height,
-    pointsize = pointsize,
-    onefile = TRUE
-  )
-  on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
-  for (idx in base::seq_along(page_labels)) {
-    .hc_draw_white_page_background()
-    draw_page_fun(idx, page_labels[[idx]])
-  }
-  grDevices::dev.off()
-  on.exit(NULL, add = FALSE)
+  # Multi-page PDF: render every page to a temporary sibling, then atomically
+  # move it onto the final path (protects synced output folders from truncation).
+  .hc_write_atomic(pdf_file, function(tmp) {
+    .hc_open_pdf_device(
+      file = tmp,
+      width = width,
+      height = height,
+      pointsize = pointsize,
+      onefile = TRUE
+    )
+    on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
+    for (idx in base::seq_along(page_labels)) {
+      .hc_draw_white_page_background()
+      draw_page_fun(idx, page_labels[[idx]])
+    }
+    invisible(NULL)
+  })
 
   stem <- tools::file_path_sans_ext(pdf_file)
   for (idx in base::seq_along(page_labels)) {
@@ -250,18 +372,19 @@
       idx,
       .hc_export_sanitize_stem(page_labels[[idx]], default = base::sprintf("page_%03d", idx))
     )
-    .hc_open_png_device(
-      file = png_file,
-      width = width,
-      height = height,
-      res = res,
-      pointsize = pointsize
-    )
-    on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
-    .hc_draw_white_page_background()
-    draw_page_fun(idx, page_labels[[idx]])
-    grDevices::dev.off()
-    on.exit(NULL, add = FALSE)
+    .hc_write_atomic(png_file, function(tmp) {
+      .hc_open_png_device(
+        file = tmp,
+        width = width,
+        height = height,
+        res = res,
+        pointsize = pointsize
+      )
+      on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
+      .hc_draw_white_page_background()
+      draw_page_fun(idx, page_labels[[idx]])
+      invisible(NULL)
+    })
     png_files[[idx]] <- png_file
   }
 

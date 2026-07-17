@@ -1071,7 +1071,7 @@ celltype_annotation <- function(
         used_sheet_names <- base::c(used_sheet_names, nm_ord)
       }
       tryCatch(
-        openxlsx::write.xlsx(
+        .hc_write_xlsx_atomic(
           x = xlsx_tables,
           file = excel_path,
           overwrite = TRUE

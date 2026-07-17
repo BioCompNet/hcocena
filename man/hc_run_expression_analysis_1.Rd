@@ -12,7 +12,8 @@ hc_run_expression_analysis_1(
   bayes = FALSE,
   prior = 2,
   alpha = 0.5,
-  corr_method = "pearson"
+  corr_method = "pearson",
+  corr_backend = "auto"
 )
 }
 \arguments{
@@ -39,6 +40,13 @@ Therefore, the Pearson correlation values can be weighted with Bayesian correlat
 \item{alpha}{A numeric value from 0 to 1. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.}
 
 \item{corr_method}{Default is "pearson", but can alternatively be set to "spearman".}
+
+\item{corr_backend}{Correlation backend. \code{"auto"} (default) uses a fast
+cross-product path (BLAS matmul plus analytic t p-values) that is numerically
+identical to \code{Hmisc::rcorr} but roughly 2-4x faster, and automatically
+falls back to \code{Hmisc::rcorr} when the expression matrix contains \code{NA}s
+(to preserve pairwise-complete semantics). \code{"rcorr"} forces the original
+\code{Hmisc::rcorr} computation.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.

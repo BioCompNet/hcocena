@@ -550,7 +550,7 @@ celltype_activity_decoupler <- function(
         categories_per_cluster = categories,
         annotation_slot_map = out$annotation_slot_map
       )
-      tryCatch(openxlsx::write.xlsx(x = xlsx_tables, file = file.path(out_dir, excel_file), overwrite = TRUE), error = function(e) warning("Could not write Excel: ", conditionMessage(e)))
+      tryCatch(.hc_write_xlsx_atomic(x = xlsx_tables, file = file.path(out_dir, excel_file), overwrite = TRUE), error = function(e) warning("Could not write Excel: ", conditionMessage(e)))
     }
   }
 

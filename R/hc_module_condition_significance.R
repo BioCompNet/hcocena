@@ -237,7 +237,7 @@ module_condition_significance <- function(set = "all",
     }
     out_file <- base::file.path(out_dir, excel_file)
     tryCatch(
-      openxlsx::write.xlsx(x = xlsx_tables, file = out_file, overwrite = TRUE),
+      .hc_write_xlsx_atomic(x = xlsx_tables, file = out_file, overwrite = TRUE),
       error = function(e) warning("Could not write module-significance Excel: ", conditionMessage(e))
     )
   }

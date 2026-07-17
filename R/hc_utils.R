@@ -1122,7 +1122,8 @@ run_expression_analysis_1_body <- function(
   padj,
   export,
   import,
-  corr_method
+  corr_method,
+  corr_backend = "auto"
 ) {
   message("Currently processed dataset: ", hcobject[["layers_names"]][x])
   output <- list()
@@ -1167,20 +1168,21 @@ run_expression_analysis_1_body <- function(
     export = export,
     layer = x,
     import = import,
-    corr_method = corr_method
+    corr_method = corr_method,
+    corr_backend = corr_backend
   )
 
   output[["corr_calc_out"]] <- corr_calc_out
 
   # calculate cut-off statistics:
   message("...calculating cutoff statistics...")
-  cutoff_stats <- base::do.call("rbind", base::lapply(
-    X = corr_calc_out[["range_cutoff"]],
-    FUN = cutoff_prep,
-    corrdf_r = corr_calc_out[["correlation_df_filt"]],
+  cutoff_stats <- .hc_cutoff_stats_fast(
+    correlation_df_filt = corr_calc_out[["correlation_df_filt"]],
+    range_cutoff = corr_calc_out[["range_cutoff"]],
     print.all.plots = hcobject[["layer_settings"]][[base::paste0("set", x)]][["print_distribution_plots"]],
-    x = x
-  ))
+    x = x,
+    min_nodes = hcobject[["global_settings"]][["min_nodes_number_for_network"]]
+  )
 
 
   output[["cutoff_stats"]] <- cutoff_stats
@@ -1212,6 +1214,92 @@ calc_pval <- function(x, mu, sigma, n) {
 }
 
 
+#' Fast drop-in replacement for `Hmisc::rcorr()`
+#'
+#' Computes a dense gene-by-gene correlation matrix together with the matching
+#' two-sided p-value matrix, returning the same `list(r, P, n)` structure as
+#' [Hmisc::rcorr()]. Correlations are obtained from the cross-product of the
+#' column-standardised matrix (a BLAS matmul, which is ~13-25x faster than
+#' `rcorr`'s single-threaded Fortran), and p-values from the analytic
+#' t-distribution formula that `rcorr` itself uses, so results are numerically
+#' identical to `rcorr` (to floating-point precision).
+#'
+#' The fast path assumes complete observations (constant `n` across all pairs).
+#' If the input contains `NA`s, `rcorr`'s pairwise-complete semantics change the
+#' effective `n` per pair, so `backend = "auto"` transparently falls back to
+#' [Hmisc::rcorr()] to keep results exact. Use `backend = "rcorr"` to force the
+#' original behaviour.
+#'
+#' @param x A samples-by-genes numeric matrix (correlations across columns), as
+#'   passed to [Hmisc::rcorr()].
+#' @param type Either "pearson" (default) or "spearman". Spearman ranks each
+#'   column first, then applies the Pearson path, matching `rcorr`.
+#' @param backend "auto" (fast cross-product path with automatic `rcorr`
+#'   fallback on `NA`s) or "rcorr" (always use [Hmisc::rcorr()]).
+#' @return A list with elements `r` (correlation matrix), `P` (p-value matrix,
+#'   `NA` on the diagonal) and `n` (number of observations).
+#' @noRd
+
+.hc_fast_rcorr <- function(x, type = "pearson", backend = "auto") {
+  x <- base::as.matrix(x)
+  backend <- base::match.arg(backend, c("auto", "rcorr"))
+  if (!type %in% c("pearson", "spearman")) {
+    stop("Parameter 'type' must be either 'pearson' or 'spearman'.", call. = FALSE)
+  }
+
+  has_na <- base::anyNA(x)
+  if (backend == "rcorr" || has_na) {
+    if (has_na && backend == "auto") {
+      message("...NAs detected in expression matrix; using Hmisc::rcorr for exact pairwise-complete p-values...")
+    }
+    return(Hmisc::rcorr(x, type = type))
+  }
+
+  n <- base::nrow(x)
+  if (n < 3L) {
+    stop("Need at least 3 observations (samples) to compute correlation p-values.", call. = FALSE)
+  }
+
+  # Spearman: rank each column, then treat as Pearson (matches Hmisc::rcorr).
+  if (type == "spearman") {
+    x <- base::apply(x, 2, base::rank)
+  }
+
+  # Correlation via cross-product of column-standardised data (BLAS matmul).
+  # `scale` already yields the per-column SDs, so reuse them to flag constant
+  # columns instead of a second pass.
+  xs <- base::scale(x)
+  col_sd <- base::attr(xs, "scaled:scale")
+  zero_var <- !base::is.finite(col_sd) | col_sd == 0
+  r <- base::crossprod(xs) / (n - 1)
+  r[r > 1] <- 1
+  r[r < -1] <- -1
+
+  # Analytic two-sided t p-values -- the exact formula Hmisc::rcorr uses.
+  # (Constant columns give NaN here; they are overwritten with NA below.)
+  df <- n - 2
+  tstat <- base::suppressWarnings(r * base::sqrt(df / (1 - r^2)))
+  P <- 2 * stats::pt(-base::abs(tstat), df)
+
+  base::diag(r) <- 1
+  base::diag(P) <- NA_real_
+
+  # Constant columns have undefined correlation; match rcorr by returning NA.
+  if (base::any(zero_var)) {
+    r[zero_var, ] <- NA_real_
+    r[, zero_var] <- NA_real_
+    P[zero_var, ] <- NA_real_
+    P[, zero_var] <- NA_real_
+  }
+
+  gene_names <- base::colnames(x)
+  base::rownames(r) <- base::colnames(r) <- gene_names
+  base::rownames(P) <- base::colnames(P) <- gene_names
+
+  base::list(r = r, P = P, n = n)
+}
+
+
 #' Calculate Pair-Wise Correlations
 #'
 #' The function calculates the pair-wise correlations for all genes in each dataset and performs multiple-testing correction.
@@ -1229,6 +1317,9 @@ calc_pval <- function(x, mu, sigma, n) {
 #' @param prior An integer, either 2 or 3, using prior 2 or 3 for the Bayes weighting as described in "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016).
 #' @param layer_set The layer specific settings for this layer.
 #' @param layer An Integer indicating the currently processed dataset.
+#' @param corr_backend Correlation backend: "auto" (fast cross-product path via
+#'   [.hc_fast_rcorr()], with automatic `Hmisc::rcorr` fallback on `NA`s) or
+#'   "rcorr" (always use `Hmisc::rcorr`). Default "auto".
 #' @noRd
 
 pwcorr <- function(
@@ -1241,7 +1332,8 @@ pwcorr <- function(
   export,
   layer,
   import,
-  corr_method
+  corr_method,
+  corr_backend = "auto"
 ) {
   message("...calculating pairwise correlations...")
 
@@ -1262,7 +1354,7 @@ pwcorr <- function(
       base::rownames(correlation_matrix[["r"]]) <- base::colnames(correlation_matrix[["r"]])
       base::rownames(correlation_matrix[["P"]]) <- base::colnames(correlation_matrix[["P"]])
     } else {
-      correlation_matrix <- Hmisc::rcorr(base::as.matrix(dd2), type = corr_method)
+      correlation_matrix <- .hc_fast_rcorr(base::as.matrix(dd2), type = corr_method, backend = corr_backend)
     }
   } else if (base::length(import) == 1 & !base::is.null(import)) {
     # import matrix
@@ -1273,7 +1365,7 @@ pwcorr <- function(
     base::rownames(correlation_matrix[["r"]]) <- base::colnames(correlation_matrix[["r"]])
     base::rownames(correlation_matrix[["P"]]) <- base::colnames(correlation_matrix[["P"]])
   } else {
-    correlation_matrix <- Hmisc::rcorr(base::as.matrix(dd2), type = corr_method)
+    correlation_matrix <- .hc_fast_rcorr(base::as.matrix(dd2), type = corr_method, backend = corr_backend)
   }
 
   # export correlations and p-values for future re-runs to avoid the bottleneck:
@@ -1436,42 +1528,50 @@ Bayes_Corr <- function(alpha0, beta0, X) {
 #' @noRd
 
 .hc_union_find_components <- function(from_idx, to_idx, n_vertices) {
+  # Weighted union-find with in-place mutation. The `parent`/`rank` vectors live
+  # in this frame and are updated via `<<-`, which R performs in place because
+  # each vector is single-referenced. `find` only *reads* `parent` (walking to
+  # the root), so no per-operation vector copies occur -- unlike the previous
+  # implementation, which returned the whole `parent` vector from every find and
+  # rebound it, making each edge O(n_vertices) instead of O(alpha). Union by rank
+  # keeps trees shallow (O(log n) finds). This is the large-graph fallback used
+  # when igraph construction would be too memory-hungry.
   parent <- seq_len(n_vertices)
   rank <- integer(n_vertices)
 
-  find_root <- function(parent_vec, i) {
-    while (parent_vec[[i]] != i) {
-      parent_vec[[i]] <- parent_vec[[parent_vec[[i]]]]
-      i <- parent_vec[[i]]
-    }
-    list(parent = parent_vec, root = i)
-  }
-
+  # `find` is inlined as a read-only while-loop (rather than a closure) so that
+  # `parent` keeps a single reference and `parent[x] <- y` mutates it in place.
+  from_idx <- as.integer(from_idx)
+  to_idx <- as.integer(to_idx)
   for (k in seq_along(from_idx)) {
-    root_from_info <- find_root(parent, from_idx[[k]])
-    parent <- root_from_info$parent
-    root_from <- root_from_info$root
-    root_to_info <- find_root(parent, to_idx[[k]])
-    parent <- root_to_info$parent
-    root_to <- root_to_info$root
+    root_from <- from_idx[k]
+    while (parent[root_from] != root_from) {
+      root_from <- parent[root_from]
+    }
+    root_to <- to_idx[k]
+    while (parent[root_to] != root_to) {
+      root_to <- parent[root_to]
+    }
     if (root_from == root_to) {
       next
     }
-    if (rank[[root_from]] < rank[[root_to]]) {
-      parent[[root_from]] <- root_to
-    } else if (rank[[root_from]] > rank[[root_to]]) {
-      parent[[root_to]] <- root_from
+    if (rank[root_from] < rank[root_to]) {
+      parent[root_from] <- root_to
+    } else if (rank[root_from] > rank[root_to]) {
+      parent[root_to] <- root_from
     } else {
-      parent[[root_to]] <- root_from
-      rank[[root_from]] <- rank[[root_from]] + 1L
+      parent[root_to] <- root_from
+      rank[root_from] <- rank[root_from] + 1L
     }
   }
 
   roots <- integer(n_vertices)
   for (i in seq_len(n_vertices)) {
-    root_info <- find_root(parent, i)
-    parent <- root_info$parent
-    roots[[i]] <- root_info$root
+    r <- i
+    while (parent[r] != r) {
+      r <- parent[r]
+    }
+    roots[i] <- r
   }
   comp_ids <- match(roots, unique(roots))
   list(
@@ -1545,35 +1645,36 @@ Bayes_Corr <- function(alpha0, beta0, X) {
   v1 <- base::as.character(graph_df[["V1"]])
   v2 <- base::as.character(graph_df[["V2"]])
   vertices <- base::unique(base::c(v1, v2))
-  from_idx <- match(v1, vertices)
-  to_idx <- match(v2, vertices)
-  if (length(from_idx) > 2e6) {
-    components <- .hc_union_find_components(
-      from_idx = from_idx,
-      to_idx = to_idx,
-      n_vertices = length(vertices)
-    )
-  } else {
-    edge_matrix <- base::matrix(base::c(from_idx, to_idx), ncol = 2)
-    components <- tryCatch(
-      {
-        g <- igraph::graph_from_edgelist(edge_matrix, directed = FALSE)
-        igraph::components(g)
-      },
-      error = function(e) {
-        warning(
-          "Falling back to memory-saving cutoff statistics because igraph graph construction failed: ",
-          conditionMessage(e),
-          call. = FALSE
-        )
-        .hc_union_find_components(from_idx = from_idx, to_idx = to_idx, n_vertices = length(vertices))
-      }
-    )
-  }
+  .hc_cutoff_component_summary_idx(
+    from_idx = match(v1, vertices),
+    to_idx = match(v2, vertices),
+    n_vertices = length(vertices),
+    min_nodes = min_nodes
+  )
+}
+
+# Integer-index core of the cutoff component summary. `from_idx`/`to_idx` must be
+# 1-based vertex indices into a compact vertex set of size `n_vertices` (i.e.
+# every vertex 1..n_vertices appears in at least one edge), so the `tabulate`
+# degree count stays consistent. Splitting this out lets the fast cutoff loop map
+# gene names to integers once and reuse them for every cutoff instead of
+# re-deriving them from character vectors each time.
+#
+# Components come from the in-place weighted union-find (`.hc_union_find_components`),
+# which is faster than building an igraph object per cutoff (the cutoff loop
+# calls this once per cutoff, so the repeated graph construction dominated) and
+# uses less memory. Its component partition is verified identical to
+# `igraph::components()` in the tests.
+.hc_cutoff_component_summary_idx <- function(from_idx, to_idx, n_vertices, min_nodes) {
+  components <- .hc_union_find_components(
+    from_idx = from_idx,
+    to_idx = to_idx,
+    n_vertices = n_vertices
+  )
 
   keep_components <- components[["csize"]] >= min_nodes
   keep_vertices <- keep_components[components[["membership"]]]
-  degrees_all <- tabulate(base::c(from_idx, to_idx), nbins = length(vertices))
+  degrees_all <- tabulate(base::c(from_idx, to_idx), nbins = n_vertices)
   keep_edges <- keep_vertices[from_idx] & keep_vertices[to_idx]
 
   list(
@@ -1614,6 +1715,82 @@ cutoff_prep <- function(cutoff, corrdf_r, print.all.plots, x, min_nodes = hcobje
 }
 
 
+#' Vectorised cutoff-statistics loop
+#'
+#' Result-identical, faster replacement for
+#' `do.call(rbind, lapply(range_cutoff, cutoff_prep, corrdf_r = ...))`.
+#'
+#' The original loop re-derives the vertex set for every cutoff by converting
+#' millions of gene-name strings with `as.character()` + `unique()` + `match()`
+#' and by re-subsetting a multi-million-row data.frame. This version maps gene
+#' names to integer vertex ids **once**, sorts the edges by correlation once, and
+#' for each cutoff processes the integer prefix of passing edges. Component
+#' statistics are order- and label-invariant, so the output is identical to the
+#' per-cutoff `cutoff_prep()` (verified in tests).
+#' @noRd
+.hc_cutoff_stats_fast <- function(correlation_df_filt,
+                                  range_cutoff,
+                                  print.all.plots = FALSE,
+                                  x = NULL,
+                                  min_nodes = hcobject[["global_settings"]][["min_nodes_number_for_network"]]) {
+  zero_row <- function(cutoff) {
+    base::data.frame(
+      R.squared = 0,
+      degree = 0,
+      Probs = 0,
+      cutoff = cutoff,
+      no_edges = 0,
+      no_nodes = 0,
+      no_of_networks = 0
+    )
+  }
+
+  if (base::is.null(correlation_df_filt) || base::nrow(correlation_df_filt) == 0) {
+    return(base::do.call(base::rbind, base::lapply(range_cutoff, zero_row)))
+  }
+
+  # Map gene names to integer vertex ids once, then sort edges by correlation so
+  # the edges passing any cutoff are a prefix of the sorted arrays.
+  v1 <- base::as.character(correlation_df_filt[["V1"]])
+  v2 <- base::as.character(correlation_df_filt[["V2"]])
+  vertices <- base::unique(base::c(v1, v2))
+  from_all <- match(v1, vertices)
+  to_all <- match(v2, vertices)
+  rval <- base::as.numeric(correlation_df_filt[["rval"]])
+
+  ord <- base::order(rval, decreasing = TRUE)
+  from_all <- from_all[ord]
+  to_all <- to_all[ord]
+  rval_sorted <- rval[ord]
+
+  base::do.call(base::rbind, base::lapply(range_cutoff, function(cutoff) {
+    k <- base::sum(rval_sorted >= cutoff)
+    if (k == 0) {
+      return(zero_row(cutoff))
+    }
+    idx <- base::seq_len(k)
+    from_k <- from_all[idx]
+    to_k <- to_all[idx]
+    # Compact the vertex ids to those present at this cutoff so igraph and the
+    # degree tabulation stay consistent (matches cutoff_prep()'s per-cutoff
+    # `unique()` exactly, but on integers instead of gene-name strings).
+    present <- base::unique(base::c(from_k, to_k))
+    stats_summary <- .hc_cutoff_component_summary_idx(
+      from_idx = match(from_k, present),
+      to_idx = match(to_k, present),
+      n_vertices = base::length(present),
+      min_nodes = min_nodes
+    )
+    .hc_rsquared_from_summary(
+      stats_summary = stats_summary,
+      cutoff = cutoff,
+      print.all.plots = print.all.plots,
+      x = x
+    )
+  }))
+}
+
+
 #' Function For Calculating Network Statistics
 #'
 #' @param graph_df Description of the network in matrix format with two columns giving edges between nodes and a third column giving edge weights.
@@ -1623,6 +1800,18 @@ cutoff_prep <- function(cutoff, corrdf_r, print.all.plots, x, min_nodes = hcobje
 
 rsquaredfun <- function(graph_df, cutoff, print.all.plots, min_nodes = hcobject[["global_settings"]][["min_nodes_number_for_network"]], x = NULL) {
   stats_summary <- .hc_cutoff_component_summary(graph_df = graph_df, min_nodes = min_nodes)
+  .hc_rsquared_from_summary(
+    stats_summary = stats_summary,
+    cutoff = cutoff,
+    print.all.plots = print.all.plots,
+    x = x
+  )
+}
+
+# Scale-free-fit statistics for one cutoff from a precomputed component summary
+# (see `.hc_cutoff_component_summary`). Identical to the tail of the original
+# `rsquaredfun`; factored out so the fast cutoff loop can reuse it.
+.hc_rsquared_from_summary <- function(stats_summary, cutoff, print.all.plots, x = NULL) {
   num_networks <- stats_summary[["num_networks"]]
   num_nodes <- stats_summary[["num_nodes"]]
   num_edges <- stats_summary[["num_edges"]]

@@ -2573,7 +2573,7 @@ hc_module_function_vllm <- function(...) {
   out_dir <- .hc_resolve_output_dir(hc)
   file <- base::file.path(out_dir, base::paste0(slot_name, "_summary.xlsx"))
   tryCatch(
-    openxlsx::write.xlsx(
+    .hc_write_xlsx_atomic(
       x = list(
         summary = summary_tbl,
         details = details_tbl

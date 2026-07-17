@@ -1235,7 +1235,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     raw_decouple_all = raw_decouple_all
   )
   base::names(export_tables) <- .hc_ui_excel_safe_sheet_names(base::names(export_tables))
-  openxlsx::write.xlsx(
+  .hc_write_xlsx_atomic(
     x = export_tables,
     file = excel_path,
     overwrite = TRUE

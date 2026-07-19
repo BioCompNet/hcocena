@@ -23,6 +23,7 @@ if (getRversion() >= "2.15.1") {
     "cGFCs",
     "cairo_pdf",
     "cell_type",
+    "cent",
     "ch_index",
     "ci_lower_use",
     "ci_upper_use",

@@ -90,10 +90,6 @@
 #' @param rag_continue_on_error Logical. If `TRUE`, a failed DoRAG request is
 #'   stored in the result and the LLM interpretation continues without RAG
 #'   passages. Default is `FALSE`.
-#' @param compare_interpretation_levels Logical. If `TRUE`, stores separate
-#'   LLM interpretations for comparison: `without_context`, `with_context`,
-#'   and, when `use_rag = TRUE`, `with_rag`. The top-level `response` remains
-#'   the final requested interpretation. Default is `FALSE`.
 #' @param continue_on_error Logical. If `TRUE`, continue with the next module
 #'   when one request fails and store the error in the result summary.
 #' @param save_to_hc Logical. If `TRUE`, store the result in `hc@satellite` and
@@ -152,7 +148,6 @@ hc_module_function_llm <- function(hc = NULL,
                                    rag_min_relevance = NULL,
                                    rag_max_context_chars = 12000,
                                    rag_continue_on_error = FALSE,
-                                   compare_interpretation_levels = FALSE,
                                    continue_on_error = FALSE,
                                    save_to_hc = !base::is.null(hc),
                                    slot_name = "llm_module_function",
@@ -213,15 +208,18 @@ hc_module_function_llm <- function(hc = NULL,
     stop("`model` must be a non-empty character scalar.")
   }
   if (!base::is.null(max_genes)) {
-    if (!base::is.numeric(max_genes) || base::length(max_genes) != 1 || base::is.na(max_genes[[1]]) || max_genes[[1]] <= 0) {
-      stop("`max_genes` must be NULL, Inf, or a single positive number.")
+    if (!base::is.numeric(max_genes) || base::length(max_genes) != 1 ||
+      base::is.na(max_genes[[1]]) || max_genes[[1]] <= 0 ||
+      (base::is.finite(max_genes[[1]]) && max_genes[[1]] != base::floor(max_genes[[1]]))) {
+      stop("`max_genes` must be NULL, Inf, or a single positive integer.")
     }
   }
   if (!base::is.numeric(temperature) || base::length(temperature) != 1 || !base::is.finite(temperature)) {
     stop("`temperature` must be a single finite numeric value.")
   }
   if (!base::is.null(timeout_sec)) {
-    if (!base::is.numeric(timeout_sec) || base::length(timeout_sec) != 1 || !base::is.finite(timeout_sec)) {
+    if (!base::is.numeric(timeout_sec) || base::length(timeout_sec) != 1 ||
+      !base::is.finite(timeout_sec) || timeout_sec < 0) {
       stop("`timeout_sec` must be NULL or a single finite numeric value >= 0.")
     }
   }
@@ -236,11 +234,6 @@ hc_module_function_llm <- function(hc = NULL,
   }
   if (!base::is.logical(verbose) || base::length(verbose) != 1 || base::is.na(verbose)) {
     stop("`verbose` must be TRUE or FALSE.")
-  }
-  if (!base::is.logical(compare_interpretation_levels) ||
-    base::length(compare_interpretation_levels) != 1 ||
-    base::is.na(compare_interpretation_levels)) {
-    stop("`compare_interpretation_levels` must be TRUE or FALSE.")
   }
   rag_options <- .hc_llm_resolve_rag_options(
     use_rag = use_rag,
@@ -359,7 +352,6 @@ hc_module_function_llm <- function(hc = NULL,
     system_instruction = system_instruction,
     response_schema = .hc_llm_response_schema(),
     rag_options = rag_options,
-    compare_interpretation_levels = compare_interpretation_levels,
     verbose = verbose
   )
 
@@ -421,7 +413,6 @@ hc_module_function_vllm <- function(...) {
                                    system_instruction,
                                    response_schema,
                                    rag_options,
-                                   compare_interpretation_levels,
                                    verbose) {
   results <- vector("list", length = base::length(gene_infos))
   for (i in base::seq_along(gene_infos)) {
@@ -446,7 +437,6 @@ hc_module_function_vllm <- function(...) {
         system_instruction = system_instruction,
         response_schema = response_schema,
         rag_options = rag_options,
-        compare_interpretation_levels = compare_interpretation_levels,
         index = i,
         n_inputs = base::length(gene_infos),
         verbose = verbose
@@ -628,7 +618,6 @@ hc_module_function_vllm <- function(...) {
                                   system_instruction,
                                   response_schema,
                                   rag_options = NULL,
-                                  compare_interpretation_levels = FALSE,
                                   index = 1L,
                                   n_inputs = 1L,
                                   verbose) {
@@ -736,15 +725,15 @@ hc_module_function_vllm <- function(...) {
     }
   }
 
-  run_level <- function(level, level_context_text, level_rag_context_text) {
+  run_interpretation <- function(level, interpretation_rag_context = NULL) {
     .hc_llm_interpretation_level(
       level = level,
       label = label,
       genes = genes_use,
       total_gene_count = base::length(genes_all),
-      context_text = level_context_text,
+      context_text = context_text,
       truncated = truncated,
-      rag_context_text = level_rag_context_text,
+      rag_context_text = interpretation_rag_context,
       llm = llm,
       api_key = api_key,
       model = model,
@@ -758,44 +747,16 @@ hc_module_function_vllm <- function(...) {
 
   has_rag_context <- !base::is.null(rag_context_text) &&
     base::nzchar(base::as.character(rag_context_text[[1]]))
-  primary_level <- if (has_rag_context) {
-    "with_rag"
-  } else if (base::nzchar(context_text)) {
-    "with_context"
-  } else {
-    "without_context"
-  }
 
-  interpretation_levels <- NULL
-  if (isTRUE(compare_interpretation_levels)) {
+  baseline <- run_interpretation(level = "baseline")
+  rag_interpretation <- NULL
+  if (has_rag_context) {
     if (isTRUE(verbose)) {
-      message("LLM module summary: running comparison levels for `", label, "`.")
+      message("LLM module summary: running the additional RAG interpretation for `", label, "`.")
     }
-    interpretation_levels <- list(
-      without_context = run_level(
-        level = "without_context",
-        level_context_text = "",
-        level_rag_context_text = NULL
-      ),
-      with_context = run_level(
-        level = "with_context",
-        level_context_text = context_text,
-        level_rag_context_text = NULL
-      )
-    )
-    if (has_rag_context) {
-      interpretation_levels$with_rag <- run_level(
-        level = "with_rag",
-        level_context_text = context_text,
-        level_rag_context_text = rag_context_text
-      )
-    }
-    primary <- interpretation_levels[[primary_level]]
-  } else {
-    primary <- run_level(
-      level = primary_level,
-      level_context_text = context_text,
-      level_rag_context_text = rag_context_text
+    rag_interpretation <- run_interpretation(
+      level = "rag",
+      interpretation_rag_context = rag_context_text
     )
   }
 
@@ -812,20 +773,20 @@ hc_module_function_vllm <- function(...) {
     model = model,
     status = "ok",
     error_message = NA_character_,
-    prompt = primary$prompt,
-    response = primary$response,
-    response_text = primary$response_text,
-    raw_response_text = primary$raw_response_text,
+    prompt = baseline$prompt,
+    response = baseline$response,
+    response_text = baseline$response_text,
+    raw_response_text = baseline$raw_response_text,
+    rag_prompt = if (!base::is.null(rag_interpretation)) rag_interpretation$prompt else NULL,
+    rag_response = if (!base::is.null(rag_interpretation)) rag_interpretation$response else NULL,
+    rag_response_text = if (!base::is.null(rag_interpretation)) rag_interpretation$response_text else NULL,
+    rag_raw_response_text = if (!base::is.null(rag_interpretation)) rag_interpretation$raw_response_text else NULL,
     rag = rag_result,
     rag_query = rag_query_used,
     rag_error_message = rag_error_message,
     rag_context_text = if (!base::is.null(rag_context_text) && base::nzchar(rag_context_text)) rag_context_text else NULL,
-    primary_interpretation_level = primary_level,
     timestamp = base::as.character(Sys.time())
   )
-  if (!base::is.null(interpretation_levels)) {
-    out$interpretation_levels <- interpretation_levels
-  }
   out
 }
 
@@ -999,14 +960,15 @@ hc_module_function_vllm <- function(...) {
 
   if (!base::is.numeric(rag_top_k) || base::length(rag_top_k) != 1 ||
     base::is.na(rag_top_k[[1]]) || !base::is.finite(rag_top_k[[1]]) ||
-    rag_top_k[[1]] <= 0) {
-    stop("`rag_top_k` must be a single positive number.")
+    rag_top_k[[1]] <= 0 || rag_top_k[[1]] != base::floor(rag_top_k[[1]])) {
+    stop("`rag_top_k` must be a single positive integer.")
   }
   rag_top_k <- base::as.integer(rag_top_k[[1]])
 
   if (!base::is.null(rag_timeout_sec)) {
     if (!base::is.numeric(rag_timeout_sec) || base::length(rag_timeout_sec) != 1 ||
-      base::is.na(rag_timeout_sec[[1]]) || !base::is.finite(rag_timeout_sec[[1]])) {
+      base::is.na(rag_timeout_sec[[1]]) || !base::is.finite(rag_timeout_sec[[1]]) ||
+      rag_timeout_sec[[1]] < 0) {
       stop("`rag_timeout_sec` must be NULL or a single finite numeric value >= 0.")
     }
   }
@@ -1014,7 +976,8 @@ hc_module_function_vllm <- function(...) {
 
   if (!base::is.null(rag_connect_timeout_sec)) {
     if (!base::is.numeric(rag_connect_timeout_sec) || base::length(rag_connect_timeout_sec) != 1 ||
-      base::is.na(rag_connect_timeout_sec[[1]]) || !base::is.finite(rag_connect_timeout_sec[[1]])) {
+      base::is.na(rag_connect_timeout_sec[[1]]) || !base::is.finite(rag_connect_timeout_sec[[1]]) ||
+      rag_connect_timeout_sec[[1]] < 0) {
       stop("`rag_connect_timeout_sec` must be NULL or a single finite numeric value >= 0.")
     }
   }
@@ -2203,16 +2166,9 @@ hc_module_function_vllm <- function(...) {
       rag_context_count = base::integer(0),
       rag_citations = base::character(0),
       rag_error_message = base::character(0),
-      primary_interpretation_level = base::character(0),
-      without_context_general_processes = base::character(0),
-      without_context_contextual_state = base::character(0),
-      without_context_key_regulators = base::character(0),
-      with_context_general_processes = base::character(0),
-      with_context_contextual_state = base::character(0),
-      with_context_key_regulators = base::character(0),
-      with_rag_general_processes = base::character(0),
-      with_rag_contextual_state = base::character(0),
-      with_rag_key_regulators = base::character(0),
+      rag_general_processes = base::character(0),
+      rag_contextual_state = base::character(0),
+      rag_key_regulators = base::character(0),
       status = base::character(0),
       error_message = base::character(0),
       timestamp = base::character(0),
@@ -2243,16 +2199,9 @@ hc_module_function_vllm <- function(...) {
       rag_context_count = base::integer(0),
       rag_citations = base::character(0),
       rag_error_message = base::character(0),
-      primary_interpretation_level = base::character(0),
-      without_context_general_processes = base::character(0),
-      without_context_contextual_state = base::character(0),
-      without_context_key_regulators = base::character(0),
-      with_context_general_processes = base::character(0),
-      with_context_contextual_state = base::character(0),
-      with_context_key_regulators = base::character(0),
-      with_rag_general_processes = base::character(0),
-      with_rag_contextual_state = base::character(0),
-      with_rag_key_regulators = base::character(0),
+      rag_general_processes = base::character(0),
+      rag_contextual_state = base::character(0),
+      rag_key_regulators = base::character(0),
       status = base::character(0),
       error_message = base::character(0),
       timestamp = base::character(0),
@@ -2282,16 +2231,9 @@ hc_module_function_vllm <- function(...) {
       rag_context_count = .hc_llm_result_rag_context_count(res),
       rag_citations = .hc_llm_result_rag_citations(res),
       rag_error_message = .hc_llm_result_scalar(res, c("rag_error_message")),
-      primary_interpretation_level = .hc_llm_result_scalar(res, c("primary_interpretation_level")),
-      without_context_general_processes = .hc_llm_result_level_scalar(res, "without_context", "general_processes"),
-      without_context_contextual_state = .hc_llm_result_level_scalar(res, "without_context", "contextual_state"),
-      without_context_key_regulators = .hc_llm_result_level_scalar(res, "without_context", "key_regulators"),
-      with_context_general_processes = .hc_llm_result_level_scalar(res, "with_context", "general_processes"),
-      with_context_contextual_state = .hc_llm_result_level_scalar(res, "with_context", "contextual_state"),
-      with_context_key_regulators = .hc_llm_result_level_scalar(res, "with_context", "key_regulators"),
-      with_rag_general_processes = .hc_llm_result_level_scalar(res, "with_rag", "general_processes"),
-      with_rag_contextual_state = .hc_llm_result_level_scalar(res, "with_rag", "contextual_state"),
-      with_rag_key_regulators = .hc_llm_result_level_scalar(res, "with_rag", "key_regulators"),
+      rag_general_processes = .hc_llm_result_rag_scalar(res, "general_processes"),
+      rag_contextual_state = .hc_llm_result_rag_scalar(res, "contextual_state"),
+      rag_key_regulators = .hc_llm_result_rag_scalar(res, "key_regulators"),
       status = .hc_llm_result_scalar(res, c("status")),
       error_message = .hc_llm_result_scalar(res, c("error_message")),
       timestamp = .hc_llm_result_scalar(res, c("timestamp")),
@@ -2414,8 +2356,8 @@ hc_module_function_vllm <- function(...) {
   val
 }
 
-.hc_llm_result_level_scalar <- function(res, level, field, default = NA_character_) {
-  val <- .hc_llm_result_field(res, c("interpretation_levels", level, "response", field))
+.hc_llm_result_rag_scalar <- function(res, field, default = NA_character_) {
+  val <- .hc_llm_result_field(res, c("rag_response", field))
   val <- .hc_llm_clean_text(val)
   if (base::is.null(val) || base::length(val) == 0) {
     return(default)
@@ -2428,7 +2370,13 @@ hc_module_function_vllm <- function(...) {
 }
 
 .hc_llm_result_rag_used <- function(res) {
-  !base::is.null(.hc_llm_result_field(res, c("rag")))
+  rag_status <- .hc_llm_result_field(res, c("rag", "status"))
+  status_ok <- !base::is.null(rag_status) &&
+    base::length(rag_status) > 0L &&
+    base::identical(base::as.character(rag_status[[1]]), "ok")
+  status_ok &&
+    .hc_llm_result_rag_context_count(res) > 0L &&
+    !base::is.null(.hc_llm_result_field(res, c("rag_response")))
 }
 
 .hc_llm_result_rag_context_count <- function(res) {
@@ -2550,19 +2498,13 @@ hc_module_function_vllm <- function(...) {
         rag_context_count = .hc_llm_result_rag_context_count(res),
         rag_citations = .hc_llm_result_rag_citations(res),
         rag_error_message = .hc_llm_result_scalar(res, c("rag_error_message")),
-        primary_interpretation_level = .hc_llm_result_scalar(res, c("primary_interpretation_level")),
-        without_context_general_processes = .hc_llm_result_level_scalar(res, "without_context", "general_processes"),
-        without_context_contextual_state = .hc_llm_result_level_scalar(res, "without_context", "contextual_state"),
-        without_context_key_regulators = .hc_llm_result_level_scalar(res, "without_context", "key_regulators"),
-        with_context_general_processes = .hc_llm_result_level_scalar(res, "with_context", "general_processes"),
-        with_context_contextual_state = .hc_llm_result_level_scalar(res, "with_context", "contextual_state"),
-        with_context_key_regulators = .hc_llm_result_level_scalar(res, "with_context", "key_regulators"),
-        with_rag_general_processes = .hc_llm_result_level_scalar(res, "with_rag", "general_processes"),
-        with_rag_contextual_state = .hc_llm_result_level_scalar(res, "with_rag", "contextual_state"),
-        with_rag_key_regulators = .hc_llm_result_level_scalar(res, "with_rag", "key_regulators"),
+        rag_general_processes = .hc_llm_result_rag_scalar(res, "general_processes"),
+        rag_contextual_state = .hc_llm_result_rag_scalar(res, "contextual_state"),
+        rag_key_regulators = .hc_llm_result_rag_scalar(res, "key_regulators"),
         status = .hc_llm_result_scalar(res, c("status")),
         error_message = .hc_llm_result_scalar(res, c("error_message")),
         prompt = .hc_llm_result_scalar(res, c("prompt")),
+        rag_prompt = .hc_llm_result_scalar(res, c("rag_prompt")),
         timestamp = .hc_llm_result_scalar(res, c("timestamp")),
         stringsAsFactors = FALSE
       )

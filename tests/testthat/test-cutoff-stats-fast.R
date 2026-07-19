@@ -119,3 +119,20 @@ test_that("fast cutoff loop returns zero rows for an empty correlation table", {
   expect_true(all(fast$no_edges == 0))
   expect_equal(fast$cutoff, range_cutoff)
 })
+
+test_that("fast cutoff loop ignores invalid edge rows", {
+  df <- make_corr_df(n_genes = 80, n_edges = 300, seed = 9)
+  invalid <- data.frame(
+    V1 = c(NA_character_, "", "G0001"),
+    V2 = c("G0002", "G0003", "G0004"),
+    rval = c(0.9, 0.8, NA_real_),
+    pval = c(0.01, 0.01, 0.01),
+    stringsAsFactors = FALSE
+  )
+  range_cutoff <- c(0.4, 0.7, 0.9)
+
+  expect_equal(
+    fast_loop(rbind(df, invalid), range_cutoff, min_nodes = 3L),
+    fast_loop(df, range_cutoff, min_nodes = 3L)
+  )
+})

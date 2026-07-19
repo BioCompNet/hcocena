@@ -17,3 +17,15 @@
 ^\.tmp_llm_visual/
 ^github_workflows$
 ^github_workflows/
+^\.agents$
+^\.agents/
+^\.claude$
+^\.claude/
+^\.codex$
+^\.codex/
+^realdata-output$
+^realdata-output/
+^realdata-reference$
+^realdata-reference/
+^CLAUDE\.md$
+^test_llm_claude\.R$

@@ -10,14 +10,12 @@
 #'   `"llm_module_function"`.
 #' @param modules Optional character vector to subset modules.
 #' @param fields Character vector selecting which LLM fields to plot. Supported
-#'   values include `"general_processes"`, `"contextual_state"`,
-#'   `"key_regulators"`, and comparison fields from
-#'   `compare_interpretation_levels = TRUE`, such as
-#'   `"without_context_contextual_state"`, `"with_context_contextual_state"`,
-#'   and `"with_rag_contextual_state"`. The aliases
-#'   `"contextual_state_without_context"`, `"contextual_state_with_context"`,
-#'   and `"contextual_state_rag"` are also accepted. Defaults to the three
-#'   top-level fields.
+#'   values are `"general_processes"`, `"contextual_state"`,
+#'   `"key_regulators"`, `"rag_general_processes"`,
+#'   `"rag_contextual_state"`, and `"rag_key_regulators"`. The aliases
+#'   `"general_processes_rag"`, `"contextual_state_rag"`, and
+#'   `"key_regulators_rag"` are also accepted. Defaults to the three baseline
+#'   fields.
 #' @param max_chars Maximum number of characters shown per term. Default is
 #'   `90`.
 #' @param text_size Numeric text size passed to `ggplot2::geom_text()`.
@@ -343,44 +341,20 @@ hc_plot_module_function_gemini <- function(...) {
     general_processes = "general_processes",
     contextual_state = "contextual_state",
     key_regulators = "key_regulators",
-    without_context_general_processes = "without_context_general_processes",
-    without_context_contextual_state = "without_context_contextual_state",
-    without_context_key_regulators = "without_context_key_regulators",
-    with_context_general_processes = "with_context_general_processes",
-    with_context_contextual_state = "with_context_contextual_state",
-    with_context_key_regulators = "with_context_key_regulators",
-    with_rag_general_processes = "with_rag_general_processes",
-    with_rag_contextual_state = "with_rag_contextual_state",
-    with_rag_key_regulators = "with_rag_key_regulators",
-    general_processes_without_context = "without_context_general_processes",
-    contextual_state_without_context = "without_context_contextual_state",
-    key_regulators_without_context = "without_context_key_regulators",
-    general_processes_with_context = "with_context_general_processes",
-    contextual_state_with_context = "with_context_contextual_state",
-    key_regulators_with_context = "with_context_key_regulators",
-    general_processes_rag = "with_rag_general_processes",
-    contextual_state_rag = "with_rag_contextual_state",
-    key_regulators_rag = "with_rag_key_regulators"
+    rag_general_processes = "rag_general_processes",
+    rag_contextual_state = "rag_contextual_state",
+    rag_key_regulators = "rag_key_regulators",
+    general_processes_rag = "rag_general_processes",
+    contextual_state_rag = "rag_contextual_state",
+    key_regulators_rag = "rag_key_regulators"
   )
   title <- c(
     general_processes = "General processes",
     contextual_state = "Contextual state",
     key_regulators = "Key regulators",
-    without_context_general_processes = "General processes without context",
-    without_context_contextual_state = "Contextual state without context",
-    without_context_key_regulators = "Key regulators without context",
-    with_context_general_processes = "General processes with context",
-    with_context_contextual_state = "Contextual state with context",
-    with_context_key_regulators = "Key regulators with context",
-    with_rag_general_processes = "General processes with RAG",
-    with_rag_contextual_state = "Contextual state with RAG",
-    with_rag_key_regulators = "Key regulators with RAG",
-    general_processes_without_context = "General processes without context",
-    contextual_state_without_context = "Contextual state without context",
-    key_regulators_without_context = "Key regulators without context",
-    general_processes_with_context = "General processes with context",
-    contextual_state_with_context = "Contextual state with context",
-    key_regulators_with_context = "Key regulators with context",
+    rag_general_processes = "General processes with RAG",
+    rag_contextual_state = "Contextual state with RAG",
+    rag_key_regulators = "Key regulators with RAG",
     general_processes_rag = "General processes with RAG",
     contextual_state_rag = "Contextual state with RAG",
     key_regulators_rag = "Key regulators with RAG"

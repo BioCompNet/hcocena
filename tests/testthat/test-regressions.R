@@ -2189,7 +2189,7 @@ test_that("regression: llm plot export writes pdf and png into configured output
 })
 
 
-test_that("regression: llm plot supports RAG comparison fields", {
+test_that("regression: llm plot supports the separate RAG interpretation", {
   hc <- methods::new("HCoCenaExperiment")
   hc@satellite <- S4Vectors::SimpleList(list(
     llm_module_function = list(module_1 = list(status = "ok")),
@@ -2199,7 +2199,7 @@ test_that("regression: llm plot supports RAG comparison fields", {
       general_processes = "Interferon signaling",
       contextual_state = "Context-only state",
       key_regulators = "STAT1 / IRF7",
-      with_rag_contextual_state = "RAG-supported contextual state",
+      rag_contextual_state = "RAG-supported contextual state",
       stringsAsFactors = FALSE
     )
   ))
@@ -2662,9 +2662,9 @@ test_that("regression: llm RAG mode injects retrieved passages and stores citati
     "rag_themes",
     "rag_min_relevance",
     "rag_connect_timeout_sec",
-    "rag_continue_on_error",
-    "compare_interpretation_levels"
+    "rag_continue_on_error"
   ) %in% names(formals(fun))))
+  expect_false("compare_interpretation_levels" %in% names(formals(fun)))
 
   captured_prompts <- character(0)
   captured_payload <- NULL
@@ -2723,8 +2723,6 @@ test_that("regression: llm RAG mode injects retrieved passages and stores citati
       captured_prompts <<- c(captured_prompts, prompt)
       result_text <- if (grepl("Retrieved DoRAG literature context", prompt, fixed = TRUE)) {
         '{"general_processes":"rag-supported neonatal innate immune development","contextual_state":"literature-supported interferon-high neonatal state","key_regulators":"STAT1 / IRF7"}'
-      } else if (grepl("The biological context is: none provided", prompt, fixed = TRUE)) {
-        '{"general_processes":"gene-only interferon signaling","contextual_state":"interferon-high inflammatory state","key_regulators":"STAT1 / IRF7"}'
       } else {
         '{"general_processes":"context-aware neonatal immune development","contextual_state":"neonatal interferon-high immune state","key_regulators":"STAT1 / IRF7"}'
       }
@@ -2744,7 +2742,6 @@ test_that("regression: llm RAG mode injects retrieved passages and stores citati
     rag_themes = "Innate Immunity",
     rag_connect_timeout_sec = 45,
     rag_min_relevance = 0.5,
-    compare_interpretation_levels = TRUE,
     save_to_hc = FALSE,
     verbose = FALSE
   )
@@ -2755,39 +2752,28 @@ test_that("regression: llm RAG mode injects retrieved passages and stores citati
   expect_equal(captured_payload$top_k, 2L)
   expect_equal(captured_payload$themes, "Innate Immunity")
   expect_equal(captured_payload$connect_timeout_sec, 45)
-  expect_equal(length(captured_prompts), 3L)
-  expect_true(grepl("The biological context is: none provided", captured_prompts[[1]], fixed = TRUE))
-  expect_false(grepl("neonatal immune system development", captured_prompts[[1]], fixed = TRUE))
-  expect_true(grepl("neonatal immune system development", captured_prompts[[2]], fixed = TRUE))
-  expect_false(grepl("Retrieved DoRAG literature context", captured_prompts[[2]], fixed = TRUE))
-  expect_true(grepl("Retrieved DoRAG literature context", captured_prompts[[3]], fixed = TRUE))
-  expect_true(grepl("Prenatal and early postnatal life", captured_prompts[[3]], fixed = TRUE))
-  expect_false(grepl("Low relevance passage", captured_prompts[[3]], fixed = TRUE))
+  expect_equal(length(captured_prompts), 2L)
+  expect_true(grepl("neonatal immune system development", captured_prompts[[1]], fixed = TRUE))
+  expect_false(grepl("Retrieved DoRAG literature context", captured_prompts[[1]], fixed = TRUE))
+  expect_true(grepl("Retrieved DoRAG literature context", captured_prompts[[2]], fixed = TRUE))
+  expect_true(grepl("Prenatal and early postnatal life", captured_prompts[[2]], fixed = TRUE))
+  expect_false(grepl("Low relevance passage", captured_prompts[[2]], fixed = TRUE))
 
   expect_equal(out$rag_query, "neonatal immune system development")
   expect_equal(length(out$rag$context), 1L)
   expect_true(grepl("Battersby", out$rag_context_text, fixed = TRUE))
-  expect_equal(out$primary_interpretation_level, "with_rag")
-  expect_named(out$interpretation_levels, c("without_context", "with_context", "with_rag"))
-  expect_equal(out$response$general_processes, "rag-supported neonatal innate immune development")
-  expect_equal(
-    out$interpretation_levels$without_context$response$general_processes,
-    "gene-only interferon signaling"
-  )
-  expect_equal(
-    out$interpretation_levels$with_context$response$general_processes,
-    "context-aware neonatal immune development"
-  )
+  expect_null(out$interpretation_levels)
+  expect_equal(out$response$general_processes, "context-aware neonatal immune development")
+  expect_equal(out$rag_response$general_processes, "rag-supported neonatal innate immune development")
 
   summary_fun <- get(".hc_llm_summary_from_results", asNamespace("hcocena"))
   summary_tbl <- summary_fun(list(out), hc = NULL)
   expect_true(summary_tbl$rag_used[[1]])
   expect_equal(summary_tbl$rag_context_count[[1]], 1L)
   expect_true(grepl("Battersby", summary_tbl$rag_citations[[1]], fixed = TRUE))
-  expect_equal(summary_tbl$primary_interpretation_level[[1]], "with_rag")
-  expect_equal(summary_tbl$without_context_general_processes[[1]], "gene-only interferon signaling")
-  expect_equal(summary_tbl$with_context_general_processes[[1]], "context-aware neonatal immune development")
-  expect_equal(summary_tbl$with_rag_general_processes[[1]], "rag-supported neonatal innate immune development")
+  expect_equal(summary_tbl$general_processes[[1]], "context-aware neonatal immune development")
+  expect_equal(summary_tbl$rag_general_processes[[1]], "rag-supported neonatal innate immune development")
+  expect_false(any(grepl("without_context|with_context|with_rag", names(summary_tbl))))
 })
 
 
@@ -2823,16 +2809,60 @@ test_that("regression: llm RAG continue-on-error falls back to context interpret
     llm = "vllm",
     use_rag = TRUE,
     rag_continue_on_error = TRUE,
-    compare_interpretation_levels = TRUE,
     save_to_hc = FALSE,
     verbose = FALSE
   )
 
-  expect_equal(length(captured_prompts), 2L)
-  expect_equal(out$primary_interpretation_level, "with_context")
-  expect_named(out$interpretation_levels, c("without_context", "with_context"))
+  expect_equal(length(captured_prompts), 1L)
+  expect_null(out$rag_response)
   expect_true(grepl("Timeout was reached", out$rag_error_message, fixed = TRUE))
   expect_equal(out$response$general_processes, "context-aware signal")
+  summary_fun <- get(".hc_llm_summary_from_results", asNamespace("hcocena"))
+  expect_false(summary_fun(list(out), hc = NULL)$rag_used[[1]])
+})
+
+
+test_that("regression: llm RAG usage requires passages and a RAG response", {
+  rag_used <- get(".hc_llm_result_rag_used", asNamespace("hcocena"))
+
+  expect_false(rag_used(list(
+    rag = list(status = "error", context = list()),
+    rag_response = NULL
+  )))
+  expect_false(rag_used(list(
+    rag = list(status = "ok", context = list()),
+    rag_response = list(contextual_state = "unused")
+  )))
+  expect_true(rag_used(list(
+    rag = list(status = "ok", context = list(list(chunk = "evidence"))),
+    rag_response = list(contextual_state = "supported")
+  )))
+})
+
+
+test_that("regression: llm count and timeout parameters reject lossy values", {
+  fun <- get("hc_module_function_llm", asNamespace("hcocena"))
+  common <- list(
+    genes = c("STAT1", "IRF7"),
+    llm = "vllm",
+    save_to_hc = FALSE,
+    verbose = FALSE
+  )
+
+  expect_error(do.call(fun, c(common, list(max_genes = 0.5))), "positive integer")
+  expect_error(do.call(fun, c(common, list(timeout_sec = -1))), ">= 0")
+  expect_error(
+    do.call(fun, c(common, list(use_rag = TRUE, rag_top_k = 0.5))),
+    "positive integer"
+  )
+  expect_error(
+    do.call(fun, c(common, list(use_rag = TRUE, rag_timeout_sec = -1))),
+    ">= 0"
+  )
+  expect_error(
+    do.call(fun, c(common, list(use_rag = TRUE, rag_connect_timeout_sec = -1))),
+    ">= 0"
+  )
 })
 
 

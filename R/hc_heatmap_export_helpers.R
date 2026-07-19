@@ -13,6 +13,47 @@
 # consumer never observes a half-written final file. If the finished file is
 # missing or smaller than `min_bytes`, an error is raised so the failure is
 # surfaced loudly instead of leaving a silently-broken output behind.
+.hc_output_payload_valid <- function(path, min_bytes = 1) {
+  if (!base::file.exists(path)) {
+    return(FALSE)
+  }
+  size <- base::file.info(path)$size
+  if (base::is.na(size) || size < min_bytes) {
+    return(FALSE)
+  }
+
+  ext <- base::tolower(tools::file_ext(path))
+  if (base::identical(ext, "pdf")) {
+    signature <- tryCatch(
+      readBin(path, what = "raw", n = 5L),
+      error = function(e) raw(0)
+    )
+    return(base::identical(signature, charToRaw("%PDF-")))
+  }
+  if (base::identical(ext, "png")) {
+    signature <- tryCatch(
+      readBin(path, what = "raw", n = 8L),
+      error = function(e) raw(0)
+    )
+    return(base::identical(
+      signature,
+      as.raw(c(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a))
+    ))
+  }
+  if (base::identical(ext, "xlsx")) {
+    entries <- tryCatch(
+      base::suppressWarnings(utils::unzip(path, list = TRUE)$Name),
+      error = function(e) character(0)
+    )
+    return(
+      "xl/workbook.xml" %in% entries &&
+        base::any(base::grepl("^xl/worksheets/sheet[^/]*\\.xml$", entries))
+    )
+  }
+
+  TRUE
+}
+
 .hc_write_atomic <- function(final_path, producer, min_bytes = 1) {
   final_path <- base::as.character(final_path[[1]])
   if (base::is.na(final_path) || !base::nzchar(final_path)) {
@@ -20,6 +61,10 @@
   }
   if (!base::is.function(producer)) {
     stop("`producer` must be a function of one argument (the temp path).")
+  }
+  if (!base::is.numeric(min_bytes) || base::length(min_bytes) != 1L ||
+    base::is.na(min_bytes) || !base::is.finite(min_bytes) || min_bytes < 1) {
+    stop("`min_bytes` must be a positive finite number.")
   }
 
   dir_path <- base::dirname(final_path)
@@ -31,46 +76,106 @@
   # ggplot2::ggsave and openxlsx all infer the output format from the file
   # extension, so the temp name must end in the same `.pdf`/`.png`/`.xlsx`.
   ext <- tools::file_ext(final_path)
-  tmp_path <- base::paste0(
-    tools::file_path_sans_ext(final_path),
-    ".part-", base::Sys.getpid(), "-",
-    base::format(base::as.integer(stats::runif(1, 1L, 1e6L))),
-    if (base::nzchar(ext)) base::paste0(".", ext) else ""
+  file_ext <- if (base::nzchar(ext)) base::paste0(".", ext) else ""
+  tmp_path <- base::tempfile(
+    pattern = base::paste0(
+      base::basename(tools::file_path_sans_ext(final_path)),
+      ".part-"
+    ),
+    tmpdir = dir_path,
+    fileext = file_ext
   )
+  backup_path <- NULL
+  backup_created <- FALSE
+  replacement_started <- FALSE
+  committed <- FALSE
   base::on.exit(
-    if (base::file.exists(tmp_path)) base::try(base::file.remove(tmp_path), silent = TRUE),
+    {
+      if (base::file.exists(tmp_path)) {
+        base::try(base::file.remove(tmp_path), silent = TRUE)
+      }
+      if (isTRUE(backup_created) && !base::is.null(backup_path) &&
+        base::file.exists(backup_path)) {
+        if (isTRUE(committed) || !isTRUE(replacement_started)) {
+          base::try(base::file.remove(backup_path), silent = TRUE)
+        } else {
+          if (base::file.exists(final_path)) {
+            base::try(base::file.remove(final_path), silent = TRUE)
+          }
+          restored <- base::suppressWarnings(base::file.rename(backup_path, final_path))
+          if (!isTRUE(restored)) {
+            restored <- base::file.copy(backup_path, final_path, overwrite = TRUE)
+            if (isTRUE(restored)) {
+              base::try(base::file.remove(backup_path), silent = TRUE)
+            }
+          }
+          if (!isTRUE(restored)) {
+            base::warning(
+              "Could not restore the previous output after a failed write. ",
+              "The backup remains at '", backup_path, "'.",
+              call. = FALSE
+            )
+          }
+        }
+      } else if (!isTRUE(committed) && isTRUE(replacement_started) &&
+        base::file.exists(final_path)) {
+        base::try(base::file.remove(final_path), silent = TRUE)
+      }
+    },
     add = TRUE
   )
 
   producer(tmp_path)
 
-  if (!base::file.exists(tmp_path) ||
-    base::is.na(base::file.info(tmp_path)$size) ||
-    base::file.info(tmp_path)$size < min_bytes) {
+  if (!.hc_output_payload_valid(tmp_path, min_bytes = min_bytes)) {
     stop(base::sprintf(
-      "Temporary output '%s' was not written (or is empty).", tmp_path
+      "Temporary output '%s' was not written or has an invalid payload.", tmp_path
     ))
   }
 
   if (base::file.exists(final_path)) {
-    base::try(base::file.remove(final_path), silent = TRUE)
+    backup_path <- base::tempfile(
+      pattern = base::paste0(
+        base::basename(tools::file_path_sans_ext(final_path)),
+        ".backup-"
+      ),
+      tmpdir = dir_path,
+      fileext = file_ext
+    )
+    backup_created <- base::file.copy(final_path, backup_path, overwrite = FALSE)
+    if (!isTRUE(backup_created) ||
+      !base::file.exists(backup_path) ||
+      base::file.info(backup_path)$size != base::file.info(final_path)$size) {
+      stop("Could not create a backup of the existing output '", final_path, "'.")
+    }
+  } else {
+    replacement_started <- TRUE
   }
+
   moved <- base::suppressWarnings(base::file.rename(tmp_path, final_path))
   if (!isTRUE(moved)) {
-    # Rename can fail across filesystems or when the destination is locked;
-    # fall back to a copy so the final file is still produced.
-    moved <- base::file.copy(tmp_path, final_path, overwrite = TRUE)
+    if (base::file.exists(final_path)) {
+      removed <- base::suppressWarnings(base::file.remove(final_path))
+      if (!isTRUE(removed)) {
+        stop("Could not replace the existing output '", final_path, "'.")
+      }
+      replacement_started <- TRUE
+    }
+    moved <- base::suppressWarnings(base::file.rename(tmp_path, final_path))
+    if (!isTRUE(moved)) {
+      moved <- base::file.copy(tmp_path, final_path, overwrite = FALSE)
+    }
+  } else {
+    replacement_started <- TRUE
   }
-  if (!isTRUE(moved) ||
-    !base::file.exists(final_path) ||
-    base::is.na(base::file.info(final_path)$size) ||
-    base::file.info(final_path)$size < min_bytes) {
+  if (!isTRUE(moved) || !.hc_output_payload_valid(final_path, min_bytes = min_bytes)) {
     stop(base::sprintf(
       "Failed to finalize output '%s' (write to a synced folder such as Sciebo/OneDrive may have been interrupted).",
       final_path
     ))
   }
 
+  committed <- TRUE
   invisible(final_path)
 }
 
@@ -84,13 +189,11 @@
   if (base::is.na(path) || !base::nzchar(path)) {
     return(invisible(FALSE))
   }
-  ok <- base::file.exists(path) &&
-    !base::is.na(base::file.info(path)$size) &&
-    base::file.info(path)$size >= min_bytes
+  ok <- .hc_output_payload_valid(path, min_bytes = min_bytes)
   if (!ok) {
     base::warning(
       base::sprintf(
-        "Expected output %s'%s' is missing or empty after writing. If the save folder is on a synced drive (Sciebo/OneDrive), the sync client may have interrupted the write; try a local output folder.",
+        "Expected output %s'%s' is missing, empty, or invalid after writing. If the save folder is on a synced drive (Sciebo/OneDrive), the sync client may have interrupted the write; try a local output folder.",
         if (!base::is.null(label)) base::paste0(label, " ") else "",
         path
       ),
@@ -454,38 +557,42 @@
   pdf_file <- .hc_export_path_with_ext(filename, "pdf")
   png_file <- .hc_export_path_with_ext(filename, "png")
 
-  pdf_args <- base::c(
-    base::list(
-      filename = pdf_file,
-      plot = plot,
-      width = width,
-      height = height,
-      units = units,
-      device = grDevices::cairo_pdf
-    ),
-    dots
-  )
-  if (base::is.null(pdf_args[["bg"]])) {
-    pdf_args[["bg"]] <- "white"
-  }
-  base::do.call(ggplot2::ggsave, pdf_args)
+  .hc_write_atomic(pdf_file, function(tmp) {
+    pdf_args <- base::c(
+      base::list(
+        filename = tmp,
+        plot = plot,
+        width = width,
+        height = height,
+        units = units,
+        device = grDevices::cairo_pdf
+      ),
+      dots
+    )
+    if (base::is.null(pdf_args[["bg"]])) {
+      pdf_args[["bg"]] <- "white"
+    }
+    base::do.call(ggplot2::ggsave, pdf_args)
+  })
 
-  png_args <- base::c(
-    base::list(
-      filename = png_file,
-      plot = plot,
-      width = width,
-      height = height,
-      units = units,
-      dpi = res
-    ),
-    dots
-  )
-  if (base::is.null(png_args[["bg"]])) {
-    png_args[["bg"]] <- "white"
-  }
   tryCatch(
-    base::do.call(ggplot2::ggsave, png_args),
+    .hc_write_atomic(png_file, function(tmp) {
+      png_args <- base::c(
+        base::list(
+          filename = tmp,
+          plot = plot,
+          width = width,
+          height = height,
+          units = units,
+          dpi = res
+        ),
+        dots
+      )
+      if (base::is.null(png_args[["bg"]])) {
+        png_args[["bg"]] <- "white"
+      }
+      base::do.call(ggplot2::ggsave, png_args)
+    }),
     error = function(e) {
       base::warning(
         "Could not write PNG companion ", png_file, ": ",

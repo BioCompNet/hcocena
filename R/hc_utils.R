@@ -1191,7 +1191,6 @@ run_expression_analysis_1_body <- function(
   cutoff_calc_out <- reshape_cutoff_stats(cutoff_stats = cutoff_stats)
 
   output[["cutoff_calc_out"]] <- cutoff_calc_out
-  knitr::kable(cutoff_calc_out[["cutoff_stats_concise"]], caption = "Correlation cut-off stats")
 
 
   return(output)
@@ -1237,7 +1236,7 @@ calc_pval <- function(x, mu, sigma, n) {
 #' @param backend "auto" (fast cross-product path with automatic `rcorr`
 #'   fallback on `NA`s) or "rcorr" (always use [Hmisc::rcorr()]).
 #' @return A list with elements `r` (correlation matrix), `P` (p-value matrix,
-#'   `NA` on the diagonal) and `n` (number of observations).
+#'   `NA` on the diagonal) and `n` (pairwise observation-count matrix).
 #' @noRd
 
 .hc_fast_rcorr <- function(x, type = "pearson", backend = "auto") {
@@ -1295,8 +1294,14 @@ calc_pval <- function(x, mu, sigma, n) {
   gene_names <- base::colnames(x)
   base::rownames(r) <- base::colnames(r) <- gene_names
   base::rownames(P) <- base::colnames(P) <- gene_names
+  n_matrix <- base::matrix(
+    base::as.integer(n),
+    nrow = base::ncol(x),
+    ncol = base::ncol(x),
+    dimnames = base::list(gene_names, gene_names)
+  )
 
-  base::list(r = r, P = P, n = n)
+  base::list(r = r, P = P, n = n_matrix)
 }
 
 
@@ -1337,7 +1342,8 @@ pwcorr <- function(
 ) {
   message("...calculating pairwise correlations...")
 
-  if (!corr_method %in% c("pearson", "spearman")) {
+  if (!base::is.character(corr_method) || base::length(corr_method) != 1L ||
+    base::is.na(corr_method) || !corr_method %in% c("pearson", "spearman")) {
     stop("Parameter 'corr_method' must be either 'pearson' or 'spearman'.", call. = FALSE)
   }
 
@@ -1382,13 +1388,17 @@ pwcorr <- function(
     )
   }
 
-  # reshaping the correlation amtrix to a dataframe with 4 columns (gene1, gene2, correaltion value, p-value):
+  # Reshape the upper triangle without materialising a second full
+  # `upper.tri()` matrix for the p-values.
   ind <- base::which(base::upper.tri(correlation_matrix[["r"]], diag = FALSE), arr.ind = TRUE)
-  correlation_df <- base::cbind(ind, correlation_matrix[["r"]][ind]) %>% base::as.data.frame()
-  correlation_df[, 1] <- base::colnames(dd2)[correlation_df[, 1]]
-  correlation_df[, 2] <- base::colnames(dd2)[correlation_df[, 2]]
-  base::colnames(correlation_df) <- c("V1", "V2", "rval")
-  correlation_df[["pval"]] <- correlation_matrix[["P"]][base::upper.tri(correlation_matrix[["P"]], diag = FALSE)]
+  gene_names <- base::colnames(correlation_matrix[["r"]])
+  correlation_df <- base::data.frame(
+    V1 = gene_names[ind[, 1L]],
+    V2 = gene_names[ind[, 2L]],
+    rval = base::as.numeric(correlation_matrix[["r"]][ind]),
+    pval = base::as.numeric(correlation_matrix[["P"]][ind]),
+    stringsAsFactors = FALSE
+  )
 
   # Bayes weighting:
   if (bayes) {
@@ -1402,13 +1412,28 @@ pwcorr <- function(
   }
 
 
-  # retain rows which have pval (adj) < 0.05, and correlations above 0
-  correlation_df_filt <- correlation_df[correlation_df[["pval"]] < 0.05 & correlation_df[["rval"]] > 0, ]
+  # Retain finite, significant positive correlations. Undefined pairs can occur
+  # for constant genes and must not turn into all-NA rows during subsetting.
+  finite_pairs <- base::is.finite(correlation_df[["pval"]]) &
+    base::is.finite(correlation_df[["rval"]])
+  correlation_df_filt <- correlation_df[
+    finite_pairs & correlation_df[["pval"]] < 0.05 & correlation_df[["rval"]] > 0,
+    ,
+    drop = FALSE
+  ]
 
 
   # range of cutoff min to max (correlation)
+  finite_correlations <- correlation_df[["rval"]][base::is.finite(correlation_df[["rval"]])]
+  if (base::length(finite_correlations) == 0L) {
+    stop(
+      "No finite pairwise correlations could be calculated. ",
+      "Check whether at least two genes have non-constant expression profiles.",
+      call. = FALSE
+    )
+  }
   range_cutoff <- base::seq(
-    from = layer_set[["min_corr"]], to = base::max(correlation_df[["rval"]]),
+    from = layer_set[["min_corr"]], to = base::max(finite_correlations),
     length.out = layer_set[["range_cutoff_length"]]
   )
   range_cutoff <- base::round(range_cutoff, 3)
@@ -1749,6 +1774,16 @@ cutoff_prep <- function(cutoff, corrdf_r, print.all.plots, x, min_nodes = hcobje
     return(base::do.call(base::rbind, base::lapply(range_cutoff, zero_row)))
   }
 
+  valid_edges <- !base::is.na(correlation_df_filt[["V1"]]) &
+    !base::is.na(correlation_df_filt[["V2"]]) &
+    base::nzchar(base::as.character(correlation_df_filt[["V1"]])) &
+    base::nzchar(base::as.character(correlation_df_filt[["V2"]])) &
+    base::is.finite(base::as.numeric(correlation_df_filt[["rval"]]))
+  correlation_df_filt <- correlation_df_filt[valid_edges, , drop = FALSE]
+  if (base::nrow(correlation_df_filt) == 0L) {
+    return(base::do.call(base::rbind, base::lapply(range_cutoff, zero_row)))
+  }
+
   # Map gene names to integer vertex ids once, then sort edges by correlation so
   # the edges passing any cutoff are a prefix of the sorted arrays.
   v1 <- base::as.character(correlation_df_filt[["V1"]])
@@ -1763,24 +1798,41 @@ cutoff_prep <- function(cutoff, corrdf_r, print.all.plots, x, min_nodes = hcobje
   to_all <- to_all[ord]
   rval_sorted <- rval[ord]
 
-  base::do.call(base::rbind, base::lapply(range_cutoff, function(cutoff) {
-    k <- base::sum(rval_sorted >= cutoff)
+  # `-rval_sorted` is ascending, so findInterval gives all edge-prefix sizes
+  # without rescanning every edge for every cutoff.
+  cutoff_values <- base::as.numeric(range_cutoff)
+  k_by_cutoff <- base::integer(base::length(cutoff_values))
+  valid_cutoffs <- !base::is.na(cutoff_values)
+  k_by_cutoff[valid_cutoffs] <- base::findInterval(
+    -cutoff_values[valid_cutoffs],
+    -rval_sorted
+  )
+  summary_cache <- base::new.env(parent = base::emptyenv(), hash = TRUE)
+
+  base::do.call(base::rbind, base::lapply(base::seq_along(cutoff_values), function(i) {
+    cutoff <- cutoff_values[[i]]
+    k <- k_by_cutoff[[i]]
     if (k == 0) {
       return(zero_row(cutoff))
     }
-    idx <- base::seq_len(k)
-    from_k <- from_all[idx]
-    to_k <- to_all[idx]
-    # Compact the vertex ids to those present at this cutoff so igraph and the
-    # degree tabulation stay consistent (matches cutoff_prep()'s per-cutoff
-    # `unique()` exactly, but on integers instead of gene-name strings).
-    present <- base::unique(base::c(from_k, to_k))
-    stats_summary <- .hc_cutoff_component_summary_idx(
-      from_idx = match(from_k, present),
-      to_idx = match(to_k, present),
-      n_vertices = base::length(present),
-      min_nodes = min_nodes
-    )
+    cache_key <- base::as.character(k)
+    if (base::exists(cache_key, envir = summary_cache, inherits = FALSE)) {
+      stats_summary <- base::get(cache_key, envir = summary_cache, inherits = FALSE)
+    } else {
+      idx <- base::seq_len(k)
+      from_k <- from_all[idx]
+      to_k <- to_all[idx]
+      # Compact the vertex ids to those present at this cutoff so the degree
+      # tabulation remains consistent with cutoff_prep().
+      present <- base::unique(base::c(from_k, to_k))
+      stats_summary <- .hc_cutoff_component_summary_idx(
+        from_idx = match(from_k, present),
+        to_idx = match(to_k, present),
+        n_vertices = base::length(present),
+        min_nodes = min_nodes
+      )
+      base::assign(cache_key, stats_summary, envir = summary_cache)
+    }
     .hc_rsquared_from_summary(
       stats_summary = stats_summary,
       cutoff = cutoff,

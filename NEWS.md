@@ -9,12 +9,12 @@
   modules and wrappers.
 - Added optional DoRAG retrieval support to `hc_module_function_llm()` so LLM
   module summaries can be grounded in retrieved passages and stored citations.
-- Added `compare_interpretation_levels = TRUE` for side-by-side LLM
-  interpretations without biological context, with context, and with DoRAG.
+- RAG runs now preserve the normal context-aware interpretation in `response`
+  and store a separate literature-supported interpretation in `rag_response`.
 - Added `rag_connect_timeout_sec` and `rag_continue_on_error` to make DoRAG
   retrieval robust to unreachable or slow RAG servers.
-- Extended `hc_plot_module_function_llm()` to plot RAG comparison fields such
-  as `contextual_state_rag`.
+- Extended `hc_plot_module_function_llm()` to plot separate RAG fields such as
+  `rag_contextual_state` (also available as `contextual_state_rag`).
 - Added common RNA-seq differential-expression packages to the Docker image,
   including `DESeq2`, `limma`, `sva`, `edgeR`, and supporting visualization,
   shrinkage, import, and organism annotation packages.

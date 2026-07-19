@@ -37,7 +37,6 @@ hc_module_function_llm(
   rag_min_relevance = NULL,
   rag_max_context_chars = 12000,
   rag_continue_on_error = FALSE,
-  compare_interpretation_levels = FALSE,
   continue_on_error = FALSE,
   save_to_hc = !base::is.null(hc),
   slot_name = "llm_module_function",
@@ -153,11 +152,6 @@ limit. Default is \code{12000}.}
 \item{rag_continue_on_error}{Logical. If \code{TRUE}, a failed DoRAG request is
 stored in the result and the LLM interpretation continues without RAG
 passages. Default is \code{FALSE}.}
-
-\item{compare_interpretation_levels}{Logical. If \code{TRUE}, stores separate
-LLM interpretations for comparison: \code{without_context}, \code{with_context},
-and, when \code{use_rag = TRUE}, \code{with_rag}. The top-level \code{response} remains
-the final requested interpretation. Default is \code{FALSE}.}
 
 \item{continue_on_error}{Logical. If \code{TRUE}, continue with the next module
 when one request fails and store the error in the result summary.}

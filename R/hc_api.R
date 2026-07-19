@@ -1145,10 +1145,12 @@ hc_read_supplementary <- function(hc) {
   if (!inherits(hc, "HCoCenaExperiment")) {
     stop("`hc` must be a `HCoCenaExperiment`.")
   }
-  if (!corr_method %in% c("pearson", "spearman")) {
+  if (!base::is.character(corr_method) || base::length(corr_method) != 1L ||
+    base::is.na(corr_method) || !corr_method %in% c("pearson", "spearman")) {
     stop("Parameter 'corr_method' must be either 'pearson' or 'spearman'.")
   }
-  if (!corr_backend %in% c("auto", "rcorr")) {
+  if (!base::is.character(corr_backend) || base::length(corr_backend) != 1L ||
+    base::is.na(corr_backend) || !corr_backend %in% c("auto", "rcorr")) {
     stop("Parameter 'corr_backend' must be either 'auto' or 'rcorr'.")
   }
   if (!(base::nrow(hc@config@layer) > 0 && "layer_id" %in% base::colnames(hc@config@layer))) {

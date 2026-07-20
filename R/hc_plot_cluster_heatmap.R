@@ -3059,15 +3059,10 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     )
     tryCatch(
       {
-        .hc_write_atomic(
-          final_path = module_gene_list_file,
-          producer = function(tmp) {
-            openxlsx::write.xlsx(
-              x = list(module_gene_list = module_gene_list_tbl),
-              file = tmp,
-              overwrite = TRUE
-            )
-          }
+        .hc_write_xlsx_atomic(
+          x = list(module_gene_list = module_gene_list_tbl),
+          file = module_gene_list_file,
+          overwrite = TRUE
         )
       },
       error = function(e) {
@@ -3123,15 +3118,10 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
         "/Module_GFC_Means.xlsx"
       )
       tryCatch(
-        .hc_write_atomic(
-          final_path = module_gfc_means_file,
-          producer = function(tmp) {
-            openxlsx::write.xlsx(
-              x = base::list(module_gfc_means = module_gfc_means_tbl),
-              file = tmp,
-              overwrite = TRUE
-            )
-          }
+        .hc_write_xlsx_atomic(
+          x = base::list(module_gfc_means = module_gfc_means_tbl),
+          file = module_gfc_means_file,
+          overwrite = TRUE
         ),
         error = function(e) {
           base::warning(

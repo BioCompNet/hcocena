@@ -5,6 +5,8 @@
 write_atomic <- get(".hc_write_atomic", asNamespace("hcocena"))
 verify_output <- get(".hc_verify_output_file", asNamespace("hcocena"))
 ggsave_pdf_png <- get(".hc_ggsave_pdf_png", asNamespace("hcocena"))
+write_xlsx_atomic <- get(".hc_write_xlsx_atomic", asNamespace("hcocena"))
+output_payload_valid <- get(".hc_output_payload_valid", asNamespace("hcocena"))
 
 test_that("atomic write produces the final file and leaves no temp behind", {
   dir <- withr::local_tempdir()
@@ -55,12 +57,60 @@ test_that("atomic write works for a real .xlsx payload", {
   dir <- withr::local_tempdir()
   final <- file.path(dir, "tbl.xlsx")
   tbl <- data.frame(genes = c("A", "B"), module = c("M1", "M1"), stringsAsFactors = FALSE)
-  write_atomic(final, function(tmp) {
-    openxlsx::write.xlsx(list(module_gene_list = tbl), file = tmp, overwrite = TRUE)
-  })
+  write_xlsx_atomic(
+    list(module_gene_list = tbl),
+    file = final,
+    overwrite = TRUE
+  )
   back <- openxlsx::read.xlsx(final)
   expect_equal(nrow(back), 2)
   expect_identical(colnames(back), c("genes", "module"))
+  expect_true(output_payload_valid(final))
+})
+
+test_that("xlsx writer removes invalid XML controls and preserves long text", {
+  skip_if_not_installed("openxlsx")
+  dir <- withr::local_tempdir()
+  final <- file.path(dir, "llm.xlsx")
+  invalid_text <- paste0("alpha", intToUtf8(c(1L, 11L, 12L, 31L)), "omega")
+  long_text <- paste(rep("long LLM and RAG text", 2200), collapse = " ")
+  tbl <- data.frame(
+    module = c("M1", "M2"),
+    text = c(invalid_text, long_text),
+    stringsAsFactors = FALSE
+  )
+
+  expect_silent(
+    write_xlsx_atomic(
+      list(summary = tbl, details = tbl),
+      file = final,
+      overwrite = TRUE
+    )
+  )
+
+  expect_true(output_payload_valid(final))
+  expect_setequal(
+    openxlsx::getSheetNames(final),
+    c("summary", "details", "text_overflow")
+  )
+  summary <- openxlsx::read.xlsx(final, sheet = "summary")
+  overflow <- openxlsx::read.xlsx(final, sheet = "text_overflow")
+  expect_identical(summary$text[[1]], "alphaomega")
+  expect_match(summary$text[[2]], "Full value: text_overflow sheet")
+
+  summary_overflow <- overflow[overflow$source_sheet == "summary", , drop = FALSE]
+  summary_overflow <- summary_overflow[order(summary_overflow$part), , drop = FALSE]
+  expect_identical(paste0(summary_overflow$text, collapse = ""), long_text)
+})
+
+test_that("xlsx payload validation rejects forbidden XML controls", {
+  skip_if_not_installed("openxlsx")
+  dir <- withr::local_tempdir()
+  invalid <- file.path(dir, "invalid.xlsx")
+  bad <- paste0("bad", intToUtf8(1L), "xml")
+  openxlsx::write.xlsx(data.frame(value = bad), invalid, overwrite = TRUE)
+
+  expect_false(output_payload_valid(invalid))
 })
 
 test_that("invalid typed output keeps the previous file", {

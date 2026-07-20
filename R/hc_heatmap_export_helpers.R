@@ -3,6 +3,504 @@
   base::paste0(tools::file_path_sans_ext(path), ext)
 }
 
+# Validate the internal OOXML package, not only the outer ZIP. Some openxlsx
+# releases emit unused drawing relationships without the corresponding parts;
+# Excel repairs those workbooks differently across platforms.
+.hc_xlsx_read_zip_part <- function(path, entry) {
+  con <- NULL
+  tryCatch(
+    {
+      con <- base::unz(path, entry, open = "rb")
+      chunks <- base::list()
+      repeat {
+        bytes <- base::readBin(con, what = "raw", n = 65536L)
+        if (base::length(bytes) == 0) {
+          break
+        }
+        chunks[[base::length(chunks) + 1L]] <- bytes
+      }
+      if (base::length(chunks) == 0) {
+        return("")
+      }
+      base::rawToChar(base::do.call(base::c, chunks))
+    },
+    error = function(e) NA_character_,
+    finally = {
+      if (!base::is.null(con)) {
+        base::close(con)
+      }
+    }
+  )
+}
+
+.hc_xlsx_xml_attribute <- function(tag, attribute) {
+  match <- stringi::stri_match_first_regex(
+    tag,
+    base::paste0("\\b", attribute, "\\s*=\\s*([\"'])(.*?)\\1"),
+    opts_regex = base::list(case_insensitive = TRUE)
+  )
+  if (base::ncol(match) < 3L || base::is.na(match[[1L, 3L]])) {
+    return(NA_character_)
+  }
+  match[[1L, 3L]]
+}
+
+.hc_xlsx_relationship_source <- function(rel_entry) {
+  if (base::identical(rel_entry, "_rels/.rels")) {
+    return("")
+  }
+  rel_dir <- base::dirname(rel_entry)
+  source_dir <- base::dirname(rel_dir)
+  source_file <- base::sub("\\.rels$", "", base::basename(rel_entry))
+  base::gsub(
+    "\\\\",
+    "/",
+    base::file.path(source_dir, source_file),
+    fixed = FALSE
+  )
+}
+
+.hc_xlsx_resolve_target <- function(rel_entry, target) {
+  if (base::is.na(target) || !base::nzchar(target)) {
+    return(NA_character_)
+  }
+  target <- base::sub("[?#].*$", "", target)
+  target <- base::gsub("\\\\", "/", utils::URLdecode(target), fixed = FALSE)
+  if (base::grepl("^[A-Za-z][A-Za-z0-9+.-]*:", target)) {
+    return(NA_character_)
+  }
+
+  source <- .hc_xlsx_relationship_source(rel_entry)
+  base_dir <- if (base::nzchar(source)) base::dirname(source) else ""
+  if (base::startsWith(target, "/")) {
+    parts <- base::strsplit(base::sub("^/+", "", target), "/", fixed = TRUE)[[1]]
+  } else {
+    combined <- base::paste(base::c(base_dir, target), collapse = "/")
+    parts <- base::strsplit(combined, "/", fixed = TRUE)[[1]]
+  }
+
+  resolved <- base::character(0)
+  for (part in parts) {
+    if (!base::nzchar(part) || base::identical(part, ".")) {
+      next
+    }
+    if (base::identical(part, "..")) {
+      if (base::length(resolved) == 0) {
+        return(NA_character_)
+      }
+      resolved <- resolved[-base::length(resolved)]
+    } else {
+      resolved <- base::c(resolved, part)
+    }
+  }
+  base::paste(resolved, collapse = "/")
+}
+
+.hc_xlsx_dangling_relationships <- function(path, entries) {
+  rel_entries <- entries[base::grepl("\\.rels$", entries, ignore.case = TRUE)]
+  missing <- base::list()
+  for (rel_entry in rel_entries) {
+    xml <- .hc_xlsx_read_zip_part(path, rel_entry)
+    if (base::is.na(xml)) {
+      next
+    }
+    tags <- stringi::stri_extract_all_regex(
+      xml,
+      "<Relationship\\b[^>]*/\\s*>",
+      opts_regex = base::list(case_insensitive = TRUE)
+    )[[1]]
+    tags <- tags[!base::is.na(tags)]
+    for (tag in tags) {
+      target_mode <- .hc_xlsx_xml_attribute(tag, "TargetMode")
+      if (!base::is.na(target_mode) &&
+        base::identical(base::tolower(target_mode), "external")) {
+        next
+      }
+      target <- .hc_xlsx_xml_attribute(tag, "Target")
+      resolved <- .hc_xlsx_resolve_target(rel_entry, target)
+      if (base::is.na(resolved) || resolved %in% entries) {
+        next
+      }
+      missing[[base::length(missing) + 1L]] <- base::data.frame(
+        rel_entry = rel_entry,
+        source_entry = .hc_xlsx_relationship_source(rel_entry),
+        relationship_id = .hc_xlsx_xml_attribute(tag, "Id"),
+        target = target,
+        resolved_target = resolved,
+        tag = tag,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  if (base::length(missing) == 0) {
+    return(base::data.frame())
+  }
+  base::do.call(base::rbind, missing)
+}
+
+.hc_xlsx_missing_content_overrides <- function(path, entries) {
+  xml <- .hc_xlsx_read_zip_part(path, "[Content_Types].xml")
+  if (base::is.na(xml)) {
+    return(base::data.frame())
+  }
+  tags <- stringi::stri_extract_all_regex(
+    xml,
+    "<Override\\b[^>]*/\\s*>",
+    opts_regex = base::list(case_insensitive = TRUE)
+  )[[1]]
+  tags <- tags[!base::is.na(tags)]
+  missing <- base::lapply(tags, function(tag) {
+    part <- .hc_xlsx_xml_attribute(tag, "PartName")
+    resolved <- base::sub("^/+", "", utils::URLdecode(part))
+    if (base::is.na(resolved) || resolved %in% entries) {
+      return(NULL)
+    }
+    base::data.frame(part = resolved, tag = tag, stringsAsFactors = FALSE)
+  })
+  missing <- missing[!base::vapply(missing, base::is.null, FUN.VALUE = base::logical(1))]
+  if (base::length(missing) == 0) {
+    return(base::data.frame())
+  }
+  base::do.call(base::rbind, missing)
+}
+
+.hc_xlsx_package_links_valid <- function(path, entries) {
+  base::nrow(.hc_xlsx_dangling_relationships(path, entries)) == 0 &&
+    base::nrow(.hc_xlsx_missing_content_overrides(path, entries)) == 0
+}
+
+.hc_xlsx_source_uses_relationship <- function(path, source_entry, relationship_id, entries) {
+  if (base::is.na(source_entry) || !base::nzchar(source_entry) ||
+    !(source_entry %in% entries) ||
+    base::is.na(relationship_id) || !base::nzchar(relationship_id)) {
+    return(FALSE)
+  }
+  xml <- .hc_xlsx_read_zip_part(path, source_entry)
+  if (base::is.na(xml)) {
+    return(TRUE)
+  }
+  base::grepl(base::paste0("\"", relationship_id, "\""), xml, fixed = TRUE) ||
+    base::grepl(base::paste0("'", relationship_id, "'"), xml, fixed = TRUE)
+}
+
+.hc_xlsx_repair_dangling_parts <- function(path) {
+  entries <- tryCatch(
+    base::suppressWarnings(utils::unzip(path, list = TRUE)$Name),
+    error = function(e) base::character(0)
+  )
+  dangling <- .hc_xlsx_dangling_relationships(path, entries)
+  missing_overrides <- .hc_xlsx_missing_content_overrides(path, entries)
+  if (base::nrow(dangling) == 0 && base::nrow(missing_overrides) == 0) {
+    return(invisible(path))
+  }
+
+  removable <- if (base::nrow(dangling) > 0) {
+    !base::vapply(
+      base::seq_len(base::nrow(dangling)),
+      function(i) {
+        .hc_xlsx_source_uses_relationship(
+          path = path,
+          source_entry = dangling$source_entry[[i]],
+          relationship_id = dangling$relationship_id[[i]],
+          entries = entries
+        )
+      },
+      FUN.VALUE = base::logical(1)
+    )
+  } else {
+    base::logical(0)
+  }
+  if (base::nrow(dangling) > 0 && !base::all(removable)) {
+    stop("The XLSX package contains a missing part that is still referenced by a worksheet.")
+  }
+
+  extract_dir <- base::tempfile("hc-xlsx-repair-")
+  repaired <- base::tempfile(
+    pattern = "hc-xlsx-repaired-",
+    tmpdir = base::dirname(path),
+    fileext = ".xlsx"
+  )
+  base::dir.create(extract_dir, recursive = TRUE, showWarnings = FALSE)
+  base::on.exit(
+    {
+      extract_abs <- base::normalizePath(extract_dir, winslash = "/", mustWork = FALSE)
+      temp_abs <- base::normalizePath(base::tempdir(), winslash = "/", mustWork = FALSE)
+      if (base::startsWith(extract_abs, base::paste0(temp_abs, "/"))) {
+        base::unlink(extract_dir, recursive = TRUE, force = TRUE)
+      }
+      if (base::file.exists(repaired)) {
+        base::file.remove(repaired)
+      }
+    },
+    add = TRUE
+  )
+  extracted <- base::suppressWarnings(utils::unzip(path, exdir = extract_dir))
+  if (base::length(extracted) == 0) {
+    stop("Could not extract the XLSX package for validation.")
+  }
+
+  if (base::nrow(dangling) > 0) {
+    for (rel_entry in base::unique(dangling$rel_entry)) {
+      rel_path <- base::file.path(extract_dir, rel_entry)
+      xml <- base::paste(base::readLines(rel_path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+      tags <- dangling$tag[dangling$rel_entry == rel_entry]
+      for (tag in tags) {
+        xml <- base::gsub(tag, "", xml, fixed = TRUE)
+      }
+      base::writeLines(xml, rel_path, useBytes = TRUE)
+    }
+  }
+  if (base::nrow(missing_overrides) > 0) {
+    types_path <- base::file.path(extract_dir, "[Content_Types].xml")
+    xml <- base::paste(base::readLines(types_path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+    for (tag in missing_overrides$tag) {
+      xml <- base::gsub(tag, "", xml, fixed = TRUE)
+    }
+    base::writeLines(xml, types_path, useBytes = TRUE)
+  }
+
+  files <- base::list.files(
+    extract_dir,
+    recursive = TRUE,
+    all.files = TRUE,
+    full.names = FALSE,
+    include.dirs = FALSE,
+    no.. = TRUE
+  )
+  zip::zipr(
+    zipfile = repaired,
+    files = files,
+    include_directories = FALSE,
+    root = extract_dir,
+    mode = "mirror"
+  )
+  repaired_entries <- base::suppressWarnings(utils::unzip(repaired, list = TRUE)$Name)
+  if (!.hc_xlsx_package_links_valid(repaired, repaired_entries)) {
+    stop("Could not repair invalid XLSX package relationships.")
+  }
+
+  removed <- base::file.remove(path)
+  moved <- if (base::isTRUE(removed)) {
+    base::file.rename(repaired, path)
+  } else {
+    FALSE
+  }
+  if (!base::isTRUE(moved)) {
+    stop("Could not replace the invalid XLSX package after repair.")
+  }
+  invisible(path)
+}
+
+.hc_xlsx_xml_parts_valid <- function(path, entries) {
+  xml_entries <- entries[base::grepl("(\\.xml|\\.rels)$", entries, ignore.case = TRUE)]
+  if (base::length(xml_entries) == 0) {
+    return(FALSE)
+  }
+
+  forbidden <- base::as.raw(base::c(0:8, 11:12, 14:31))
+  for (entry in xml_entries) {
+    con <- NULL
+    part_ok <- tryCatch(
+      {
+        con <- base::unz(path, entry, open = "rb")
+        repeat {
+          bytes <- base::readBin(con, what = "raw", n = 65536L)
+          if (base::length(bytes) == 0) {
+            break
+          }
+          if (base::any(bytes %in% forbidden)) {
+            return(FALSE)
+          }
+        }
+        TRUE
+      },
+      error = function(e) FALSE,
+      finally = {
+        if (!base::is.null(con)) {
+          base::close(con)
+        }
+      }
+    )
+    if (!base::isTRUE(part_ok)) {
+      return(FALSE)
+    }
+  }
+  TRUE
+}
+
+.hc_xlsx_clean_text <- function(x) {
+  if (base::is.null(x) || base::length(x) == 0) {
+    return(base::as.character(x))
+  }
+  x <- stringi::stri_enc_toutf8(
+    base::as.character(x),
+    is_unknown_8bit = TRUE,
+    validate = TRUE
+  )
+  stringi::stri_replace_all_regex(
+    x,
+    "[\\x{0000}-\\x{0008}\\x{000B}\\x{000C}\\x{000E}-\\x{001F}\\x{007F}-\\x{009F}\\x{FFFE}\\x{FFFF}]",
+    ""
+  )
+}
+
+# Excel cells are limited to 32,767 UTF-16 units. Keep chunks below that limit
+# so supplementary Unicode characters cannot accidentally overflow a cell.
+.hc_xlsx_split_text <- function(x, max_utf16_units = 30000L) {
+  if (base::length(x) == 0 || base::is.na(x)) {
+    return(x)
+  }
+  code_points <- base::utf8ToInt(x)
+  if (base::length(code_points) == 0) {
+    return("")
+  }
+
+  units <- 1L + base::as.integer(code_points > 0xffffL)
+  if (base::sum(units) <= max_utf16_units) {
+    return(x)
+  }
+
+  groups <- base::integer(base::length(code_points))
+  group <- 1L
+  used <- 0L
+  for (i in base::seq_along(code_points)) {
+    if (used + units[[i]] > max_utf16_units) {
+      group <- group + 1L
+      used <- 0L
+    }
+    groups[[i]] <- group
+    used <- used + units[[i]]
+  }
+  base::vapply(
+    base::split(code_points, groups),
+    base::intToUtf8,
+    FUN.VALUE = base::character(1),
+    USE.NAMES = FALSE
+  )
+}
+
+.hc_xlsx_overflow_sheet_name <- function(existing) {
+  candidate <- "text_overflow"
+  suffix <- 1L
+  while (base::tolower(candidate) %in% base::tolower(existing)) {
+    suffix <- suffix + 1L
+    candidate <- base::paste0("text_overflow_", suffix)
+  }
+  candidate
+}
+
+.hc_xlsx_prepare_table <- function(x, sheet, overflow_sheet, overflow) {
+  if (!base::is.data.frame(x) && !base::is.matrix(x)) {
+    return(x)
+  }
+
+  is_matrix <- base::is.matrix(x)
+  if (is_matrix) {
+    x <- base::as.data.frame(x, check.names = FALSE, stringsAsFactors = FALSE)
+  }
+
+  for (j in base::seq_along(x)) {
+    values <- x[[j]]
+    if (base::is.factor(values)) {
+      values <- base::as.character(values)
+    }
+    if (!base::is.character(values)) {
+      next
+    }
+
+    values <- .hc_xlsx_clean_text(values)
+    for (i in base::seq_along(values)) {
+      if (base::is.na(values[[i]])) {
+        next
+      }
+      chunks <- .hc_xlsx_split_text(values[[i]])
+      if (base::length(chunks) <= 1L) {
+        next
+      }
+
+      column <- base::names(x)[[j]]
+      if (base::is.null(column) || base::is.na(column) || !base::nzchar(column)) {
+        column <- base::paste0("column_", j)
+      }
+      overflow$rows[[base::length(overflow$rows) + 1L]] <- base::data.frame(
+        source_sheet = base::rep(sheet, base::length(chunks)),
+        source_row = base::rep(i, base::length(chunks)),
+        source_column = base::rep(column, base::length(chunks)),
+        part = base::seq_along(chunks),
+        parts = base::rep(base::length(chunks), base::length(chunks)),
+        text = chunks,
+        stringsAsFactors = FALSE
+      )
+      marker <- base::paste0(
+        "\n[Full value: ", overflow_sheet, " sheet, ",
+        base::length(chunks), " parts]"
+      )
+      values[[i]] <- base::paste0(chunks[[1]], marker)
+    }
+    x[[j]] <- values
+  }
+
+  base::names(x) <- .hc_xlsx_clean_text(base::names(x))
+  if (is_matrix) {
+    x <- base::as.matrix(x)
+  }
+  x
+}
+
+.hc_xlsx_prepare_payload <- function(x) {
+  if (!base::is.list(x) || base::is.data.frame(x)) {
+    overflow <- base::new.env(parent = base::emptyenv())
+    overflow$rows <- base::list()
+    out <- .hc_xlsx_prepare_table(
+      x,
+      sheet = "Sheet 1",
+      overflow_sheet = "text_overflow",
+      overflow = overflow
+    )
+    if (base::length(overflow$rows) > 0) {
+      out <- base::list("Sheet 1" = out)
+      out[["text_overflow"]] <- base::do.call(
+        base::rbind,
+        overflow$rows
+      )
+    }
+    return(out)
+  }
+
+  sheet_names <- base::names(x)
+  if (base::is.null(sheet_names)) {
+    sheet_names <- base::paste0("Sheet ", base::seq_along(x))
+  } else {
+    missing_names <- base::is.na(sheet_names) | !base::nzchar(sheet_names)
+    sheet_names[missing_names] <- base::paste0("Sheet ", base::which(missing_names))
+  }
+  overflow_sheet <- .hc_xlsx_overflow_sheet_name(sheet_names)
+  overflow <- base::new.env(parent = base::emptyenv())
+  overflow$rows <- base::list()
+
+  out <- base::lapply(base::seq_along(x), function(i) {
+    value <- x[[i]]
+    if (base::is.data.frame(value) || base::is.matrix(value)) {
+      return(.hc_xlsx_prepare_table(
+        value,
+        sheet = sheet_names[[i]],
+        overflow_sheet = overflow_sheet,
+        overflow = overflow
+      ))
+    }
+    if (base::is.character(value) || base::is.factor(value)) {
+      return(.hc_xlsx_clean_text(value))
+    }
+    value
+  })
+  base::names(out) <- sheet_names
+
+  if (base::length(overflow$rows) > 0) {
+    out[[overflow_sheet]] <- base::do.call(base::rbind, overflow$rows)
+  }
+  out
+}
+
 # Atomic, verified file write.
 #
 # Sync clients (Sciebo / ownCloud / OneDrive) can grab a file mid-write when the
@@ -47,7 +545,9 @@
     )
     return(
       "xl/workbook.xml" %in% entries &&
-        base::any(base::grepl("^xl/worksheets/sheet[^/]*\\.xml$", entries))
+        base::any(base::grepl("^xl/worksheets/sheet[^/]*\\.xml$", entries)) &&
+        .hc_xlsx_xml_parts_valid(path, entries) &&
+        .hc_xlsx_package_links_valid(path, entries)
     )
   }
 
@@ -209,6 +709,7 @@
 # folder (Sciebo/OneDrive) cannot leave a truncated / zero-row .xlsx behind.
 .hc_write_xlsx_atomic <- function(x, file, ...) {
   dots <- base::list(...)
+  x <- .hc_xlsx_prepare_payload(x)
   .hc_write_atomic(
     final_path = file,
     producer = function(tmp) {
@@ -216,6 +717,7 @@
         openxlsx::write.xlsx,
         base::c(base::list(x = x, file = tmp), dots)
       )
+      .hc_xlsx_repair_dangling_parts(tmp)
     }
   )
 }

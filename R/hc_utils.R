@@ -3648,12 +3648,12 @@ plot_list_of_plots <- function(plts) {
   for (j in base::seq_along(plts)) {
     tmp <- plts[[j]]
 
-    if (ggplot2::is.ggplot(tmp)) {
+    if (inherits(tmp, "ggplot")) {
       graphics::plot(tmp)
     } else {
       if (base::is.list(tmp)) {
         for (k in base::seq_along(tmp)) {
-          if (ggplot2::is.ggplot(tmp[[k]])) {
+          if (inherits(tmp[[k]], "ggplot")) {
             graphics::plot(tmp[[k]])
           } else {
             .hc_display_object(patchwork::wrap_plots(tmp[[k]]))

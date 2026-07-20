@@ -22,10 +22,10 @@ is(hc, "HCoCenaExperiment")
 
 \donttest{
 hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-hco <- as_hcobject(hc)
+hco <- hcocena:::as_hcobject(hc)
 hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
 hco[["global_settings"]][["save_folder"]] <- ""
-hc <- as_hcocena(hco)
+hc <- hcocena:::as_hcocena(hco)
 try(hc <- hc_write_session_info(hc), silent = TRUE)
 }
 }

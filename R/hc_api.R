@@ -995,7 +995,7 @@ hc_set_layer_settings <- function(hc,
 #'   Hallmark = "hallmark.gmt",
 #'   Go = "go.gmt"
 #' )
-#' sort(names(as_hcobject(hc)$supplement))
+#' sort(names(hcocena:::as_hcobject(hc)$supplement))
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_set_supp_files <- function(hc, Tf = NULL, Hallmark = NULL, Go = NULL, Kegg = NULL, Reactome = NULL, ...) {
@@ -1097,7 +1097,7 @@ hc_set_supp_files <- function(hc, Tf = NULL, Hallmark = NULL, Go = NULL, Kegg = 
 #' )
 #' hc <- hc_set_supp_files(hc, Hallmark = "hallmark.gmt")
 #' hc <- hc_read_supplementary(hc)
-#' names(as_hcobject(hc)$supplementary_data)
+#' names(hcocena:::as_hcobject(hc)$supplementary_data)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_read_supplementary <- function(hc) {

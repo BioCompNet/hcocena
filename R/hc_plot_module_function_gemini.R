@@ -1172,7 +1172,9 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
 
 .hc_llm_extract_column_ids <- function(heatmap_obj, mat) {
   col_ids <- colnames(mat)
-  ord <- tryCatch(ComplexHeatmap::column_order(heatmap_obj), error = function(e) NULL)
+  ord <- suppressWarnings(
+    tryCatch(ComplexHeatmap::column_order(heatmap_obj), error = function(e) NULL)
+  )
   if (is.list(ord) && length(ord) > 0) {
     ord <- ord[[1]]
   }
@@ -1187,7 +1189,7 @@ print.hc_llm_heatmap_plot <- function(x, ...) {
 .hc_llm_extract_dendrogram <- function(heatmap_obj, which = c("row", "column")) {
   which <- match.arg(which)
   fn <- if (identical(which, "row")) ComplexHeatmap::row_dend else ComplexHeatmap::column_dend
-  out <- tryCatch(fn(heatmap_obj), error = function(e) NULL)
+  out <- suppressWarnings(tryCatch(fn(heatmap_obj), error = function(e) NULL))
   if (is.list(out) && length(out) > 0) {
     out <- out[[1]]
   }

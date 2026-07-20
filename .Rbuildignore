@@ -27,5 +27,7 @@
 ^realdata-output/
 ^realdata-reference$
 ^realdata-reference/
+^scripts$
+^scripts/
 ^CLAUDE\.md$
 ^test_llm_claude\.R$

@@ -75,11 +75,11 @@ is(hc, "HCoCenaExperiment")
 
 \donttest{
 hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- as_hcobject(hc)
+hco <- hcocena:::as_hcobject(hc)
 hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
 hco[["global_settings"]][["save_folder"]] <- ""
-hc <- as_hcocena(hco)
-hco <- as_hcobject(hc)
+hc <- hcocena:::as_hcocena(hco)
+hco <- hcocena:::as_hcobject(hc)
 mods <- unique(as.character(hco[["integrated_output"]][["cluster_calc"]][["cluster_information"]][["color"]]))
 mods <- mods[!is.na(mods) & mods != "white"]
 if (length(mods) > 0) try(hc <- hc_split_modules(hc, modules = mods[1]), silent = TRUE)

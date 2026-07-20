@@ -57,8 +57,8 @@ Imports: Cairo (>= 1.5-12.2), circlize, clusterProfiler (>= 3.18.1),
 Suggests: BiocStyle, CALIBERrfimpute, decoupleR, dorothea, ellmer,
         ExperimentHub, emmeans, ggh4x, ggrepel, graphlayouts, GSVA, htmlwidgets,
         knitr (>= 1.33), lme4, limma, mice, networkD3 (>= 0.4),
-        nlme, progeny, RANN, RCy3 (>= 2.10.2), RcppAnnoy, repr, rmarkdown,
-        testthat (>= 3.0.0), umap, uwot, withr
+        nlme, png, progeny, RANN, RCy3 (>= 2.10.2), RcppAnnoy, repr, rmarkdown,
+        SingleCellExperiment, testthat (>= 3.0.0), umap, uwot, withr
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 NeedsCompilation: no

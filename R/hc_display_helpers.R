@@ -100,7 +100,7 @@
     return(.hc_display_htmlwidget(x))
   }
 
-  if (ggplot2::is.ggplot(x) || inherits(x, "patchwork")) {
+  if (inherits(x, "ggplot") || inherits(x, "patchwork")) {
     graphics::plot(x)
     return(base::invisible(x))
   }

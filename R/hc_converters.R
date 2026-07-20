@@ -242,11 +242,11 @@
 #'
 #' @param hcobject Legacy list-style analysis object.
 #' @examples
-#' legacy <- as_hcobject(hc_init())
-#' hc <- as_hcocena(legacy)
+#' legacy <- hcocena:::as_hcobject(hc_init())
+#' hc <- hcocena:::as_hcocena(legacy)
 #' methods::is(hc, "HCoCenaExperiment")
 #' @return A valid `HCoCenaExperiment`.
-#' @export
+#' @noRd
 as_hcocena <- function(hcobject) {
   if (inherits(hcobject, "HCoCenaExperiment")) {
     return(hcobject)
@@ -315,10 +315,10 @@ as_hcocena <- function(hcobject) {
 #' @param hc A `HCoCenaExperiment` (or list, returned unchanged).
 #' @examples
 #' hc <- hc_init()
-#' legacy <- as_hcobject(hc)
+#' legacy <- hcocena:::as_hcobject(hc)
 #' sort(names(legacy))[1:5]
 #' @return Legacy list-style `hcobject`.
-#' @export
+#' @noRd
 as_hcobject <- function(hc) {
   if (base::is.list(hc) && !inherits(hc, "HCoCenaExperiment")) {
     return(hc)

@@ -140,10 +140,10 @@ is(hc, "HCoCenaExperiment")
 
 \donttest{
 hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- as_hcobject(hc)
+hco <- hcocena:::as_hcobject(hc)
 hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
 hco[["global_settings"]][["save_folder"]] <- ""
-hc <- as_hcocena(hco)
+hc <- hcocena:::as_hcocena(hco)
 try(hc <- hc_upstream_inference(hc, resources = "TF", top = 1, qval = 1, plot = FALSE, save_pdf = FALSE, plot_per_comparison = FALSE), silent = TRUE)
 }
 }

@@ -217,7 +217,10 @@
   extract_dir <- base::tempfile("hc-xlsx-repair-")
   repaired <- base::tempfile(
     pattern = "hc-xlsx-repaired-",
-    tmpdir = base::dirname(path),
+    # Build the second archive on R's local temporary filesystem. Creating it
+    # beside `path` can exhaust a quota-limited Docker/bind-mounted output
+    # volume because the original, atomic temp, and repaired archive coexist.
+    tmpdir = base::tempdir(),
     fileext = ".xlsx"
   )
   base::dir.create(extract_dir, recursive = TRUE, showWarnings = FALSE)
@@ -280,10 +283,15 @@
   }
 
   removed <- base::file.remove(path)
-  moved <- if (base::isTRUE(removed)) {
-    base::file.rename(repaired, path)
-  } else {
-    FALSE
+  if (!base::isTRUE(removed)) {
+    stop("Could not remove the invalid XLSX package after creating its repaired replacement.")
+  }
+  moved <- base::suppressWarnings(base::file.rename(repaired, path))
+  if (!base::isTRUE(moved)) {
+    moved <- base::file.copy(repaired, path, overwrite = FALSE)
+    if (base::isTRUE(moved)) {
+      base::file.remove(repaired)
+    }
   }
   if (!base::isTRUE(moved)) {
     stop("Could not replace the invalid XLSX package after repair.")

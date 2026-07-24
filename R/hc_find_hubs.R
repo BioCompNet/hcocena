@@ -74,9 +74,11 @@ find_hubs <- function(clusters = c("all"),
 
 
   for (col in base::colnames(hubs_df)) {
-    if (!all(dplyr::pull(hubs_df, col) == " ")) {
+    hub_genes <- base::trimws(base::as.character(dplyr::pull(hubs_df, col)))
+    hub_genes <- base::unique(hub_genes[!base::is.na(hub_genes) & base::nzchar(hub_genes)])
+    if (base::length(hub_genes) > 0) {
       visualize_gene_expression(
-        genes = dplyr::pull(hubs_df, col),
+        genes = hub_genes,
         name = base::paste0("Hub_genes_", col, "_module_expression"),
         width = 10,
         height = 10,

@@ -7,6 +7,7 @@ verify_output <- get(".hc_verify_output_file", asNamespace("hcocena"))
 ggsave_pdf_png <- get(".hc_ggsave_pdf_png", asNamespace("hcocena"))
 write_xlsx_atomic <- get(".hc_write_xlsx_atomic", asNamespace("hcocena"))
 output_payload_valid <- get(".hc_output_payload_valid", asNamespace("hcocena"))
+repair_dangling_parts <- get(".hc_xlsx_repair_dangling_parts", asNamespace("hcocena"))
 
 test_that("atomic write produces the final file and leaves no temp behind", {
   dir <- withr::local_tempdir()
@@ -111,6 +112,21 @@ test_that("xlsx payload validation rejects forbidden XML controls", {
   openxlsx::write.xlsx(data.frame(value = bad), invalid, overwrite = TRUE)
 
   expect_false(output_payload_valid(invalid))
+})
+
+test_that("xlsx relationship repair can replace a workbook across filesystems", {
+  skip_if_not_installed("openxlsx")
+  dir <- withr::local_tempdir()
+  workbook <- file.path(dir, "repair.xlsx")
+  openxlsx::write.xlsx(
+    list(summary = data.frame(value = c("alpha", "beta"))),
+    workbook,
+    overwrite = TRUE
+  )
+
+  expect_silent(repair_dangling_parts(workbook))
+  expect_true(output_payload_valid(workbook))
+  expect_equal(nrow(openxlsx::read.xlsx(workbook)), 2)
 })
 
 test_that("invalid typed output keeps the previous file", {

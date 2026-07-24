@@ -3824,21 +3824,136 @@ cluster_to_network <- function(cluster) {
 #' Subroutine to find_hubs().
 #' @noRd
 
-get_hub_nodes <- function(network = hcobject[["integrated_output"]][["merged_net"]], top = 10, TF_only) {
+.hc_hub_tf_filter_genes <- function(TF_only = FALSE) {
+  if (base::identical(TF_only, FALSE)) {
+    return(NULL)
+  }
+  if (!base::is.character(TF_only) ||
+    base::length(TF_only) != 1 ||
+    base::is.na(TF_only) ||
+    !base::nzchar(base::trimws(TF_only))) {
+    stop(
+      "`TF_only` must be FALSE, \"all\", or one transcription-factor category.",
+      call. = FALSE
+    )
+  }
+  TF_only <- base::trimws(TF_only)
+
+  tf_table <- hcobject[["supplementary_data"]][["TF"]]
+  if (base::is.null(tf_table) ||
+    base::length(tf_table) == 0 ||
+    base::is.null(base::dim(tf_table)) ||
+    base::nrow(tf_table) == 0 ||
+    base::ncol(tf_table) == 0) {
+    stop(
+      "`TF_only = \"",
+      TF_only,
+      "\"` requires a non-empty transcription-factor reference in ",
+      "`hc@supplementary$TF`.",
+      call. = FALSE
+    )
+  }
+  tf_table <- base::as.data.frame(tf_table, stringsAsFactors = FALSE)
+
+  organism <- hcobject[["global_settings"]][["organism"]]
+  if (base::is.null(organism) ||
+    base::length(organism) != 1 ||
+    base::is.na(organism[[1]]) ||
+    !base::nzchar(base::trimws(base::as.character(organism[[1]])))) {
+    stop(
+      "A single non-empty organism setting is required for `TF_only` filtering.",
+      call. = FALSE
+    )
+  }
+  organism <- base::trimws(base::as.character(organism[[1]]))
+  organism_columns <- base::grep(
+    organism,
+    base::colnames(tf_table),
+    ignore.case = TRUE,
+    value = TRUE
+  )
+  exact_columns <- base::colnames(tf_table)[
+    base::tolower(base::colnames(tf_table)) == base::tolower(organism)
+  ]
+  if (base::length(exact_columns) == 1) {
+    organism_column <- exact_columns[[1]]
+  } else if (base::length(organism_columns) == 1) {
+    organism_column <- organism_columns[[1]]
+  } else if (base::length(organism_columns) == 0) {
+    stop(
+      "No transcription-factor reference column matches organism `",
+      organism,
+      "`.",
+      call. = FALSE
+    )
+  } else {
+    stop(
+      "Multiple transcription-factor reference columns match organism `",
+      organism,
+      "`: ",
+      base::paste(organism_columns, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  tf_rows <- tf_table
+  if (!base::identical(TF_only, "all")) {
+    if (base::ncol(tf_table) < 2) {
+      stop(
+        "A categorized `TF_only` filter requires a category column in the ",
+        "transcription-factor reference.",
+        call. = FALSE
+      )
+    }
+    category_column <- base::colnames(tf_table)[base::ncol(tf_table)]
+    available_categories <- base::unique(base::as.character(tf_table[[category_column]]))
+    available_categories <- available_categories[
+      !base::is.na(available_categories) & base::nzchar(available_categories)
+    ]
+    if (!(TF_only %in% available_categories)) {
+      stop(
+        "Unknown `TF_only` category `",
+        TF_only,
+        "`. Available categories are: ",
+        base::paste(base::sort(available_categories), collapse = ", "),
+        ".",
+        call. = FALSE
+      )
+    }
+    tf_rows <- tf_table[
+      base::as.character(tf_table[[category_column]]) == TF_only,
+      ,
+      drop = FALSE
+    ]
+  }
+
+  genes <- base::trimws(base::as.character(tf_rows[[organism_column]]))
+  genes <- base::unique(genes[!base::is.na(genes) & base::nzchar(genes)])
+  if (base::length(genes) == 0) {
+    stop(
+      "The requested transcription-factor filter contains no genes for organism `",
+      organism,
+      "`.",
+      call. = FALSE
+    )
+  }
+  genes
+}
+
+
+get_hub_nodes <- function(network = hcobject[["integrated_output"]][["merged_net"]],
+                          top = 10,
+                          TF_only = FALSE) {
+  tf_genes <- .hc_hub_tf_filter_genes(TF_only)
   rank_df <- combined_centrality(network = network)
   if (!"node" %in% base::colnames(rank_df) ||
     base::all(base::is.na(rank_df$node) | !base::nzchar(base::as.character(rank_df$node)))) {
     rank_df$node <- base::rownames(rank_df)
   }
 
-  if (TF_only == "all") {
-    cn <- base::grep(hcobject[["global_settings"]][["organism"]], base::colnames(hcobject[["supplementary_data"]][["TF"]]), ignore.case = TRUE, value = TRUE)
-    rank_df <- dplyr::filter(rank_df, node %in% hcobject[["supplementary_data"]][["TF"]][[cn]])
-  }
-  if (!TF_only == "all" & !TF_only == FALSE) {
-    cn <- base::grep(hcobject[["global_settings"]][["organism"]], base::colnames(hcobject[["supplementary_data"]][["TF"]]), ignore.case = TRUE, value = TRUE)
-    tmp <- hcobject[["supplementary_data"]][["TF"]][hcobject[["supplementary_data"]][["TF"]][, base::ncol(hcobject[["supplementary_data"]][["TF"]])] == TF_only, ]
-    rank_df <- dplyr::filter(rank_df, node %in% tmp[[cn]])
+  if (!base::is.null(tf_genes)) {
+    rank_df <- dplyr::filter(rank_df, node %in% tf_genes)
   }
 
   if (top > base::nrow(rank_df)) {
@@ -4527,13 +4642,20 @@ plot_PCA_topvar <- function(PCA_save_folder, cols = cols) {
   plotlist <- list()
   pca_list <- list()
   for (i in base::seq_along(hcobject[["layers"]])) {
-    pca <- stats::prcomp(base::t(hcobject[["layer_specific_outputs"]][[base::paste0("set", i)]][["part1"]][["topvar"]]), scale = TRUE)
+    pca_input <- .hc_pca_prepare_expression(
+      hcobject[["layer_specific_outputs"]][[base::paste0("set", i)]][["part1"]][["topvar"]],
+      layer_label = hcobject[["layers_names"]][i],
+      scale_features = TRUE
+    )
+    pca <- stats::prcomp(pca_input, scale. = TRUE)
     pca.var <- pca$sdev^2
     pca.var.per <- base::data.frame(pc = base::seq_along(pca.var), val = base::round(pca.var / base::sum(pca.var) * 100, 1))
+    pc2 <- if (base::ncol(pca$x) >= 2) pca$x[, 2] else base::rep(0, base::nrow(pca$x))
+    pc2_var <- if (base::nrow(pca.var.per) >= 2) pca.var.per[2, 2] else 0
     pca.data <- base::data.frame(
       Sample = base::rownames(pca$x),
       X = pca$x[, 1],
-      Y = pca$x[, 2],
+      Y = pc2,
       Group = hcobject[["data"]][[base::paste0("set", i, "_anno")]][[hcobject[["global_settings"]][["voi"]]]]
     )
 
@@ -4553,7 +4675,7 @@ plot_PCA_topvar <- function(PCA_save_folder, cols = cols) {
 
     p <- ggplot2::ggplot(pca.data, ggplot2::aes(x = X, y = Y, col = Group, label = Sample)) +
       ggplot2::geom_point(size = 4) +
-      ggplot2::ylab(base::paste0("PC 2", " (", pca.var.per[2, 2], "%)")) +
+      ggplot2::ylab(base::paste0("PC 2", " (", pc2_var, "%)")) +
       ggplot2::xlab(base::paste0("PC 1", " (", pca.var.per[1, 2], "%)")) +
       ggplot2::theme_bw() +
       ggplot2::ggtitle(base::paste0(hcobject[["layers_names"]][i], " by topvar")) +

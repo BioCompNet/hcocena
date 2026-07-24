@@ -28,15 +28,41 @@ visualize_gene_expression <- function(genes, name = NULL, width = 15, height = 1
 
   plotls <- NULL
   cp <- NULL
+  heatmap_count <- 0L
 
   for (x in base::seq_along(hcobject[["layers"]])) {
-    exp <- hcobject[["data"]][[base::paste0("set", x, "_counts")]][genes, , drop = FALSE]
+    counts <- hcobject[["data"]][[base::paste0("set", x, "_counts")]]
+    genes_in_layer <- base::intersect(genes, base::rownames(counts))
+    missing_genes <- base::setdiff(genes, genes_in_layer)
+    if (base::length(missing_genes) > 0) {
+      message(
+        "Skipping ",
+        base::length(missing_genes),
+        " requested gene(s) absent from layer `",
+        hcobject[["layers_names"]][x],
+        "`."
+      )
+    }
+    if (base::length(genes_in_layer) == 0) {
+      next
+    }
+    exp <- counts[genes_in_layer, , drop = FALSE]
 
-    hm_anno <- hcobject[["data"]][[base::paste0("set", x, "_anno")]][base::colnames(exp), ] %>%
+    anno <- hcobject[["data"]][[base::paste0("set", x, "_anno")]]
+    missing_annotations <- base::setdiff(base::colnames(exp), base::rownames(anno))
+    if (base::length(missing_annotations) > 0) {
+      stop(
+        "Samples from expression matrix not found in annotation for layer ",
+        x,
+        ": ",
+        base::paste(missing_annotations, collapse = ", ")
+      )
+    }
+    hm_anno <- anno[base::colnames(exp), , drop = FALSE] %>%
       dplyr::select(., dplyr::all_of(hcobject[["global_settings"]][["voi"]]))
     base::colnames(hm_anno) <- "voi"
 
-    conditions <- base::unique(hm_anno$voi) %>% base::sort(.)
+    conditions <- base::sort(base::unique(hm_anno$voi[!base::is.na(hm_anno$voi)]))
 
     mexp <- base::lapply(conditions, function(y) {
       samples <- base::subset(hm_anno, voi == y) %>% base::rownames()
@@ -77,7 +103,13 @@ visualize_gene_expression <- function(genes, name = NULL, width = 15, height = 1
       color = grDevices::colorRampPalette(base::rev(RColorBrewer::brewer.pal(n = 11, name = "BrBG")))(51),
       treeheight_col = 25, treeheight_row = 25
     )
-    plotls <- plotls + hm
+    plotls <- if (base::is.null(plotls)) hm else plotls + hm
+    heatmap_count <- heatmap_count + 1L
+  }
+
+  if (base::is.null(plotls) || heatmap_count == 0L) {
+    message("None of the requested network genes are present in any expression layer; skipping the expression heatmap.")
+    return(base::invisible(NULL))
   }
 
   heatmap_title <- stringr::str_replace_all(string = name, pattern = "_", replacement = " ")

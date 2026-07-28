@@ -562,7 +562,10 @@
   TRUE
 }
 
-.hc_write_atomic <- function(final_path, producer, min_bytes = 1) {
+.hc_write_atomic <- function(final_path,
+                             producer,
+                             min_bytes = 1,
+                             validator = .hc_output_payload_valid) {
   final_path <- base::as.character(final_path[[1]])
   if (base::is.na(final_path) || !base::nzchar(final_path)) {
     stop("`final_path` must be a non-empty file path.")
@@ -570,9 +573,18 @@
   if (!base::is.function(producer)) {
     stop("`producer` must be a function of one argument (the temp path).")
   }
+  if (!base::is.function(validator)) {
+    stop("`validator` must be a function accepting `path` and `min_bytes`.")
+  }
   if (!base::is.numeric(min_bytes) || base::length(min_bytes) != 1L ||
     base::is.na(min_bytes) || !base::is.finite(min_bytes) || min_bytes < 1) {
     stop("`min_bytes` must be a positive finite number.")
+  }
+  payload_valid <- function(path) {
+    isTRUE(tryCatch(
+      validator(path = path, min_bytes = min_bytes),
+      error = function(e) FALSE
+    ))
   }
 
   dir_path <- base::dirname(final_path)
@@ -635,7 +647,7 @@
 
   producer(tmp_path)
 
-  if (!.hc_output_payload_valid(tmp_path, min_bytes = min_bytes)) {
+  if (!payload_valid(tmp_path)) {
     stop(base::sprintf(
       "Temporary output '%s' was not written or has an invalid payload.", tmp_path
     ))
@@ -676,7 +688,7 @@
   } else {
     replacement_started <- TRUE
   }
-  if (!isTRUE(moved) || !.hc_output_payload_valid(final_path, min_bytes = min_bytes)) {
+  if (!isTRUE(moved) || !payload_valid(final_path)) {
     stop(base::sprintf(
       "Failed to finalize output '%s' (write to a synced folder such as Sciebo/OneDrive may have been interrupted).",
       final_path
@@ -685,6 +697,54 @@
 
   committed <- TRUE
   invisible(final_path)
+}
+
+.hc_file_matches_reference <- function(path,
+                                       reference,
+                                       min_bytes = 1,
+                                       attempts = 4L,
+                                       delay_sec = 0.15) {
+  path <- base::as.character(path[[1]])
+  reference <- base::as.character(reference[[1]])
+  attempts <- base::max(1L, base::as.integer(attempts[[1]]))
+  delay_sec <- base::max(0, base::as.numeric(delay_sec[[1]]))
+
+  if (!base::file.exists(reference)) {
+    return(FALSE)
+  }
+  reference_size <- base::file.info(reference)$size
+  if (base::is.na(reference_size) || reference_size < min_bytes) {
+    return(FALSE)
+  }
+  reference_md5 <- base::unname(tools::md5sum(reference))
+  if (base::length(reference_md5) != 1L ||
+    base::is.na(reference_md5) ||
+    !base::nzchar(reference_md5)) {
+    return(FALSE)
+  }
+
+  for (attempt in base::seq_len(attempts)) {
+    matches <- tryCatch(
+      {
+        size <- base::file.info(path)$size
+        md5 <- base::unname(tools::md5sum(path))
+        base::file.exists(path) &&
+          !base::is.na(size) &&
+          base::identical(base::as.numeric(size), base::as.numeric(reference_size)) &&
+          base::length(md5) == 1L &&
+          !base::is.na(md5) &&
+          base::identical(md5, reference_md5)
+      },
+      error = function(e) FALSE
+    )
+    if (isTRUE(matches)) {
+      return(TRUE)
+    }
+    if (attempt < attempts && delay_sec > 0) {
+      base::Sys.sleep(delay_sec * attempt)
+    }
+  }
+  FALSE
 }
 
 # Verify a file that should already exist is present and non-empty; warn (do not
@@ -711,21 +771,80 @@
   invisible(ok)
 }
 
-# Atomic drop-in for `openxlsx::write.xlsx(x = ..., file = ..., ...)`: keep the
-# call site identical except for the function name. Writes the workbook to a
-# temporary sibling and atomically moves it onto `file`, so a synced output
-# folder (Sciebo/OneDrive) cannot leave a truncated / zero-row .xlsx behind.
-.hc_write_xlsx_atomic <- function(x, file, ...) {
-  dots <- base::list(...)
-  x <- .hc_xlsx_prepare_payload(x)
+.hc_stage_and_publish_xlsx <- function(file, producer) {
+  if (!base::is.function(producer)) {
+    stop("`producer` must be a function of one argument (the local XLSX path).")
+  }
+  local_stage <- base::tempfile(
+    pattern = "hc-xlsx-stage-",
+    tmpdir = base::tempdir(),
+    fileext = ".xlsx"
+  )
+  base::on.exit(
+    {
+      if (base::file.exists(local_stage)) {
+        base::file.remove(local_stage)
+      }
+    },
+    add = TRUE
+  )
+
+  producer(local_stage)
+  .hc_xlsx_repair_dangling_parts(local_stage)
+  if (!.hc_output_payload_valid(local_stage)) {
+    stop(
+      "The locally staged XLSX workbook is invalid before publishing to '",
+      file,
+      "'."
+    )
+  }
+
   .hc_write_atomic(
     final_path = file,
     producer = function(tmp) {
+      copied <- base::file.copy(local_stage, tmp, overwrite = FALSE)
+      if (!isTRUE(copied)) {
+        stop("Could not copy the locally staged XLSX workbook to '", tmp, "'.")
+      }
+    },
+    validator = function(path, min_bytes) {
+      .hc_file_matches_reference(
+        path = path,
+        reference = local_stage,
+        min_bytes = min_bytes
+      )
+    }
+  )
+}
+
+# Atomic drop-in for `openxlsx::write.xlsx(x = ..., file = ..., ...)`: keep the
+# call site identical except for the function name. Build and validate the ZIP
+# archive on R's local temporary filesystem first. Only then copy the complete,
+# byte-verified archive to a temporary sibling of `file` and atomically rename
+# it, so a synced or bind-mounted output folder cannot interfere while openxlsx
+# is still assembling the workbook.
+.hc_write_xlsx_atomic <- function(x, file, ...) {
+  dots <- base::list(...)
+  x <- .hc_xlsx_prepare_payload(x)
+  .hc_stage_and_publish_xlsx(
+    file = file,
+    producer = function(local_stage) {
       base::do.call(
         openxlsx::write.xlsx,
-        base::c(base::list(x = x, file = tmp), dots)
+        base::c(base::list(x = x, file = local_stage), dots)
       )
-      .hc_xlsx_repair_dangling_parts(tmp)
+    }
+  )
+}
+
+.hc_save_workbook_atomic <- function(wb, file, overwrite = TRUE) {
+  if (!isTRUE(overwrite) && base::file.exists(file)) {
+    stop("File already exists and `overwrite = FALSE`: '", file, "'.")
+  }
+  .hc_stage_and_publish_xlsx(
+    file = file,
+    producer = function(local_stage) {
+      openxlsx::saveWorkbook(wb, local_stage, overwrite = TRUE)
     }
   )
 }

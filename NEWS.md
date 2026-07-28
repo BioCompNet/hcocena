@@ -1,3 +1,14 @@
+# hcocena 0.99.7
+
+## Export reliability
+
+- Build and validate XLSX workbooks on R's local temporary filesystem before
+  publishing them to synchronized or bind-mounted output directories.
+- Verify staged XLSX transfers byte-for-byte and atomically replace existing
+  outputs without exposing partially written workbooks.
+- Route both table-based exports and updated `Hub_genes.xlsx` workbooks through
+  the same local-staging path.
+
 # hcocena 0.99.6
 
 ## Enrichment defaults

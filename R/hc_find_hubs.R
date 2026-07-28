@@ -52,9 +52,10 @@ find_hubs <- function(clusters = c("all"),
       }
       openxlsx::addWorksheet(wb, col)
       openxlsx::writeData(wb, sheet = col, dplyr::select(hubs_df, tidyselect::all_of(col)), colNames = TRUE)
-      .hc_write_atomic(
-        final_path = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/Hub_genes.xlsx"),
-        producer = function(tmp) openxlsx::saveWorkbook(wb, tmp, overwrite = TRUE)
+      .hc_save_workbook_atomic(
+        wb = wb,
+        file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/Hub_genes.xlsx"),
+        overwrite = TRUE
       )
     } else {
       .hc_write_xlsx_atomic(dplyr::select(hubs_df, tidyselect::all_of(col)),

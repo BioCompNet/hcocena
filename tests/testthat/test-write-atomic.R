@@ -8,6 +8,8 @@ ggsave_pdf_png <- get(".hc_ggsave_pdf_png", asNamespace("hcocena"))
 write_xlsx_atomic <- get(".hc_write_xlsx_atomic", asNamespace("hcocena"))
 output_payload_valid <- get(".hc_output_payload_valid", asNamespace("hcocena"))
 repair_dangling_parts <- get(".hc_xlsx_repair_dangling_parts", asNamespace("hcocena"))
+file_matches_reference <- get(".hc_file_matches_reference", asNamespace("hcocena"))
+save_workbook_atomic <- get(".hc_save_workbook_atomic", asNamespace("hcocena"))
 
 test_that("atomic write produces the final file and leaves no temp behind", {
   dir <- withr::local_tempdir()
@@ -40,6 +42,20 @@ test_that("atomic write does not change the R random-number state", {
   expect_identical(.Random.seed, seed_before)
 })
 
+test_that("reference matching verifies complete byte-for-byte copies", {
+  dir <- withr::local_tempdir()
+  reference <- file.path(dir, "reference.xlsx")
+  matching <- file.path(dir, "matching.xlsx")
+  different <- file.path(dir, "different.xlsx")
+  writeBin(charToRaw("complete workbook payload"), reference)
+  file.copy(reference, matching)
+  writeBin(charToRaw("different workbook payload"), different)
+
+  expect_true(file_matches_reference(matching, reference))
+  expect_false(file_matches_reference(different, reference, attempts = 1L))
+  expect_false(file_matches_reference(file.path(dir, "missing.xlsx"), reference, attempts = 1L))
+})
+
 test_that("atomic write errors and keeps the old file when the producer writes nothing", {
   dir <- withr::local_tempdir()
   final <- file.path(dir, "out.txt")
@@ -57,6 +73,7 @@ test_that("atomic write works for a real .xlsx payload", {
   skip_if_not_installed("openxlsx")
   dir <- withr::local_tempdir()
   final <- file.path(dir, "tbl.xlsx")
+  openxlsx::write.xlsx(data.frame(old = "content"), final, overwrite = TRUE)
   tbl <- data.frame(genes = c("A", "B"), module = c("M1", "M1"), stringsAsFactors = FALSE)
   write_xlsx_atomic(
     list(module_gene_list = tbl),
@@ -67,6 +84,7 @@ test_that("atomic write works for a real .xlsx payload", {
   expect_equal(nrow(back), 2)
   expect_identical(colnames(back), c("genes", "module"))
   expect_true(output_payload_valid(final))
+  expect_length(list.files(dir, pattern = "\\.(part|backup)-"), 0)
 })
 
 test_that("xlsx writer removes invalid XML controls and preserves long text", {
@@ -102,6 +120,24 @@ test_that("xlsx writer removes invalid XML controls and preserves long text", {
   summary_overflow <- overflow[overflow$source_sheet == "summary", , drop = FALSE]
   summary_overflow <- summary_overflow[order(summary_overflow$part), , drop = FALSE]
   expect_identical(paste0(summary_overflow$text, collapse = ""), long_text)
+})
+
+test_that("existing openxlsx workbooks use the same staged publishing path", {
+  skip_if_not_installed("openxlsx")
+  dir <- withr::local_tempdir()
+  final <- file.path(dir, "workbook.xlsx")
+  wb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(wb, "M1")
+  openxlsx::writeData(wb, "M1", data.frame(gene = c("A", "B")))
+  openxlsx::addWorksheet(wb, "M2")
+  openxlsx::writeData(wb, "M2", data.frame(gene = c("C", "D")))
+
+  save_workbook_atomic(wb, final, overwrite = TRUE)
+
+  expect_true(output_payload_valid(final))
+  expect_setequal(openxlsx::getSheetNames(final), c("M1", "M2"))
+  expect_equal(nrow(openxlsx::read.xlsx(final, sheet = "M2")), 2)
+  expect_length(list.files(dir, pattern = "\\.(part|backup)-"), 0)
 })
 
 test_that("xlsx payload validation rejects forbidden XML controls", {

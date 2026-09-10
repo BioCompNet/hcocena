@@ -1131,7 +1131,13 @@
         return(NULL)
       }
       gene_col <- if ("Gene" %in% base::colnames(gfc_all)) "Gene" else base::colnames(gfc_all)[base::ncol(gfc_all)]
-      value_cols <- base::setdiff(base::colnames(gfc_all), gene_col)
+      # By index, not by name: `GFC_all_layers` repeats its condition columns
+      # when the layers share group names, and setdiff() on the names would
+      # collapse those duplicates - silently dropping every layer after the
+      # first.
+      value_idx <- base::setdiff(base::seq_len(base::ncol(gfc_all)),
+                                 base::which(base::colnames(gfc_all) %in% gene_col))
+      value_cols <- base::colnames(gfc_all)[value_idx]
       out <- base::lapply(cluster_order, function(cl) {
         genes <- dplyr::filter(cluster_info, color == cl) %>%
           dplyr::pull(., "gene_n") %>%
@@ -1141,7 +1147,7 @@
         if (base::length(genes) == 0) {
           return(NULL)
         }
-        tmp <- gfc_all[gfc_all[[gene_col]] %in% genes, value_cols, drop = FALSE]
+        tmp <- gfc_all[gfc_all[[gene_col]] %in% genes, value_idx, drop = FALSE]
         if (base::nrow(tmp) == 0) {
           return(NULL)
         }

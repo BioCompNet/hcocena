@@ -23,6 +23,15 @@
   interest, so it needs at least three of them. With two it fell through to a
   cryptic `cor.test()` error; it now reports the requirement and the groups it
   found.
+- `hc_upstream_inference()`, `hc_plot_enrichment_upstream_network()` and
+  `hc_celltype_activity_decoupler()` silently used only the first layer.
+  `GFC_all_layers` repeats its condition columns once per layer, and these
+  functions selected the value columns with `setdiff()` on the column *names*,
+  which collapses the duplicates - so with two layers sharing their group
+  names, half the matrix was dropped without any message. They now select by
+  position, as `.hc_gfc_value_col_idx()` already did. Upstream-regulator and
+  cell-type activity results computed on multi-layer objects whose layers share
+  group names should be recomputed.
 
 ## Export reliability
 

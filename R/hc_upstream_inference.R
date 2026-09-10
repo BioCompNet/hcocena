@@ -514,8 +514,15 @@
   }
   .hc_ui_prepare_activity_matrix_from_gfc <- function(gfc_df) {
     gene_col <- if ("Gene" %in% base::colnames(gfc_df)) "Gene" else base::colnames(gfc_df)[base::ncol(gfc_df)]
-    value_cols <- base::setdiff(base::colnames(gfc_df), gene_col)
-    mat <- gfc_df[, value_cols, drop = FALSE] %>% base::as.matrix()
+    # By index, not by name: `GFC_all_layers` repeats its condition columns
+    # when the layers share group names, and setdiff() on the names would
+    # collapse those duplicates - silently dropping every layer after the
+    # first.
+    value_idx <- base::setdiff(base::seq_len(base::ncol(gfc_df)),
+                               base::which(base::colnames(gfc_df) %in% gene_col))
+    value_cols <- base::colnames(gfc_df)[value_idx]
+    mat <- gfc_df[, value_idx, drop = FALSE] %>% base::as.matrix()
+    base::colnames(mat) <- value_cols
     mode(mat) <- "numeric"
     base::rownames(mat) <- base::as.character(gfc_df[[gene_col]])
     keep_rows <- base::rowSums(!base::is.na(mat)) > 0
@@ -2032,7 +2039,13 @@
       return(NULL)
     }
     gene_col <- if ("Gene" %in% base::colnames(gfc_all)) "Gene" else base::colnames(gfc_all)[base::ncol(gfc_all)]
-    value_cols <- base::setdiff(base::colnames(gfc_all), gene_col)
+    # By index, not by name: `GFC_all_layers` repeats its condition columns
+    # when the layers share group names, and setdiff() on the names would
+    # collapse those duplicates - silently dropping every layer after the
+    # first.
+    value_idx <- base::setdiff(base::seq_len(base::ncol(gfc_all)),
+                               base::which(base::colnames(gfc_all) %in% gene_col))
+    value_cols <- base::colnames(gfc_all)[value_idx]
     out_list <- list()
     for (cl in cluster_order) {
       genes <- dplyr::filter(cluster_info, color == cl) %>%
@@ -2043,7 +2056,7 @@
       if (base::length(genes) == 0) {
         next
       }
-      tmp <- gfc_all[gfc_all[[gene_col]] %in% genes, value_cols, drop = FALSE]
+      tmp <- gfc_all[gfc_all[[gene_col]] %in% genes, value_idx, drop = FALSE]
       if (base::nrow(tmp) == 0) {
         next
       }

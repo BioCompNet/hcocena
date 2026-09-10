@@ -227,8 +227,15 @@
     gfc_df <- hcobject[["integrated_output"]][["GFC_all_layers"]]
     if (base::is.null(gfc_df) || base::nrow(gfc_df) == 0 || base::ncol(gfc_df) < 2) stop("Missing `GFC_all_layers`.")
     gene_col <- if ("Gene" %in% base::colnames(gfc_df)) "Gene" else base::colnames(gfc_df)[base::ncol(gfc_df)]
-    val_cols <- base::setdiff(base::colnames(gfc_df), gene_col)
-    activity_mat <- gfc_df[, val_cols, drop = FALSE] %>% base::as.matrix()
+    # By index, not by name: `GFC_all_layers` repeats its condition columns
+    # when the layers share group names, and setdiff() on the names would
+    # collapse those duplicates - silently dropping every layer after the
+    # first.
+    val_idx <- base::setdiff(base::seq_len(base::ncol(gfc_df)),
+                             base::which(base::colnames(gfc_df) %in% gene_col))
+    val_cols <- base::colnames(gfc_df)[val_idx]
+    activity_mat <- gfc_df[, val_idx, drop = FALSE] %>% base::as.matrix()
+    base::colnames(activity_mat) <- val_cols
     mode(activity_mat) <- "numeric"
     base::rownames(activity_mat) <- base::toupper(base::trimws(base::as.character(gfc_df[[gene_col]])))
     activity_mat <- activity_mat[!base::is.na(base::rownames(activity_mat)) & base::rownames(activity_mat) != "", , drop = FALSE]

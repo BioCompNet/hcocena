@@ -19,6 +19,9 @@
 #' @param verbose Logical; print progress messages.
 #'
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_tune_resolution(hc, apply = FALSE)
 #' @export
 hc_tune_resolution <- function(hc,
                                apply = FALSE,

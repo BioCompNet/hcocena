@@ -43,3 +43,7 @@ instead.
 The function offers several community detection algorithms to identify dense regions in the co-expression network.
 These dense regions represent collections of highly co-expressed genes likely to form a functional group.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc <- hc_cluster_calculation(hc, cluster_algo = "cluster_leiden")
+}

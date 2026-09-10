@@ -21,3 +21,7 @@ Updated \code{HCoCenaExperiment}.
 Adds numeric annotation tracks to the columns of the module heatmap. Call
 with \code{variables = NULL} to remove previously added tracks.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc <- hc_col_anno_numerical(hc, variables = "batch", variable_label = "batch")
+}

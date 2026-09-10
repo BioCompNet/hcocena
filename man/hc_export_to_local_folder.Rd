@@ -18,3 +18,7 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Export network to local folder (S4 API)
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc <- hc_export_to_local_folder(hc, file = tempdir())
+}

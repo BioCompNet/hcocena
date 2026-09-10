@@ -17,3 +17,7 @@ colour \code{"white"}.
 \description{
 Returns the mapping of every network gene to the module it was assigned to.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+head(hc_gene_to_cluster(hc))
+}

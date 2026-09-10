@@ -148,6 +148,9 @@
 #'   Use `NULL` to remove existing numeric annotations.
 #' @param variable_label Display label for the annotation track.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_col_anno_numerical(hc, variables = "batch", variable_label = "batch")
 #' @export
 hc_col_anno_numerical <- function(hc, variables, variable_label) {
   .hc_run_driver(

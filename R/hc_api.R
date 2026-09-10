@@ -1254,6 +1254,9 @@ hc_read_supplementary <- function(hc) {
 #'   automatically falls back to `Hmisc::rcorr` when the expression matrix
 #'   contains `NA`s (to preserve pairwise-complete semantics). `"rcorr"` forces
 #'   the original `Hmisc::rcorr` computation.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
+#' hc <- hc_run_expression_analysis_1(hc)
 #' @export
 hc_run_expression_analysis_1 <- function(hc,
                                          padj = "none",
@@ -1301,6 +1304,9 @@ hc_run_expression_analysis_1 <- function(hc,
 #' @param verbose Logical; print additional source details.
 #'   The final applied cutoff vector is always printed.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
+#' hc <- hc_set_cutoff(hc, cutoff_vector = c(0.3, 0.3))
 #' @export
 hc_set_cutoff <- function(hc,
                           cutoff_vector = base::c(),
@@ -1534,6 +1540,9 @@ hc_set_cutoff <- function(hc,
 #' @param additional_anno A list, with one slot per data set. A slot contains a vector of column names from that data set's annotation file that you wish to annotate with.
 #' 	If for some of the data sets you don't wish any further annotation, you can set the corresponding list slot to NULL. Default is NULL.
 #' @param cols A named list of color vectors. The list names need to match the chosen annotation column names. Default is NULL which uses implemented colors.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
+#' hc <- hc_run_expression_analysis_2(hc, plot_HM = FALSE)
 #' @export
 hc_run_expression_analysis_2 <- function(hc,
                                          grouping_v = NULL,
@@ -1619,6 +1628,9 @@ hc_run_expression_analysis_2 <- function(hc,
 #' @param GFC_when_missing The value to substitute missing data in the case where some genes were not measured in all but only some of the datasets.
 #' @param with Either an integer giving the number of the dataset to be used as reference (e.g., 1) or the name given to the layer.
 #'  Can be ignored when integration is done by union.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_after_part2.rds", package = "hcocena"))
+#' hc <- hc_build_integrated_network(hc, mode = "u")
 #' @export
 hc_build_integrated_network <- function(hc,
                                         mode = "u",
@@ -1900,6 +1912,9 @@ hc_build_integrated_network <- function(hc,
 #' @param partition_type Name of the partition type. Select from 'CPMVertexPartition', 'ModularityVertexPartition', 'RBConfigurationVertexPartition' and 'RBERVertexPartition'. Default is 'RBConfigurationVertexPartition'.
 #' @param return_result Logical. If `TRUE`, return the cluster table instead of
 #'  storing it in `hcobject`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_cluster_calculation(hc, cluster_algo = "cluster_leiden")
 #' @export
 hc_cluster_calculation <- function(hc,
                                    cluster_algo = "cluster_leiden",
@@ -1977,6 +1992,10 @@ hc_cluster_calculation <- function(hc,
 #'   fewer modules when silhouette scores are nearly tied. Default `1e-04`.
 #' @param verbose Logical. Print the selected `k` and selection diagnostics.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_plot_cluster_heatmap(hc, file_name = FALSE)
+#' hc <- hc_merge_clusters(hc, k = 2, save = FALSE)
 #' @export
 hc_merge_clusters <- function(hc,
                               k = "auto",
@@ -2039,6 +2058,10 @@ hc_merge_clusters <- function(hc,
 #' @param min_module_size Optional alias for `min_submodule_size`. If set, it
 #'  takes precedence.
 #' @param verbose Logical; print progress messages.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_plot_cluster_heatmap(hc, file_name = FALSE)
+#' hc <- hc_split_modules(hc, modules = "M1", resolution = 1)
 #' @export
 hc_split_modules <- function(hc,
                              modules,
@@ -3339,6 +3362,9 @@ hc_check_dirs <- function(hc, create_output_dir = TRUE) {
 #' @param name Folder name. Use `""` to write directly into `dir_output`.
 #' @param use_output_dir Boolean. If TRUE, ignore `name` and use `dir_output` directly.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
+#' hc <- hc_init_save_folder(hc, name = "")
 #' @export
 hc_init_save_folder <- function(hc, name, use_output_dir = FALSE) {
   .hc_init_save_folder_impl(hc = hc, name = name, use_output_dir = use_output_dir)
@@ -3349,8 +3375,8 @@ hc_init_save_folder <- function(hc, name, use_output_dir = FALSE) {
 #' @noRd
 #' @param hc A `HCoCenaExperiment`.
 #' @param ... Additional arguments for cut-off plotting.
-#' @template example-hc-after-part1
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
 #' hc <- hc_plot_cutoffs(hc)
 #' @return Updated `HCoCenaExperiment`.
 # Internal implementation shared by S4 and legacy entry points.
@@ -3373,6 +3399,9 @@ hc_init_save_folder <- function(hc, name, use_output_dir = FALSE) {
 #'   entries (the default) draw no line for that panel.
 #' @return Updated `HCoCenaExperiment`, invisibly; called for the cut-off
 #'   diagnostic plot it draws.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
+#' hc <- hc_plot_cutoffs(hc, interactive = FALSE)
 #' @export
 hc_plot_cutoffs <- function(hc,
                             interactive = TRUE,
@@ -3387,8 +3416,8 @@ hc_plot_cutoffs <- function(hc,
 #'
 #' @noRd
 #' @param hc A `HCoCenaExperiment`.
-#' @template example-hc-after-part1
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
 #' hc <- hc_plot_deg_dist(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @rdname hc_plot_deg_dist
@@ -3409,6 +3438,9 @@ hc_plot_cutoffs <- function(hc,
 #'
 #' @param hc A `HCoCenaExperiment`.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
+#' hc <- hc_plot_deg_dist(hc)
 #' @export
 hc_plot_deg_dist <- function(hc) {
   .hc_plot_deg_dist_impl(hc = hc)[["hc"]]
@@ -3421,8 +3453,8 @@ hc_plot_deg_dist <- function(hc) {
 #'   Defaults to `"Heatmap_modules.pdf"`. Use `FALSE` to skip file export.
 #' @param ... Additional plotting arguments forwarded to the heatmap backend,
 #'   including `smart_column_gaps`, `column_gap_by`, and `column_gap_mm`.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_plot_cluster_heatmap(hc, file_name = FALSE)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3469,8 +3501,8 @@ hc_plot_cluster_heatmap <- function(hc, file_name = "Heatmap_modules.pdf", ...) 
 #'   `FALSE`, so the stored main hCoCena column order is reused when available.
 #' @param row_order Optional heatmap row order.
 #' @param cluster_rows Whether to cluster heatmap rows.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_change_grouping_parameter(hc, group_by = "batch")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3502,8 +3534,8 @@ hc_change_grouping_parameter <- function(hc,
 #' @param save Logical. Write the network to PDF. Default is `TRUE`.
 #' @param store_plot Logical. Keep the plot object in `hc`. Default is `FALSE`.
 #' @param label_offset Distance between a node and its label. Default is 50.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_plot_integrated_network(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3525,8 +3557,8 @@ hc_plot_integrated_network <- function(hc, layout = NULL,
 #' Plot network colored by GFC (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_plot_gfc_network(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3584,8 +3616,8 @@ hc_check_tf <- function(hc, TF) {
 #' Write session info (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @template example-hc-prepared
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
 #' hc <- hc_write_session_info(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3604,8 +3636,8 @@ hc_write_session_info <- function(hc) {
 #'   count inputs, suggested inflection points can differ slightly from older
 #'   releases on the same raw input even though the `hc_suggest_topvar()`
 #'   heuristic itself is unchanged.
-#' @template example-hc-prepared
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
 #' hc <- hc_suggest_topvar(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3623,8 +3655,8 @@ hc_suggest_topvar <- function(hc) {
 #' @param log_2 Logical. Log2-transform the values before plotting.
 #'   Default is `TRUE`.
 #' @param plot Logical. Draw the plot. Default is `TRUE`.
-#' @template example-hc-prepared
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
 #' hc <- hc_plot_sample_distributions(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3651,8 +3683,8 @@ hc_plot_sample_distributions <- function(hc, plot_type = "boxplot",
 #'   Default is `FALSE`.
 #' @param cols Optional named vector of colours for the groups. If `NULL`
 #'   (default), a built-in palette is used.
-#' @template example-hc-prepared
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
 #' hc <- hc_pca(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3676,9 +3708,9 @@ hc_pca <- function(hc, which = "all", color_by = NULL, ellipses = FALSE,
 #' @param type Either "cat" (default) for categorical `meta_col` or "num" for
 #'   continuous ones.
 #' @param cols Optional named vector of colours for the groups.
-#' @template example-hc-prepared
 #' @examples
-#' hc <- hc_meta_plot(hc, set = 1)
+#' hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
+#' hc <- hc_meta_plot(hc, set = 1, group_col = "group", meta_col = "batch")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_meta_plot <- function(hc, set, group_col = NULL, meta_col = NULL,
@@ -3695,8 +3727,8 @@ hc_meta_plot <- function(hc, set, group_col = NULL, meta_col = NULL,
 #' Export clusters (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_export_clusters(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3711,8 +3743,8 @@ hc_export_clusters <- function(hc) {
 #' @param hc A `HCoCenaExperiment`.
 #' @param save Logical. Write the module-score box plot to PDF.
 #'   Default is `TRUE`.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_get_module_scores(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3725,8 +3757,8 @@ hc_get_module_scores <- function(hc, save = TRUE) {
 #' Alluvial comparison plots (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_algo_alluvial(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3744,8 +3776,8 @@ hc_algo_alluvial <- function(hc) {
 #' @param algo Optional name of the clustering algorithm the `gtc` came from,
 #'   used for the plot title.
 #' @param cols Optional named vector of colours for the sample groups.
-#' @template example-hc-prepared
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_pca_algo_compare(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3765,8 +3797,8 @@ hc_pca_algo_compare <- function(hc, gtc = NULL, algo = NULL, cols = NULL) {
 #'   `"cluster_louvain"`. Mutually exclusive with `gtc`.
 #' @param gtc Optional externally supplied gene-to-cluster table to adopt
 #'   instead of re-running an algorithm.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_update_clustering_algorithm(hc, new_algo = "cluster_louvain")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3783,6 +3815,9 @@ hc_update_clustering_algorithm <- function(hc, new_algo = NULL, gtc = NULL) {
 #' @param file Target folder for the exported network files. If omitted, the
 #'   current output/save folder configured in `hc` is used.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_export_to_local_folder(hc, file = tempdir())
 #' @export
 hc_export_to_local_folder <- function(hc, file) {
   # `file`'s default in the driver is built from the live `hcobject`, which only
@@ -3859,8 +3894,8 @@ hc_import_layout_from_cytoscape <- function(hc) {
 #' @param save Logical. Write the hub network and expression heatmap to PDF.
 #'   Default is `FALSE`.
 #' @param plot Logical. Draw the per-module network. Default is `FALSE`.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_find_hubs(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3885,8 +3920,8 @@ hc_find_hubs <- function(hc, clusters = c("all"), top = 10,
 #' @param width Plot width in inches. Default is 15.
 #' @param height Plot height in inches. Default is 10.
 #' @param save Logical. Write the heatmap to PDF. Default is `TRUE`.
-#' @template example-hc-prepared
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_visualize_gene_expression(hc, genes = "G1")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3909,8 +3944,8 @@ hc_visualize_gene_expression <- function(hc, genes, name = NULL, width = 15,
 #' @param label_offset Distance between a node and its label. Default is 3.
 #' @param plot Logical. Draw the network. Default is `TRUE`.
 #' @param save Logical. Write the network to PDF. Default is `TRUE`.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_highlight_geneset(hc, gene_set = c("G1", "G2"))
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3930,8 +3965,8 @@ hc_highlight_geneset <- function(hc, gene_set, name = NULL, col = "black",
 #'
 #' @param hc A `HCoCenaExperiment`.
 #' @param cluster The module to highlight, given as its colour or module label.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_colour_single_cluster(hc, cluster = "gold")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
@@ -3951,6 +3986,9 @@ hc_colour_single_cluster <- function(hc, cluster) {
 #' @param type Either "abs" (default) for absolute counts or "rel" for
 #'   relative proportions.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_col_anno_categorical(hc, variables = "batch")
 #' @export
 hc_col_anno_categorical <- function(hc, variables, variable_label = NULL,
                                     type = "abs") {
@@ -4003,6 +4041,14 @@ hc_meta_correlation_cat <- function(hc, meta, set, p_val = 0.05,
 #' @param export_excel Logical; write result tables to Excel in save folder.
 #' @param excel_file File name for the Excel export.
 #' @param slot_name Satellite slot name for storing results.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_module_condition_significance(
+#'   hc,
+#'   condition_col = "group",
+#'   run_limma = FALSE,
+#'   export_excel = FALSE
+#' )
 #' @export
 hc_module_condition_significance <- function(hc,
                                              set = "all",

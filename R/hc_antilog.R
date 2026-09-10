@@ -19,6 +19,8 @@
 #' @param lx Numeric vector, matrix or data frame of logged values.
 #' @param base The base the logarithm was taken to.
 #' @return The de-logged values, in the same shape as `lx`.
+#' @examples
+#' hc_antilog(c(1, 2, 3), base = 2)
 #' @export
 hc_antilog <- function(lx, base) {
   .hc_antilog_impl(lx = lx, base = base)

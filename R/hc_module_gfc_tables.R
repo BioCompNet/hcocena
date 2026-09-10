@@ -86,8 +86,8 @@
 #'   folder of `hc` is used.
 #' @param file_name File name of the workbook.
 #' @param verbose Logical; print the self-check and the export path.
-#' @template example-hc-clustered
 #' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_module_gfc_tables(hc, export_xlsx = FALSE)
 #' hc@satellite$module_gfc_tables$by_group
 #' @return Updated `HCoCenaExperiment`. The tables are stored in

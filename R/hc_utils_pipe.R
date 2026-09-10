@@ -1,13 +1,11 @@
 #' Pipe operator
 #'
-#' See \code{magrittr::\link[magrittr:pipe]{\%>\%}} for details.
+#' Imported from magrittr for internal use. The pipe is not re-exported: the
+#' public API is `hc_*` only, so callers should load magrittr (or use R's
+#' native `|>`) if they want a pipe in their own scripts.
 #'
 #' @name %>%
-#' @rdname pipe
-#' @keywords internal
 #' @importFrom magrittr %>%
-#' @usage lhs \%>\% rhs
-#' @param lhs A value or the magrittr placeholder.
-#' @param rhs A function call using the magrittr semantics.
-#' @return The result of calling `rhs(lhs)`.
+#' @keywords internal
+#' @noRd
 NULL

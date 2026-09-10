@@ -35,5 +35,6 @@ Updated \code{HCoCenaExperiment}.
 Meta-data plotting (S4 API)
 }
 \examples{
-hc <- hc_meta_plot(hc, set = 1)
+hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
+hc <- hc_meta_plot(hc, set = 1, group_col = "group", meta_col = "batch")
 }

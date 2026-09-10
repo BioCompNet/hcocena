@@ -29,5 +29,6 @@ Updated \code{HCoCenaExperiment}.
 Plot sample distributions (S4 API)
 }
 \examples{
+hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
 hc <- hc_plot_sample_distributions(hc)
 }

@@ -49,3 +49,7 @@ Convenience wrapper for clustering-focused auto-tuning.
 Internally this calls \code{hc_auto_tune(..., tune_cutoff = FALSE, tune_clustering = TRUE)}.
 The clustering report is additionally mirrored to \code{hc@satellite$resolution_tuning}.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc <- hc_tune_resolution(hc, apply = FALSE)
+}

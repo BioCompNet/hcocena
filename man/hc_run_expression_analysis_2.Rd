@@ -33,3 +33,7 @@ Updated \code{HCoCenaExperiment}.
 \description{
 This function plots a heatmap for the network genes in each data layer and computes the Group-Fold-Changes for all genes per layer.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
+hc <- hc_run_expression_analysis_2(hc, plot_HM = FALSE)
+}

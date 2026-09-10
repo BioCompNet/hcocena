@@ -18,3 +18,6 @@ The de-logged values, in the same shape as \code{lx}.
 Inverse of \code{\link[base:Log]{base::log()}} for an arbitrary base, i.e. \code{hc_antilog(x, 2)}
 returns \code{2^x}.
 }
+\examples{
+hc_antilog(c(1, 2, 3), base = 2)
+}

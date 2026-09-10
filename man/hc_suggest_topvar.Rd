@@ -24,5 +24,6 @@ releases on the same raw input even though the \code{hc_suggest_topvar()}
 heuristic itself is unchanged.
 }
 \examples{
+hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
 hc <- hc_suggest_topvar(hc)
 }

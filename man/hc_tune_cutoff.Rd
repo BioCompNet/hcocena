@@ -82,3 +82,7 @@ available node count across tested cutoffs.
 base filters (\code{slope/components/nodes}).
 }
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
+hc <- hc_tune_cutoff(hc, apply = FALSE, verbose = FALSE)
+}

@@ -64,3 +64,12 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Test module differences between conditions (S4 API)
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc <- hc_module_condition_significance(
+  hc,
+  condition_col = "group",
+  run_limma = FALSE,
+  export_excel = FALSE
+)
+}

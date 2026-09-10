@@ -17,3 +17,7 @@ Plots the logged degree distribution and its linear fit for each layer
 at the chosen correlation cutoff, to check how well the network follows
 a scale-free topology.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
+hc <- hc_plot_deg_dist(hc)
+}

@@ -16,5 +16,6 @@ Updated \code{HCoCenaExperiment}.
 Write session info (S4 API)
 }
 \examples{
+hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
 hc <- hc_write_session_info(hc)
 }

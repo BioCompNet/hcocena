@@ -80,3 +80,7 @@ For each layer, the function:
 Results are stored in \code{hc@satellite$cutoff_tuning}
 (and mirrored to \code{hc@satellite$auto_tune_cutoff_tiered} for compatibility).
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
+hc <- hc_auto_tune_cutoff_tiered(hc, apply = FALSE, verbose = FALSE)
+}

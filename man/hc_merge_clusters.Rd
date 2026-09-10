@@ -45,3 +45,8 @@ Cuts the dendrogram of the module heatmap to merge modules with similar
 expression patterns. Run with \code{save = FALSE} first to preview a given \code{k};
 \code{save = TRUE} overwrites the current module assignment and cannot be undone.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc <- hc_plot_cluster_heatmap(hc, file_name = FALSE)
+hc <- hc_merge_clusters(hc, k = 2, save = FALSE)
+}

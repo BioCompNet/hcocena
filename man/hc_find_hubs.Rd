@@ -43,5 +43,6 @@ Determines hub genes per module from a combined ranking of weighted degree,
 closeness and betweenness centrality.
 }
 \examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 hc <- hc_find_hubs(hc)
 }

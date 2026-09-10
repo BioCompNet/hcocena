@@ -97,11 +97,16 @@
   set_name <- base::paste0("set", set)
   gfc_all_genes <- hcobject[["layer_specific_outputs"]][[set_name]][["part2"]][["GFC_all_genes"]]
 
-  # Correlation of the pattern the metainfo has across groups with the pattern of the modules across groups; can only be calculated when there are at least 2 groups
-  if (base::ncol(gfc_all_genes) == 2) {
+  # Correlation of the pattern the metainfo has across groups with the pattern
+  # of the modules across groups. Both vectors have one entry per group, so
+  # Pearson needs at least three groups to be defined at all - with two the
+  # correlation is degenerate and cor.test() aborts with a cryptic message.
+  groups <- base::setdiff(base::colnames(gfc_all_genes), "Gene")
+  if (base::length(groups) < 3) {
     stop(
-      "More than one group is needed to caclulate a correlation. The only group present is:    ",
-      base::colnames(gfc_all_genes)[1]
+      "At least three groups of `", hcobject[["global_settings"]][["voi"]],
+      "` are needed to correlate a categorical variable across groups; found: ",
+      base::paste(groups, collapse = ", ")
     )
   }
   # check length of meta
@@ -258,6 +263,9 @@
 #' @param padj Multiple-testing correction method passed to
 #'   [stats::p.adjust()]. Default is `"BH"`.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc_meta_correlation_num(hc, set = 1, meta = "age")
 #' @export
 hc_meta_correlation_num <- function(hc, set, meta, p_val = 0.05,
                                     padj = "BH") {

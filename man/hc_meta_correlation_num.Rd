@@ -28,3 +28,7 @@ Correlates the mean expression of each module's genes per sample with one or
 more numeric annotation columns, and shows the result as a heatmap.
 Non-significant correlations are left blank.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc_meta_correlation_num(hc, set = 1, meta = "age")
+}

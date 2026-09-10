@@ -8,6 +8,8 @@
 #' @param ignore_case Logical. Passed to [base::grepl()].
 #'
 #' @return A data frame with Enrichr library metadata.
+#' @examples
+#' hc_list_celltype_databases()
 #' @export
 hc_list_celltype_databases <- function(pattern = NULL,
                                        include_all = FALSE,
@@ -239,6 +241,8 @@ hc_list_celltype_databases <- function(pattern = NULL,
 #' @param include_genes Logical. If `TRUE`, include `genes_preview`.
 #'
 #' @return A data frame with terms and gene counts.
+#' @examples
+#' hc_preview_celltype_database("PanglaoDB")
 #' @export
 hc_preview_celltype_database <- function(database,
                                          pattern = NULL,

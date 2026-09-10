@@ -247,7 +247,12 @@
   method <- base::match.arg(method)
   score_method <- base::match.arg(score_method)
   na_impute <- base::match.arg(na_impute)
-  cap_na_impute <- base::match.arg(cap_na_impute)
+  # Explicit choices: the formal default is `na_impute`, which has already
+  # been collapsed to a single value by the line above. Without them an
+  # explicitly supplied vector - as passed down by
+  # hc_longitudinal_workflow_direct() - is matched against one choice only
+  # and match.arg() aborts with "'arg' must be of length 1".
+  cap_na_impute <- base::match.arg(cap_na_impute, choices = c("median", "zero"))
 
   sat <- as.list(hc@satellite)
   inp <- sat[[means_slot]]
@@ -663,6 +668,20 @@
 #' @return A list with updated `hc`, step plots, and diagnostics. When
 #'   `layer = "all"` (or multiple layers are supplied), returns per-layer plot
 #'   and diagnostic lists keyed by layer id.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' res <- hc_longitudinal_step1_module_donor_direct(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )
+#' hc <- res$hc
 #' @export
 hc_longitudinal_step1_module_donor_direct <- function(hc,
                                                       donor_col = "Subject",
@@ -691,7 +710,12 @@ hc_longitudinal_step1_module_donor_direct <- function(hc,
   method <- base::match.arg(method)
   score_method <- base::match.arg(score_method)
   na_impute <- base::match.arg(na_impute)
-  cap_na_impute <- base::match.arg(cap_na_impute)
+  # Explicit choices: the formal default is `na_impute`, which has already
+  # been collapsed to a single value by the line above. Without them an
+  # explicitly supplied vector - as passed down by
+  # hc_longitudinal_workflow_direct() - is matched against one choice only
+  # and match.arg() aborts with "'arg' must be of length 1".
+  cap_na_impute <- base::match.arg(cap_na_impute, choices = c("median", "zero"))
 
   if (!base::is.numeric(nstart) || base::length(nstart) != 1 || !base::is.finite(nstart) || nstart < 1) {
     stop("`nstart` must be a single integer >= 1.")
@@ -823,6 +847,20 @@ hc_longitudinal_step1_module_donor_direct <- function(hc,
 #' @inheritParams hc_longitudinal_step1_module_donor_direct
 #'
 #' @return A list with updated `hc`, nested `plots`, and per-step diagnostics.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' res <- hc_longitudinal_workflow_direct(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )
+#' hc <- res$hc
 #' @export
 hc_longitudinal_workflow_direct <- function(hc,
                                             donor_col = "Subject",

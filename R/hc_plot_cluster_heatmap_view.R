@@ -30,14 +30,12 @@
 #'   [hc_plot_cluster_heatmap()].
 #'
 #' @examples
-#' \donttest{
 #' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' hc <- hc_plot_cluster_heatmap_view(
 #'   hc,
 #'   modules = c("M2", "M3"),
 #'   file_name = FALSE
 #' )
-#' }
 #'
 #' @return Updated `HCoCenaExperiment`.
 #' @export

@@ -2554,6 +2554,28 @@ hc_unsplit_modules <- function(hc,
 #'   `"top_all_dbs"`, `"top_all_dbs_mixed"` (or without `"top_"` prefix).
 #' @param heatmap_side One of `"left"` (default) or `"right"`.
 #' @return Invisibly returns `hc`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' gmt <- tempfile(fileext = ".gmt")
+#' writeLines(
+#'   c(
+#'     paste(c("T cells", "-", "CD3D", "CD3E", "CD3G", "CD2", "CD28",
+#'             "LCK", "ZAP70", "IL7R", "CD7", "TRAC"), collapse = "\t"),
+#'     paste(c("B cells", "-", "CD19", "MS4A1", "CD79A", "CD79B", "BLNK",
+#'             "PAX5", "CR2", "FCRL1", "TNFRSF13B", "VPREB3"), collapse = "\t"),
+#'     paste(c("Monocytes", "-", "CD14", "LYZ", "FCN1", "VCAN", "S100A8",
+#'             "S100A9", "CSF1R", "ITGAM", "CD68", "FCGR3A"), collapse = "\t"),
+#'     paste(c("NK cells", "-", "NKG7", "GNLY", "KLRD1", "KLRF1", "PRF1",
+#'             "GZMB", "NCR1", "KLRC1", "FGFBP2", "SPON2"), collapse = "\t")
+#'   ),
+#'   gmt
+#' )
+#' hc <- hc_functional_enrichment(
+#'   hc,
+#'   gene_sets = character(0),
+#'   custom_gmt_files = c(CellTypes = gmt)
+#' )
+#' p <- hc_plot_enrichment_panels(hc)
 #' @export
 hc_plot_enrichment_panels <- function(hc,
                                       panels = NULL,
@@ -2766,6 +2788,27 @@ hc_plot_enrichment_panels <- function(hc,
 #'  Controls whether heavy heatmap/panel objects are stored inside `hc` for later
 #'  redraw with `hc_plot_enrichment_panels()`. `"auto"` stores them only for a
 #'  single selected database; multi-database runs keep only tables to save memory.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' gmt <- tempfile(fileext = ".gmt")
+#' writeLines(
+#'   c(
+#'     paste(c("T cells", "-", "CD3D", "CD3E", "CD3G", "CD2", "CD28",
+#'             "LCK", "ZAP70", "IL7R", "CD7", "TRAC"), collapse = "\t"),
+#'     paste(c("B cells", "-", "CD19", "MS4A1", "CD79A", "CD79B", "BLNK",
+#'             "PAX5", "CR2", "FCRL1", "TNFRSF13B", "VPREB3"), collapse = "\t"),
+#'     paste(c("Monocytes", "-", "CD14", "LYZ", "FCN1", "VCAN", "S100A8",
+#'             "S100A9", "CSF1R", "ITGAM", "CD68", "FCGR3A"), collapse = "\t"),
+#'     paste(c("NK cells", "-", "NKG7", "GNLY", "KLRD1", "KLRF1", "PRF1",
+#'             "GZMB", "NCR1", "KLRC1", "FGFBP2", "SPON2"), collapse = "\t")
+#'   ),
+#'   gmt
+#' )
+#' hc <- hc_functional_enrichment(
+#'   hc,
+#'   gene_sets = character(0),
+#'   custom_gmt_files = c(CellTypes = gmt)
+#' )
 #' @export
 hc_functional_enrichment <- function(hc,
                                      gene_sets = c("Go", "Kegg", "Hallmark", "Reactome"),
@@ -3937,7 +3980,7 @@ hc_find_hubs <- function(hc, clusters = c("all"), top = 10,
 #' @param save Logical. Write the heatmap to PDF. Default is `TRUE`.
 #' @examples
 #' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-#' hc <- hc_visualize_gene_expression(hc, genes = "G1")
+#' hc <- hc_visualize_gene_expression(hc, genes = "CD3D")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_visualize_gene_expression <- function(hc, genes, name = NULL, width = 15,
@@ -3961,7 +4004,7 @@ hc_visualize_gene_expression <- function(hc, genes, name = NULL, width = 15,
 #' @param save Logical. Write the network to PDF. Default is `TRUE`.
 #' @examples
 #' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-#' hc <- hc_highlight_geneset(hc, gene_set = c("G1", "G2"))
+#' hc <- hc_highlight_geneset(hc, gene_set = c("CD3D", "CD19"))
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_highlight_geneset <- function(hc, gene_set, name = NULL, col = "black",
@@ -4024,6 +4067,9 @@ hc_col_anno_categorical <- function(hc, variables, variable_label = NULL,
 #' @param padj Multiple-testing correction method passed to
 #'   [stats::p.adjust()]. Default is "BH".
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc_meta_correlation_cat(hc, set = 1, meta = "batch")
 #' @export
 hc_meta_correlation_cat <- function(hc, meta, set, p_val = 0.05,
                                     padj = "BH") {

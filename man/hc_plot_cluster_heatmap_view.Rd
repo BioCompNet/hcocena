@@ -65,13 +65,11 @@ preserved, and the GFC expression color scale is inherited from the full
 heatmap cache instead of being recomputed from the subset.
 }
 \examples{
-\donttest{
 hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 hc <- hc_plot_cluster_heatmap_view(
   hc,
   modules = c("M2", "M3"),
   file_name = FALSE
 )
-}
 
 }

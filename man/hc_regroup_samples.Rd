@@ -78,7 +78,6 @@ follows the signed-ratio convention used by hCoCena: two-fold down is \code{-2},
 change is \code{1}, and two-fold up is \code{2}.
 }
 \examples{
-\donttest{
 hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 preview <- hc_regroup_samples(hc, layer = 1, k = 2, silent = TRUE)
 preview$results$set1$clusters
@@ -93,6 +92,5 @@ applied <- hc_regroup_samples(
   silent = TRUE
 )
 hc <- applied$hc
-}
 
 }

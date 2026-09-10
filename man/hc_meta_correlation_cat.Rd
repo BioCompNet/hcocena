@@ -26,3 +26,7 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Correlate categorical metadata with modules (S4 API)
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc_meta_correlation_cat(hc, set = 1, meta = "batch")
+}

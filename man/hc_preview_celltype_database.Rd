@@ -37,3 +37,6 @@ A data frame with terms and gene counts.
 Downloads and previews terms from a selected Enrichr library to help choose
 tissue/cell-type databases.
 }
+\examples{
+hc_preview_celltype_database("PanglaoDB")
+}

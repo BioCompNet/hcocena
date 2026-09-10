@@ -3272,6 +3272,27 @@ hc_longitudinal_module_cap <- function(hc,
 #' @param umap_min_dist UMAP minimum distance.
 #'
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )$hc
+#' hc <- hc_longitudinal_endotype_clustering(hc, k = 2, nstart = 1, seed = 1)
+#' hc <- hc_longitudinal_meta_clustering(
+#'   hc,
+#'   feature_source = "feature_matrix_used",
+#'   k = 2:3,
+#'   method = "kmeans",
+#'   seed = 1
+#' )
 #' @export
 hc_longitudinal_meta_clustering <- function(hc,
                                             slot_name = "longitudinal_endotypes",
@@ -3594,6 +3615,29 @@ hc_longitudinal_meta_clustering <- function(hc,
 #'   Controls which global k-selection table is shown.
 #'
 #' @return List with ggplots `global_k` and `module_k`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )$hc
+#' hc <- hc_longitudinal_endotype_clustering(hc, k = 2, nstart = 1, seed = 1)
+#' hc <- hc_longitudinal_meta_clustering(
+#'   hc,
+#'   feature_source = "feature_matrix_used",
+#'   k = 2:3,
+#'   method = "kmeans",
+#'   consensus = TRUE,
+#'   seed = 1
+#' )
+#' p <- hc_plot_longitudinal_k_criterion(hc, save_pdf = FALSE)
 #' @export
 hc_plot_longitudinal_k_criterion <- function(hc,
                                              slot_name = "longitudinal_endotypes",
@@ -3882,6 +3926,33 @@ hc_plot_longitudinal_cap <- function(hc,
 #'   method-wise meta-cluster counts plus consensus decision summary.
 #'
 #' @return List with `pca`, optional `umap`, optional `cross_tab`, and `tables`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )$hc
+#' hc <- hc_longitudinal_endotype_clustering(hc, k = 2, nstart = 1, seed = 1)
+#' hc <- hc_longitudinal_meta_clustering(
+#'   hc,
+#'   feature_source = "feature_matrix_used",
+#'   k = 2:3,
+#'   method = "kmeans",
+#'   consensus = TRUE,
+#'   seed = 1
+#' )
+#' p <- hc_plot_longitudinal_meta_embeddings(
+#'   hc,
+#'   save_pdf = FALSE,
+#'   save_tables = FALSE
+#' )
 #' @export
 hc_plot_longitudinal_meta_embeddings <- function(hc,
                                                  slot_name = "longitudinal_endotypes",
@@ -4223,6 +4294,33 @@ hc_plot_longitudinal_meta_embeddings <- function(hc,
 #'
 #' @return A list with `consensus_heatmap`, optional `consensus_k`,
 #'   optional `stability`, and optional `summary_table`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )$hc
+#' hc <- hc_longitudinal_endotype_clustering(hc, k = 2, nstart = 1, seed = 1)
+#' hc <- hc_longitudinal_meta_clustering(
+#'   hc,
+#'   feature_source = "feature_matrix_used",
+#'   k = 2:3,
+#'   method = "kmeans",
+#'   consensus = TRUE,
+#'   seed = 1
+#' )
+#' p <- hc_plot_longitudinal_meta_consensus(
+#'   hc,
+#'   save_pdf = FALSE,
+#'   save_table = FALSE
+#' )
 #' @export
 hc_plot_longitudinal_meta_consensus <- function(hc,
                                                 slot_name = "longitudinal_endotypes",
@@ -4544,6 +4642,29 @@ hc_plot_longitudinal_meta_consensus <- function(hc,
 #' @param save_width,save_height Optional PDF width/height in inches.
 #'
 #' @return A list with one ggplot object (`meta_module_waves`).
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )$hc
+#' hc <- hc_longitudinal_endotype_clustering(hc, k = 2, nstart = 1, seed = 1)
+#' hc <- hc_longitudinal_meta_clustering(
+#'   hc,
+#'   feature_source = "feature_matrix_used",
+#'   k = 2:3,
+#'   method = "kmeans",
+#'   consensus = TRUE,
+#'   seed = 1
+#' )
+#' p <- hc_plot_longitudinal_meta_module_waves(hc, save_pdf = FALSE)
 #' @export
 hc_plot_longitudinal_meta_module_waves <- function(hc,
                                                    slot_name = "longitudinal_endotypes",
@@ -6664,6 +6785,29 @@ hc_plot_longitudinal_enrichment_meta_waves <- function(hc,
 #'
 #' @return A list with `sankey` htmlwidget (or `NULL` if unavailable) and
 #'   `links` table.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )$hc
+#' hc <- hc_longitudinal_endotype_clustering(hc, k = 2, nstart = 1, seed = 1)
+#' hc <- hc_longitudinal_meta_clustering(
+#'   hc,
+#'   feature_source = "feature_matrix_used",
+#'   k = 2:3,
+#'   method = "kmeans",
+#'   consensus = TRUE,
+#'   seed = 1
+#' )
+#' p <- hc_plot_longitudinal_endotype_meta_flow(hc, save_html = FALSE)
 #' @export
 hc_plot_longitudinal_endotype_meta_flow <- function(hc,
                                                     slot_name = "longitudinal_endotypes",

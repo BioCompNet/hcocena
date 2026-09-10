@@ -169,6 +169,20 @@
 #' @return A list with updated `hc`, step plots, and diagnostics. When
 #'   `layer = "all"` (or multiple layers are supplied), returns per-layer plot
 #'   and diagnostic lists keyed by layer id.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' res <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )
+#' hc <- res$hc
 #' @export
 hc_longitudinal_step1_module_donor <- function(hc,
                                                donor_col = "Subject",
@@ -198,7 +212,12 @@ hc_longitudinal_step1_module_donor <- function(hc,
   method <- base::match.arg(method)
   score_method <- base::match.arg(score_method)
   na_impute <- base::match.arg(na_impute)
-  cap_na_impute <- base::match.arg(cap_na_impute)
+  # Explicit choices: the formal default is `na_impute`, which has already
+  # been collapsed to a single value by the line above. Without them an
+  # explicitly supplied vector - as passed down by
+  # hc_longitudinal_workflow_direct() - is matched against one choice only
+  # and match.arg() aborts with "'arg' must be of length 1".
+  cap_na_impute <- base::match.arg(cap_na_impute, choices = c("median", "zero"))
 
   if (!base::is.numeric(nstart) || base::length(nstart) != 1 || !base::is.finite(nstart) || nstart < 1) {
     stop("`nstart` must be a single integer >= 1.")
@@ -622,6 +641,21 @@ hc_longitudinal_step1_module_donor <- function(hc,
 #'   slots are processed, `plots` and `diagnostics` are returned as named lists
 #'   keyed by layer/slot, plus a `slot_info` table describing the resolved
 #'   slots.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )$hc
+#' res <- hc_longitudinal_step2_meta_clustering(hc, graph_k = 5, dimensions = 2)
+#' hc <- res$hc
 #' @export
 hc_longitudinal_step2_meta_clustering <- function(hc,
                                                   slot_name = "longitudinal_endotypes",
@@ -745,6 +779,29 @@ hc_longitudinal_step2_meta_clustering <- function(hc,
 #' @return A list with unchanged `hc` and the step 3 plot. When multiple slots
 #'   are processed, `plots` is returned as a named list keyed by layer/slot,
 #'   plus a `slot_info` table describing the resolved slots.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )$hc
+#' hc <- hc_longitudinal_endotype_clustering(hc, k = 2, nstart = 1, seed = 1)
+#' hc <- hc_longitudinal_meta_clustering(
+#'   hc,
+#'   feature_source = "feature_matrix_used",
+#'   k = 2:3,
+#'   method = "kmeans",
+#'   consensus = TRUE,
+#'   seed = 1
+#' )
+#' res <- hc_longitudinal_step3_meta_module_trajectories(hc)
 #' @export
 hc_longitudinal_step3_meta_module_trajectories <- function(hc,
                                                            slot_name = "longitudinal_endotypes",
@@ -977,6 +1034,29 @@ hc_print_longitudinal_endotypes <- function(x, show_tables = TRUE) {
 #' @return Updated `HCoCenaExperiment`. The computed order is stored in
 #'   `hc@satellite[[slot_name]]$meta_time_grouping` and/or the resolved
 #'   per-layer step 2 slots.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )$hc
+#' hc <- hc_longitudinal_endotype_clustering(hc, k = 2, nstart = 1, seed = 1)
+#' hc <- hc_longitudinal_meta_clustering(
+#'   hc,
+#'   feature_source = "feature_matrix_used",
+#'   k = 2:3,
+#'   method = "kmeans",
+#'   consensus = TRUE,
+#'   seed = 1
+#' )
+#' hc <- hc_add_meta_time_grouping(hc, donor_col = "donor", time_col = "timepoint")
 #' @export
 hc_add_meta_time_grouping <- function(hc,
                                       donor_col = "Subject",
@@ -1256,6 +1336,30 @@ hc_add_meta_time_grouping <- function(hc,
 #'
 #' @return Character vector with heatmap column order as expected by
 #'   `hc_change_grouping_parameter()`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )$hc
+#' hc <- hc_longitudinal_endotype_clustering(hc, k = 2, nstart = 1, seed = 1)
+#' hc <- hc_longitudinal_meta_clustering(
+#'   hc,
+#'   feature_source = "feature_matrix_used",
+#'   k = 2:3,
+#'   method = "kmeans",
+#'   consensus = TRUE,
+#'   seed = 1
+#' )
+#' hc <- hc_add_meta_time_grouping(hc, donor_col = "donor", time_col = "timepoint")
+#' hc_get_meta_time_col_order(hc)
 #' @export
 hc_get_meta_time_col_order <- function(hc,
                                        slot_name = "longitudinal_endotypes",

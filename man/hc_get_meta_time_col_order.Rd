@@ -27,3 +27,28 @@ Character vector with heatmap column order as expected by
 \description{
 Returns the column-order vector stored by \code{hc_add_meta_time_grouping()}.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc <- hc_longitudinal_step1_module_donor(
+  hc,
+  donor_col = "donor",
+  time_col = "timepoint",
+  time_levels = c("T1", "T2"),
+  k = 2,
+  nstart = 1,
+  cap_runs = 1,
+  impute = FALSE,
+  seed = 1
+)$hc
+hc <- hc_longitudinal_endotype_clustering(hc, k = 2, nstart = 1, seed = 1)
+hc <- hc_longitudinal_meta_clustering(
+  hc,
+  feature_source = "feature_matrix_used",
+  k = 2:3,
+  method = "kmeans",
+  consensus = TRUE,
+  seed = 1
+)
+hc <- hc_add_meta_time_grouping(hc, donor_col = "donor", time_col = "timepoint")
+hc_get_meta_time_col_order(hc)
+}

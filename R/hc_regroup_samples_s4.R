@@ -44,7 +44,6 @@
 #'   `distance`, `tree`, `clusters`, and `plot`.
 #'
 #' @examples
-#' \donttest{
 #' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 #' preview <- hc_regroup_samples(hc, layer = 1, k = 2, silent = TRUE)
 #' preview$results$set1$clusters
@@ -59,7 +58,6 @@
 #'   silent = TRUE
 #' )
 #' hc <- applied$hc
-#' }
 #'
 #' @export
 hc_regroup_samples <- function(hc,
@@ -242,6 +240,10 @@ hc_regroup_samples <- function(hc,
 #'
 #' @return Invisibly returns `x`.
 #' @method plot hc_sample_regrouping
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' rg <- hc_regroup_samples(hc, layer = 1, k = 2, apply = FALSE)
+#' plot(rg)
 #' @export
 plot.hc_sample_regrouping <- function(x, layer = "all", ...) {
   if (!inherits(x, "hc_sample_regrouping")) {

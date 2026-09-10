@@ -35,5 +35,5 @@ Plots the mean expression per condition for a set of genes as a heatmap.
 }
 \examples{
 hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hc <- hc_visualize_gene_expression(hc, genes = "G1")
+hc <- hc_visualize_gene_expression(hc, genes = "CD3D")
 }

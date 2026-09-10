@@ -771,7 +771,13 @@
     if (base::is.null(gfc_all) || base::nrow(gfc_all) == 0 || base::ncol(gfc_all) < 2) {
       stop("Unable to build hCoCena heatmap matrix: missing `GFC_all_layers`.")
     }
-    value_cols <- base::colnames(gfc_all)[base::seq_len(base::ncol(gfc_all) - 1L)]
+    # `GFC_all_layers` carries one column per group and layer, so when the
+    # layers share their group names the condition columns repeat. Address
+    # them by position: dplyr::filter() refuses a frame with duplicate names
+    # outright, and selecting by name would silently take the first matching
+    # layer twice.
+    value_idx <- base::seq_len(base::ncol(gfc_all) - 1L)
+    value_cols <- base::colnames(gfc_all)[value_idx]
     m_list <- list()
     for (c in all_clusters) {
       genes <- dplyr::filter(cluster_info, color == c) %>%
@@ -781,15 +787,17 @@
       if (base::length(genes) == 0) {
         next
       }
-      c_gfcs <- dplyr::filter(gfc_all, Gene %in% genes)
+      c_gfcs <- base::as.data.frame(gfc_all)
+      c_gfcs <- c_gfcs[c_gfcs[["Gene"]] %in% genes, , drop = FALSE]
       if (base::nrow(c_gfcs) == 0) {
         next
       }
       c_means <- base::apply(
-        c_gfcs[, value_cols, drop = FALSE] %>% base::as.data.frame(),
+        c_gfcs[, value_idx, drop = FALSE],
         2,
         base::mean
       )
+      base::names(c_means) <- value_cols
       m_list[[c]] <- c_means
     }
     if (base::length(m_list) == 0) {

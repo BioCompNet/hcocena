@@ -1,5 +1,29 @@
 # hcocena 0.99.7
 
+## Examples and fixtures
+
+- Rebuilt the bundled example fixtures with a 16-donor, two-timepoint
+  longitudinal design, so the meta-clustering functions can be demonstrated on
+  real output rather than only described. `inst/scripts/make-fixtures.R`
+  documents how they are generated.
+- Dropped two stored-but-never-read plot objects (`dd_plot_calculated_optimal`
+  and the layer heatmap) from the fixtures. Together with the new design this
+  takes the source tarball from 2.8 MB to 1.2 MB.
+- Added runnable examples to 17 further help pages, covering the longitudinal
+  meta-clustering chain, the direct workflow, `hc_meta_correlation_num()`, the
+  cell-type database helpers, and the `hc_sample_regrouping` plot method.
+
+## Fixes
+
+- `hc_longitudinal_workflow_direct()` failed immediately with `'arg' must be of
+  length 1`. It forwards `cap_na_impute` explicitly, but the receiving formal
+  defaults to the already-matched `na_impute`, so `match.arg()` saw a single
+  choice. The three affected call sites now pass `choices` explicitly.
+- `hc_meta_correlation_cat()` correlates across groups of the variable of
+  interest, so it needs at least three of them. With two it fell through to a
+  cryptic `cor.test()` error; it now reports the requirement and the groups it
+  found.
+
 ## Export reliability
 
 - Build and validate XLSX workbooks on R's local temporary filesystem before

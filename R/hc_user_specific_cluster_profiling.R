@@ -171,6 +171,28 @@
 #' @param padj Multiple-testing correction method. Default is `"BH"`.
 #' @param qval Maximum adjusted p-value for a term to count. Default is 0.1.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' gmt <- tempfile(fileext = ".gmt")
+#' writeLines(
+#'   c(
+#'     paste(c("T cells", "-", "CD3D", "CD3E", "CD3G", "CD2", "CD28",
+#'             "LCK", "ZAP70", "IL7R", "CD7", "TRAC"), collapse = "\t"),
+#'     paste(c("B cells", "-", "CD19", "MS4A1", "CD79A", "CD79B", "BLNK",
+#'             "PAX5", "CR2", "FCRL1", "TNFRSF13B", "VPREB3"), collapse = "\t"),
+#'     paste(c("Monocytes", "-", "CD14", "LYZ", "FCN1", "VCAN", "S100A8",
+#'             "S100A9", "CSF1R", "ITGAM", "CD68", "FCGR3A"), collapse = "\t"),
+#'     paste(c("NK cells", "-", "NKG7", "GNLY", "KLRD1", "KLRF1", "PRF1",
+#'             "GZMB", "NCR1", "KLRC1", "FGFBP2", "SPON2"), collapse = "\t")
+#'   ),
+#'   gmt
+#' )
+#' hc <- hc_functional_enrichment(
+#'   hc,
+#'   gene_sets = character(0),
+#'   custom_gmt_files = c(CellTypes = gmt)
+#' )
+#' hc <- hc_user_specific_cluster_profiling(hc, from_file = FALSE)
 #' @export
 hc_user_specific_cluster_profiling <- function(hc,
                                                from_file = FALSE,

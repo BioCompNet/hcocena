@@ -2103,6 +2103,11 @@ hc_split_modules <- function(hc,
 #' @param which Either `"last"` (undo one split step) or `"all"` (restore the
 #'  original pre-split cluster state).
 #' @param verbose Logical; print progress messages.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' hc <- hc_plot_cluster_heatmap(hc, file_name = FALSE)
+#' hc <- hc_split_modules(hc, modules = "M1", resolution = 1)
+#' hc <- hc_unsplit_modules(hc, which = "all")
 #' @export
 hc_unsplit_modules <- function(hc,
                                which = c("last", "all"),
@@ -3304,6 +3309,16 @@ hc_plot_enrichment_upstream_network <- function(hc,
 #' @param hc A `HCoCenaExperiment`.
 #' @param create_output_dir Boolean. If TRUE and `dir_output` is missing, create it.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
+#' hc <- hc_set_paths(
+#'   hc,
+#'   dir_count_data = FALSE,
+#'   dir_annotation = FALSE,
+#'   dir_reference_files = FALSE,
+#'   dir_output = tempdir()
+#' )
+#' hc <- hc_check_dirs(hc)
 #' @export
 hc_check_dirs <- function(hc, create_output_dir = TRUE) {
   .hc_check_dirs_impl(hc = hc, create_output_dir = create_output_dir)

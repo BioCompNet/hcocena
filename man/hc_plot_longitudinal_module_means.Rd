@@ -55,3 +55,19 @@ Uses outputs from \code{\link[=hc_longitudinal_module_means]{hc_longitudinal_mod
 trajectories per module. Individual donors are shown in a light stroke, with
 a highlighted module mean trajectory on top.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+long <- hc_longitudinal_step1_module_donor(
+  hc,
+  donor_col = "donor",
+  time_col = "timepoint",
+  time_levels = c("T1", "T2"),
+  k = 2,
+  nstart = 1,
+  cap_runs = 1,
+  impute = FALSE,
+  seed = 1
+)
+hc <- long$hc
+p <- hc_plot_longitudinal_module_means(hc, save_pdf = FALSE)
+}

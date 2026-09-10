@@ -65,6 +65,12 @@
 #' @param sep Field separator of the file. Default is `"\t"`.
 #' @param header Logical. Whether the file carries a header row. Default `TRUE`.
 #' @return Updated `HCoCenaExperiment`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' gtc <- hc_gene_to_cluster(hc)
+#' f <- tempfile(fileext = ".tsv")
+#' utils::write.table(gtc, f, sep = "\t", row.names = FALSE, quote = FALSE)
+#' hc <- hc_import_clusters(hc, file = f)
 #' @export
 hc_import_clusters <- function(hc, file, sep = "\t", header = TRUE) {
   .hc_run_driver(

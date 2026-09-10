@@ -825,6 +825,21 @@ hc_longitudinal_step3_meta_module_trajectories <- function(hc,
 #'   when available.
 #'
 #' @return Invisibly returns `x`.
+#' @examples
+#' hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+#' long <- hc_longitudinal_step1_module_donor(
+#'   hc,
+#'   donor_col = "donor",
+#'   time_col = "timepoint",
+#'   time_levels = c("T1", "T2"),
+#'   k = 2,
+#'   nstart = 1,
+#'   cap_runs = 1,
+#'   impute = FALSE,
+#'   seed = 1
+#' )
+#' hc <- long$hc
+#' hc_print_longitudinal_endotypes(long)
 #' @export
 hc_print_longitudinal_endotypes <- function(x, show_tables = TRUE) {
   if (base::is.null(x$plots)) {

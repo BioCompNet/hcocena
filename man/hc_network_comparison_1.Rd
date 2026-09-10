@@ -33,3 +33,12 @@ Updated \code{HCoCenaExperiment}.
 Compares two externally stored gene-to-cluster tables and visualises how the
 modules of the first assignment map onto those of the second.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+gtc <- hc_gene_to_cluster(hc)
+f1 <- tempfile(fileext = ".tsv")
+f2 <- tempfile(fileext = ".tsv")
+utils::write.table(gtc, f1, sep = "\t", row.names = FALSE, quote = FALSE)
+utils::write.table(gtc, f2, sep = "\t", row.names = FALSE, quote = FALSE)
+hc <- hc_network_comparison_1(hc, gtc1_path = f1, gtc2_path = f2)
+}

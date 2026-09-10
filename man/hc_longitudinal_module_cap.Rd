@@ -54,3 +54,19 @@ proportion of repeated clustering runs assigned to each module-specific
 cluster. This is the generalized, data-agnostic analogue of the CAP concept
 used in the legacy longitudinal scripts.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+long <- hc_longitudinal_step1_module_donor(
+  hc,
+  donor_col = "donor",
+  time_col = "timepoint",
+  time_levels = c("T1", "T2"),
+  k = 2,
+  nstart = 1,
+  cap_runs = 1,
+  impute = FALSE,
+  seed = 1
+)
+hc <- long$hc
+hc <- hc_longitudinal_module_cap(hc, runs = 1)
+}

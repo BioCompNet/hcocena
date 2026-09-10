@@ -62,3 +62,7 @@ Computes module-level mean expression trajectories from the clustered modules
 in an \code{HCoCenaExperiment}. This creates a donor-by-(module x timepoint)
 feature matrix that can be used for longitudinal endotype discovery.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc <- hc_longitudinal_module_means(hc, donor_col = "donor", time_col = "timepoint")
+}

@@ -23,3 +23,10 @@ Updated \code{HCoCenaExperiment}.
 Replaces the current module assignment with one read from a file, e.g. a
 clustering exported earlier with \code{\link[=hc_export_clusters]{hc_export_clusters()}}.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+gtc <- hc_gene_to_cluster(hc)
+f <- tempfile(fileext = ".tsv")
+utils::write.table(gtc, f, sep = "\t", row.names = FALSE, quote = FALSE)
+hc <- hc_import_clusters(hc, file = f)
+}

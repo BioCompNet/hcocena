@@ -17,3 +17,14 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Iteratively calls fix_dir() on the provided working directory paths to fix them if necessary or throw an error if they are invalid.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
+hc <- hc_set_paths(
+  hc,
+  dir_count_data = FALSE,
+  dir_annotation = FALSE,
+  dir_reference_files = FALSE,
+  dir_output = tempdir()
+)
+hc <- hc_check_dirs(hc)
+}

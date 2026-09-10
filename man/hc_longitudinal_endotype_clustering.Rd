@@ -68,3 +68,8 @@ Clusters donors based on module-time features produced by
 \code{\link[=hc_longitudinal_module_means]{hc_longitudinal_module_means()}}. Candidate cluster numbers are scored via the
 Calinski-Harabasz index.
 }
+\examples{
+hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
+hc <- hc_longitudinal_module_means(hc, donor_col = "donor", time_col = "timepoint")
+hc <- hc_longitudinal_endotype_clustering(hc, k = 2)
+}

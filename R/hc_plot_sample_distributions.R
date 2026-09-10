@@ -5,9 +5,8 @@
 #' @param log_2 A Boolean. Whether or not the counts should be logged before plotting.
 #' @param plot A Boolean. Whether or not to to print the plots into the markdown in addition to saving them to the save folder.
 #'  If the total number of samples is very large, setting this parameter to FALSE is advised in order to prevent the knitted R Markdown from becoming too long.
-#' @export
 
-plot_sample_distributions <- function(plot_type = "boxplot",
+.hc_plot_sample_distributions_driver <- function(plot_type = "boxplot",
                                       log_2 = TRUE,
                                       plot = TRUE) { # plot_type: one of "boxplot" or "freqdist"
 
@@ -37,16 +36,4 @@ plot_sample_distributions <- function(plot_type = "boxplot",
   .hc_set_bridge_hcobject_slot(c("satellite_outputs", "sample_distribution_plots"), plt)
 }
 
-.hc_plot_sample_distributions_driver <- plot_sample_distributions
 
-plot_sample_distributions <- function(plot_type = "boxplot",
-                                      log_2 = TRUE,
-                                      plot = TRUE) {
-  .hc_run_alias_via_modern(
-    "plot_sample_distributions",
-    hc_plot_sample_distributions,
-    plot_type = plot_type,
-    log_2 = log_2,
-    plot = plot
-  )
-}

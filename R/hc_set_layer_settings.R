@@ -12,19 +12,4 @@
 #' 	The number of plots per data set will therefore be equal to the 'range_cutoff_length' parameter you have set.
 #' 	Given the potential size, this should only be set to TRUE, if 'range_cutoff_length' is small or if one wishes to thoroughly analyse how the degree distribution changes in detail for differing cut-offs.
 #' 	Default is FALSE.
-#' @export
 
-set_layer_settings <- function(top_var,
-                               min_corr = 0.7,
-                               range_cutoff_length,
-                               print_distribution_plots = FALSE) {
-  .hc_alias_warning("set_layer_settings")
-
-  invisible(.hc_run_modern_bridge(
-    .hc_set_layer_settings_impl,
-    top_var = top_var,
-    min_corr = min_corr,
-    range_cutoff_length = range_cutoff_length,
-    print_distribution_plots = print_distribution_plots
-  ))
-}

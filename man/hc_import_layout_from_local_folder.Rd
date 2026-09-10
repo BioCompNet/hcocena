@@ -4,20 +4,17 @@
 \alias{hc_import_layout_from_local_folder}
 \title{Import Cytoscape layout from local folder (S4 API)}
 \usage{
-hc_import_layout_from_local_folder(hc, ...)
+hc_import_layout_from_local_folder(hc, file)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Additional arguments for local layout import.}
+\item{file}{Path to the \code{network_layout.csv} exported from Cytoscape. If
+omitted, the current output/save folder is used.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
 Import Cytoscape layout from local folder (S4 API)
-}
-
-\examples{
-hc <- hc_init()
 }

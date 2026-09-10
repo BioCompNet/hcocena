@@ -2,33 +2,24 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_plot_cutoffs}
 \alias{hc_plot_cutoffs}
-\title{Plot cut-off diagnostics (S4 API)}
+\title{plot cutoffs}
 \usage{
-hc_plot_cutoffs(hc, ...)
+hc_plot_cutoffs(
+  hc,
+  interactive = TRUE,
+  hline = list(R.squared = NULL, no_edges = NULL, no_nodes = NULL, no_networks = NULL)
+)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{plot_cutoffs()}.}
-}
-\value{
-Updated \code{HCoCenaExperiment}.
+\item{interactive}{Logical. If \code{TRUE} (default), render the cutoff
+statistics as an interactive plotly widget; if \code{FALSE}, as a static plot.}
+
+\item{hline}{Named list of horizontal reference lines to draw, with the
+entries \code{R.squared}, \code{no_edges}, \code{no_nodes} and \code{no_networks}. \code{NULL}
+entries (the default) draw no line for that panel.}
 }
 \description{
-Plot cut-off diagnostics (S4 API)
+plot cutoffs
 }
-
-\examples{
-hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_plot_cutoffs(hc, interactive = FALSE), silent = TRUE)
-}
-}
-

@@ -14,7 +14,6 @@
 #' @param auto_parsimony_penalty Small penalty used in auto mode to prefer
 #'   simpler solutions when silhouette scores are very similar.
 #' @param verbose Boolean. Print selected `k` and selection diagnostics.
-#' @export
 
 .hc_merge_clusters_driver <- function(k = 1,
                                       save = FALSE,
@@ -52,7 +51,7 @@
     selected_k <- auto_report$selected_k
     if (isTRUE(verbose)) {
       message(
-        "merge_clusters(): auto-selected k = ", selected_k,
+        "hc_merge_clusters(): auto-selected k = ", selected_k,
         " (criterion: max adjusted mean silhouette)."
       )
     }
@@ -87,7 +86,7 @@
       get_cluster_colours()[x]
     }) %>% base::unlist()
 
-    gtc <- GeneToCluster()
+    gtc <- .hc_gene_to_cluster_impl()
     base::colnames(gtc) <- base::c("gene", "old_color")
     gtc$color <- base::lapply(gtc$old_color, function(x) {
       nc <- dplyr::filter(new_group, as.character(old_cluster) == x) %>% dplyr::pull(., "new_cluster")
@@ -137,7 +136,7 @@
       )
     }
     .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "cluster_information"), new_cluster_info)
-    plot_cluster_heatmap()
+    .hc_plot_cluster_heatmap_driver()
 
     return(invisible(list(
       selected_k = selected_k,
@@ -153,32 +152,6 @@
   }
 }
 
-merge_clusters <- function(k = 1,
-                           save = FALSE,
-                           method = "complete",
-                           k_min = 2,
-                           k_max = NULL,
-                           auto_parsimony_penalty = 1e-04,
-                           verbose = TRUE) {
-  .hc_alias_warning("merge_clusters")
-
-  out <- .hc_run_modern_bridge_capture(
-    .hc_merge_clusters_impl,
-    k = k,
-    save = save,
-    method = method,
-    k_min = k_min,
-    k_max = k_max,
-    auto_parsimony_penalty = auto_parsimony_penalty,
-    verbose = verbose
-  )
-
-  if (!base::is.null(out$result)) {
-    return(invisible(out$result))
-  }
-
-  invisible(NULL)
-}
 
 .hc_select_merge_k_auto <- function(m,
                                     method = "complete",

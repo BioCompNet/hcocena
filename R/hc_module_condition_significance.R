@@ -33,8 +33,7 @@
 #' @param excel_file File name for the Excel export.
 #' @param slot_name Satellite slot name for storing results.
 #' @return Invisibly returns the stored result list.
-#' @export
-module_condition_significance <- function(set = "all",
+.hc_module_condition_significance_driver <- function(set = "all",
                                           condition_col = NULL,
                                           donor_col = NULL,
                                           time_col = NULL,
@@ -791,38 +790,4 @@ module_condition_significance <- function(set = "all",
   out
 }
 
-.hc_module_condition_significance_driver <- module_condition_significance
 
-module_condition_significance <- function(set = "all",
-                                          condition_col = NULL,
-                                          donor_col = NULL,
-                                          time_col = NULL,
-                                          run_wilcox = TRUE,
-                                          run_limma = TRUE,
-                                          run_lmm = FALSE,
-                                          lmm_include_time = TRUE,
-                                          limma_reference = NULL,
-                                          limma_trend = TRUE,
-                                          padj = "BH",
-                                          export_excel = TRUE,
-                                          excel_file = "Module_condition_significance.xlsx",
-                                          slot_name = "module_condition_significance") {
-  .hc_run_alias_via_modern(
-    "module_condition_significance",
-    hc_module_condition_significance,
-    set = set,
-    condition_col = condition_col,
-    donor_col = donor_col,
-    time_col = time_col,
-    run_wilcox = run_wilcox,
-    run_limma = run_limma,
-    run_lmm = run_lmm,
-    lmm_include_time = lmm_include_time,
-    limma_reference = limma_reference,
-    limma_trend = limma_trend,
-    padj = padj,
-    export_excel = export_excel,
-    excel_file = excel_file,
-    slot_name = slot_name
-  )
-}

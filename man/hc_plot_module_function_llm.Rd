@@ -118,7 +118,6 @@ a colored module box on the left and the inferred overarching function on the
 right.
 }
 \examples{
-hc <- hc_init()
 \donttest{
 hc <- hc_init()
 methods::slot(hc, "satellite")[["llm_module_function"]] <- list(

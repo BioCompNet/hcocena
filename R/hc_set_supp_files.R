@@ -12,17 +12,4 @@
 #'  1. column (named 'term'): name of the pathway
 #'  2. column (named 'gene'): gene symbol of the respective pathway defined in the first column
 #'  Note: Only one gene symbol per row is allowed, thus, in cases where multiple genes are associated with a pathway generate one row per gene symbol!
-#' @export
 
-set_supp_files <- function(Tf = NULL, Hallmark = NULL, Go = NULL, Kegg = NULL, Reactome = NULL, ...) {
-  .hc_alias_warning("set_supp_files")
-  invisible(.hc_run_modern_bridge(
-    .hc_set_supp_files_impl,
-    Tf = Tf,
-    Hallmark = Hallmark,
-    Go = Go,
-    Kegg = Kegg,
-    Reactome = Reactome,
-    ...
-  ))
-}

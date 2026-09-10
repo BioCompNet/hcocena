@@ -4,20 +4,23 @@
 \alias{hc_col_anno_categorical}
 \title{Add categorical module heatmap annotations (S4 API)}
 \usage{
-hc_col_anno_categorical(hc, ...)
+hc_col_anno_categorical(hc, variables, variable_label = NULL, type = "abs")
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Additional arguments for categorical module annotations.}
+\item{variables}{Character vector of categorical annotation column names to
+add as heatmap column annotations.}
+
+\item{variable_label}{Optional display label(s) for \code{variables}. If \code{NULL}
+(default), the column names themselves are used.}
+
+\item{type}{Either "abs" (default) for absolute counts or "rel" for
+relative proportions.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
 Add categorical module heatmap annotations (S4 API)
-}
-
-\examples{
-hc <- hc_init()
 }

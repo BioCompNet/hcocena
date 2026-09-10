@@ -27,7 +27,3 @@ Character vector with heatmap column order as expected by
 \description{
 Returns the column-order vector stored by \code{hc_add_meta_time_grouping()}.
 }
-
-\examples{
-hc <- hc_init()
-}

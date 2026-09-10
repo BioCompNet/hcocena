@@ -7,7 +7,6 @@
 #' 	Give the object names as strings instead of the file names. The count object must be a data frame with sample names as columns and gene names as rows.
 #' 	There must be no additional columns other than those representing the counts per sample.
 #' 	The annotation object must also be a data frame, where row names are sample names that match the column names of the count object, and column names are information categories.
-#' @export
 #' @examples
 #' \dontrun{
 #' init_object()
@@ -26,11 +25,3 @@
 #'   )
 #' )
 #' }
-define_layers <- function(data_sets = list()) {
-  .hc_alias_warning("define_layers")
-
-  invisible(.hc_run_modern_bridge(
-    hc_define_layers,
-    data_sets = data_sets
-  ))
-}

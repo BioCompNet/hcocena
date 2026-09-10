@@ -4,12 +4,32 @@
 \alias{hc_plot_integrated_network}
 \title{Plot integrated network (S4 API)}
 \usage{
-hc_plot_integrated_network(hc, ...)
+hc_plot_integrated_network(
+  hc,
+  layout = NULL,
+  layout_algorithm = NULL,
+  gene_labels = NULL,
+  save = TRUE,
+  store_plot = FALSE,
+  label_offset = 50
+)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{plot_integrated_network()}.}
+\item{layout}{Optional pre-computed layout matrix. If \code{NULL} (default), the
+stored layout is reused or a new one is computed.}
+
+\item{layout_algorithm}{Optional igraph layout function name, e.g.
+\code{"layout_with_fr"}. Overrides the layout set in the global settings.}
+
+\item{gene_labels}{Optional character vector of genes to label in the plot.}
+
+\item{save}{Logical. Write the network to PDF. Default is \code{TRUE}.}
+
+\item{store_plot}{Logical. Keep the plot object in \code{hc}. Default is \code{FALSE}.}
+
+\item{label_offset}{Distance between a node and its label. Default is 50.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -17,18 +37,6 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Plot integrated network (S4 API)
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_plot_integrated_network(hc, save = FALSE, store_plot = FALSE), silent = TRUE)
+hc <- hc_plot_integrated_network(hc)
 }
-}
-

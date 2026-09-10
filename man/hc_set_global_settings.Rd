@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_set_global_settings}
 \alias{hc_set_global_settings}
-\title{Set global settings (S4 API)}
+\title{Define Global Settings}
 \usage{
 hc_set_global_settings(
   hc,
@@ -45,7 +45,7 @@ more stable/readable than Fruchterman-Reingold for medium/large graphs.
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Set global settings (S4 API)
+Receives all settings that are globally valid, i.e., that are not dataset specific.
 }
 \examples{
 extdir <- paste0(

@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_run_expression_analysis_2}
 \alias{hc_run_expression_analysis_2}
-\title{Run expression analysis part II (S4 API)}
+\title{Run Second Part Of The Gene Expression Analysis}
 \usage{
 hc_run_expression_analysis_2(
   hc,
@@ -31,20 +31,5 @@ If for some of the data sets you don't wish any further annotation, you can set 
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Run expression analysis part II (S4 API)
+This function plots a heatmap for the network genes in each data layer and computes the Group-Fold-Changes for all genes per layer.
 }
-
-\examples{
-hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_run_expression_analysis_2(hc, plot_HM = FALSE), silent = TRUE)
-}
-}
-

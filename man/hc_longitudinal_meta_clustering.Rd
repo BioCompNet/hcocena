@@ -78,7 +78,3 @@ Updated \code{HCoCenaExperiment}.
 Clusters donors on CAP features (or alternative longitudinal feature
 matrices), providing CH-based model selection and PCA/UMAP embeddings.
 }
-
-\examples{
-hc <- hc_init()
-}

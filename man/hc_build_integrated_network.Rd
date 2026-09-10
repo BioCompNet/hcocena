@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_build_integrated_network}
 \alias{hc_build_integrated_network}
-\title{Build integrated network (S4 API)}
+\title{Network integration}
 \usage{
 hc_build_integrated_network(
   hc,
@@ -30,20 +30,5 @@ Multiple edges occur when the edge was present in more than one datset.}
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Build integrated network (S4 API)
+The previously constructed layer-specific networks are being integrated.
 }
-
-\examples{
-hc <- readRDS(system.file("extdata", "hc_after_part2.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_after_part2.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_build_integrated_network(hc), silent = TRUE)
-}
-}
-

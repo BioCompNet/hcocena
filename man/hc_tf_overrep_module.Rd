@@ -4,20 +4,23 @@
 \alias{hc_tf_overrep_module}
 \title{TF enrichment per module (S4 API)}
 \usage{
-hc_tf_overrep_module(hc, ...)
+hc_tf_overrep_module(hc, clusters = "all", topTF = 5, topTarget = 5)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Additional arguments for module-level TF enrichment.}
+\item{clusters}{Either "all" (default) or a vector of module colours/labels
+for which the TF enrichment should be performed.}
+
+\item{topTF}{Integer. Number of top ranking transcription factors to return
+per module. Default is 5.}
+
+\item{topTarget}{Integer. Number of top ranking targets to return per
+transcription factor. Default is 5.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
 TF enrichment per module (S4 API)
-}
-
-\examples{
-hc <- hc_init()
 }

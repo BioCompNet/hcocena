@@ -7,17 +7,4 @@
 #' @param additional_anno A list, with one slot per data set. A slot contains a vector of column names from that data set's annotation file that you wish to annotate with.
 #' 	If for some of the data sets you don't wish any further annotation, you can set the corresponding list slot to NULL. Default is NULL.
 #' @param cols A named list of color vectors. The list names need to match the chosen annotation column names. Default is NULL which uses implemented colors.
-#' @export
 
-run_expression_analysis_2 <- function(grouping_v = NULL, plot_HM = TRUE, method = "complete", additional_anno = NULL, cols = NULL) {
-  .hc_alias_warning("run_expression_analysis_2")
-
-  invisible(.hc_run_modern_bridge(
-    .hc_run_expression_analysis_2_impl,
-    grouping_v = grouping_v,
-    plot_HM = plot_HM,
-    method = method,
-    additional_anno = additional_anno,
-    cols = cols
-  ))
-}

@@ -55,7 +55,3 @@ Uses outputs from \code{\link[=hc_longitudinal_module_means]{hc_longitudinal_mod
 trajectories per module. Individual donors are shown in a light stroke, with
 a highlighted module mean trajectory on top.
 }
-
-\examples{
-hc <- hc_init()
-}

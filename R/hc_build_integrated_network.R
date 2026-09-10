@@ -8,18 +8,4 @@
 #' @param GFC_when_missing The value to substitute missing data in the case where some genes were not measured in all but only some of the datasets.
 #' @param with Either an integer giving the number of the dataset to be used as reference (e.g., 1) or the name given to the layer.
 #'  Can be ignored when integration is done by union.
-#' @export
 
-build_integrated_network <- function(mode = "u",
-                                     with = NULL,
-                                     multi_edges = "min",
-                                     GFC_when_missing = -hcobject[["global_settings"]][["range_GFC"]]) {
-  .hc_alias_warning("build_integrated_network")
-  invisible(.hc_run_modern_bridge(
-    hc_build_integrated_network,
-    mode = mode,
-    with = with,
-    multi_edges = multi_edges,
-    GFC_when_missing = GFC_when_missing
-  ))
-}

@@ -84,6 +84,11 @@
 #' @param top Integer. The number of most strongly enriched terms to return per cluster. Default is 5.
 #' @param clusters Either "all" (default) or a vector of clusters as strings. Defines for which clusters to perform the enrichment.
 #' @param padj Method to use for multiple testing correction. Can be one of "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none".  Default is "BH" (Benjamini-Hochberg).
+#'  The reported `qvalue` column holds the p-values adjusted with this method,
+#'  and `qval` is applied to it. (Up to and including 0.99.7 the `qvalue` column
+#'  carried `clusterProfiler`'s Storey q-value, which is computed independently
+#'  of `padj`, so this argument did not affect which terms were called
+#'  significant. Result tables from earlier versions can therefore differ.)
 #' @param qval Upper threshold for the adjusted p-value. Default is 0.05.
 #' @param consistent_terms Logical. If `TRUE` (default), use the union of the
 #'  top `top` enriched terms across the selected modules for each database and
@@ -157,9 +162,8 @@
 #'  Controls whether heavy heatmap/panel objects are stored inside `hc` for later
 #'  redraw with `hc_plot_enrichment_panels()`. `"auto"` stores them only for a
 #'  single selected database; multi-database runs keep only tables to save memory.
-#' @export
 
-functional_enrichment <- function(gene_sets = "Hallmark",
+.hc_functional_enrichment_driver <- function(gene_sets = "Hallmark",
                                   custom_gmt_files = NULL,
                                   top = 5,
                                   clusters = c("all"),
@@ -195,7 +199,6 @@ functional_enrichment <- function(gene_sets = "Hallmark",
                                   pdf_pointsize = 11,
                                   overall_plot_scale = 1,
                                   store_panel_objects = c("auto", "always", "never")) {
-  .hc_alias_warning("functional_enrichment")
   gfc_colors_was_missing <- missing(gfc_colors)
 
   supplementary_data <- hcobject[["supplementary_data"]]
@@ -283,7 +286,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     heatmap_cluster_columns = heatmap_cluster_columns,
     cluster_columns_missing = missing(cluster_columns),
     heatmap_cluster_columns_missing = missing(heatmap_cluster_columns),
-    context = "functional_enrichment()"
+    context = ".hc_functional_enrichment_driver()"
   )
   if (!base::is.logical(cluster_columns) || base::length(cluster_columns) != 1) {
     stop("`cluster_columns` must be TRUE or FALSE.")
@@ -299,7 +302,7 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     heatmap_col_order = heatmap_col_order,
     col_order_missing = missing(col_order),
     heatmap_col_order_missing = missing(heatmap_col_order),
-    context = "functional_enrichment()"
+    context = ".hc_functional_enrichment_driver()"
   )
   if (!base::is.logical(heatmap_show_gene_counts) || base::length(heatmap_show_gene_counts) != 1) {
     stop("`heatmap_show_gene_counts` must be TRUE or FALSE.")
@@ -1445,6 +1448,17 @@ functional_enrichment <- function(gene_sets = "Hallmark",
 
         if (!base::is.null(enrich) && !base::is.null(enrich@result) && base::nrow(enrich@result) > 0) {
           tmp_all <- enrich@result
+          # clusterProfiler's `qvalue` column is a Storey q-value computed by the
+          # qvalue package, independently of `pAdjustMethod`. Everything
+          # downstream (ranking, the qval filter, the plots) keys off `qvalue`,
+          # so the user-selected `padj` method had no effect on which terms were
+          # called significant -- and `qvalue` is NA whenever the p-value
+          # distribution is too degenerate to fit pi0, which silently dropped
+          # every term for small gene-set collections. Use the requested
+          # correction instead.
+          if ("p.adjust" %in% base::colnames(tmp_all)) {
+            tmp_all$qvalue <- .hc_as_numeric_safely(tmp_all$p.adjust)
+          }
           tmp_all <- tmp_all[base::order(tmp_all$qvalue, tmp_all$p.adjust, tmp_all$pvalue, tmp_all$Description), , drop = FALSE]
           tmp_all$cluster <- c
           tmp_all$module_label <- module_label_map_current[[c]]
@@ -2711,7 +2725,11 @@ functional_enrichment <- function(gene_sets = "Hallmark",
     file = base::paste0(
       hcobject[["working_directory"]][["dir_output"]],
       hcobject[["global_settings"]][["save_folder"]],
-      "/Module_Gene_List.xlsx"
+      "/",
+      .hc_module_gene_list_filename(
+        module_label_map = module_label_map_current,
+        split_history = hcobject[["satellite_outputs"]][["module_split_history"]]
+      )
     ),
     overwrite = TRUE
   )
@@ -2721,83 +2739,4 @@ functional_enrichment <- function(gene_sets = "Hallmark",
   .hc_set_bridge_hcobject_slot(c("satellite_outputs", "module_gene_list"), module_gene_list_tbl)
 }
 
-.hc_functional_enrichment_driver <- functional_enrichment
 
-functional_enrichment <- function(gene_sets = "Hallmark",
-                                  custom_gmt_files = NULL,
-                                  top = 5,
-                                  clusters = c("all"),
-                                  padj = "BH",
-                                  qval = 0.05,
-                                  consistent_terms = TRUE,
-                                  heatmap_side = "left",
-                                  heatmap_cluster_rows = FALSE,
-                                  cluster_columns = FALSE,
-                                  heatmap_cluster_columns = NULL,
-                                  heatmap_show_row_dend = FALSE,
-                                  heatmap_show_column_dend = FALSE,
-                                  col_order = NULL,
-                                  heatmap_col_order = NULL,
-                                  heatmap_order = NULL,
-                                  heatmap_module_label_mode = "same",
-                                  heatmap_show_gene_counts = FALSE,
-                                  enrichment_vertical_line_mode = "to_term",
-                                  enrichment_row_height_scale = 0.9,
-                                  enrichment_column_spacing_scale = 1,
-                                  enrichment_line_width_scale = 1,
-                                  heatmap_column_label_fontsize = NULL,
-                                  heatmap_module_label_fontsize = NULL,
-                                  legend_fontsize = NULL,
-                                  enrichment_label_fontsize = NULL,
-                                  enrichment_db_header_fontsize = NULL,
-                                  enrichment_label_wrap = FALSE,
-                                  enrichment_label_wrap_width = 30,
-                                  gfc_colors = NULL,
-                                  gfc_scale_limits = NULL,
-                                  pdf_width = NULL,
-                                  pdf_height = NULL,
-                                  pdf_pointsize = 11,
-                                  overall_plot_scale = 1,
-                                  store_panel_objects = c("auto", "always", "never")) {
-  .hc_alias_warning("functional_enrichment")
-  out <- .hc_run_modern_bridge_capture(
-    .hc_functional_enrichment_impl,
-    gene_sets = gene_sets,
-    custom_gmt_files = custom_gmt_files,
-    top = top,
-    clusters = clusters,
-    padj = padj,
-    qval = qval,
-    consistent_terms = consistent_terms,
-    heatmap_side = heatmap_side,
-    heatmap_cluster_rows = heatmap_cluster_rows,
-    cluster_columns = cluster_columns,
-    heatmap_cluster_columns = heatmap_cluster_columns,
-    heatmap_show_row_dend = heatmap_show_row_dend,
-    heatmap_show_column_dend = heatmap_show_column_dend,
-    col_order = col_order,
-    heatmap_col_order = heatmap_col_order,
-    heatmap_order = heatmap_order,
-    heatmap_module_label_mode = heatmap_module_label_mode,
-    heatmap_show_gene_counts = heatmap_show_gene_counts,
-    enrichment_vertical_line_mode = enrichment_vertical_line_mode,
-    enrichment_row_height_scale = enrichment_row_height_scale,
-    enrichment_column_spacing_scale = enrichment_column_spacing_scale,
-    enrichment_line_width_scale = enrichment_line_width_scale,
-    heatmap_column_label_fontsize = heatmap_column_label_fontsize,
-    heatmap_module_label_fontsize = heatmap_module_label_fontsize,
-    legend_fontsize = legend_fontsize,
-    enrichment_label_fontsize = enrichment_label_fontsize,
-    enrichment_db_header_fontsize = enrichment_db_header_fontsize,
-    enrichment_label_wrap = enrichment_label_wrap,
-    enrichment_label_wrap_width = enrichment_label_wrap_width,
-    gfc_colors = gfc_colors,
-    gfc_scale_limits = gfc_scale_limits,
-    pdf_width = pdf_width,
-    pdf_height = pdf_height,
-    pdf_pointsize = pdf_pointsize,
-    overall_plot_scale = overall_plot_scale,
-    store_panel_objects = store_panel_objects
-  )
-  out$result
-}

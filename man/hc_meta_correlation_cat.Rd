@@ -4,20 +4,25 @@
 \alias{hc_meta_correlation_cat}
 \title{Correlate categorical metadata with modules (S4 API)}
 \usage{
-hc_meta_correlation_cat(hc, ...)
+hc_meta_correlation_cat(hc, meta, set, p_val = 0.05, padj = "BH")
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Additional arguments for categorical metadata correlation.}
+\item{meta}{A single string. Name of the categorical annotation column to
+correlate with the module expression patterns.}
+
+\item{set}{An integer. Number of the dataset/layer to use.}
+
+\item{p_val}{Maximum adjusted p-value for a correlation to count as
+significant. Default is 0.05. Non-significant cells are shown in grey.}
+
+\item{padj}{Multiple-testing correction method passed to
+\code{\link[stats:p.adjust]{stats::p.adjust()}}. Default is "BH".}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
 Correlate categorical metadata with modules (S4 API)
-}
-
-\examples{
-hc <- hc_init()
 }

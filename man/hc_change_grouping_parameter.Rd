@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_change_grouping_parameter}
 \alias{hc_change_grouping_parameter}
-\title{Recalculate grouped GFCs and replot module heatmap (S4 API)}
+\title{change grouping parameter}
 \usage{
 hc_change_grouping_parameter(
   hc,
@@ -31,22 +31,13 @@ hc_change_grouping_parameter(
 Updated \code{HCoCenaExperiment}.
 }
 \description{
+Recalculate grouped GFCs and replot module heatmap (S4 API)
+}
+\details{
 Uses the existing module definitions from the current object and only
 recalculates grouped GFCs for a different grouping variable. No integrated
 network rebuild and no module re-clustering is performed.
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_change_grouping_parameter(hc, group_by = "condition"), silent = TRUE)
+hc <- hc_change_grouping_parameter(hc, group_by = "batch")
 }
-}
-

@@ -36,7 +36,3 @@ List with \code{cap_heatmap} ggplot.
 \description{
 Plot CAP heatmap (donor x module-cluster proportions)
 }
-
-\examples{
-hc <- hc_init()
-}

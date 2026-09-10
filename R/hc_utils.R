@@ -168,32 +168,122 @@ get_cluster_colours <- function() {
 #' @param partition_type Name of the partition type. Select from 'CPMVertexPartition', 'ModularityVertexPartition', 'RBConfigurationVertexPartition' and 'RBERVertexPartition' (Default: 'RBConfigurationVertexPartition').
 #' @noRd
 
-leiden_clustering <- function(g, num_it, resolution, partition_type) {
-  color.cluster <- get_cluster_colours()
+#' Community detection algorithms that return the same partition on every run
+#'
+#' For these, repeating the clustering `no_of_iterations` times only costs time:
+#' every replicate is byte-identical, so the stability vote is a no-op.
+#' @noRd
 
-  # run Leiden algorithm ion network:
+.hc_deterministic_cluster_algos <- function() {
+  base::c("cluster_fast_greedy", "cluster_walktrap")
+}
+
+
+#' Align the community labels of one partition to a reference partition
+#'
+#' Community detection returns arbitrary label *names*: run twice and the same
+#' group of genes may be called "3" once and "7" the next time. Comparing the
+#' raw labels across iterations - as the stability vote used to do - therefore
+#' measures label permutation rather than clustering instability, and discards
+#' most genes even when the partitions agree almost perfectly.
+#'
+#' This relabels `x` onto `reference` by greedily matching the pair of
+#' communities with the largest overlap, then the next largest among what is
+#' left, and so on. Source communities with no counterpart keep a distinct
+#' `unmatched_*` label so genuine disagreement still registers.
+#'
+#' @param x Vector of community labels to relabel.
+#' @param reference Vector of community labels to align to (same length).
+#' @return A character vector of `x` expressed in `reference`'s labels.
+#' @noRd
+
+.hc_match_partition_labels <- function(x, reference) {
+  x <- base::as.character(x)
+  reference <- base::as.character(reference)
+  if (base::length(x) != base::length(reference) || base::length(x) == 0) {
+    return(x)
+  }
+
+  overlap <- base::table(x, reference)
+  if (base::length(overlap) == 0) {
+    return(x)
+  }
+
+  map <- stats::setNames(
+    base::rep(NA_character_, base::nrow(overlap)),
+    base::rownames(overlap)
+  )
+  remaining <- overlap
+  while (base::any(remaining > 0)) {
+    idx <- base::which(remaining == base::max(remaining), arr.ind = TRUE)
+    r <- idx[1L, 1L]
+    cc <- idx[1L, 2L]
+    map[[base::rownames(remaining)[[r]]]] <- base::colnames(remaining)[[cc]]
+    remaining[r, ] <- 0L
+    remaining[, cc] <- 0L
+  }
+
+  unmatched <- base::is.na(map)
+  if (base::any(unmatched)) {
+    map[unmatched] <- base::paste0("unmatched_", base::names(map)[unmatched])
+  }
+
+  base::unname(map[x])
+}
+
+
+#' Leiden partition as a membership vector
+#'
+#' Runs the Leiden algorithm and returns a minimal `communities`-like list with
+#' a 1-based `membership` vector named by vertex, so it can be used the same way
+#' as the return value of the `igraph::cluster_*` functions.
+#' @noRd
+
+.hc_leiden_membership <- function(g, num_it, resolution, partition_type,
+                                  seed = 168575L) {
   tmp.partition <- leidenbase::leiden_find_partition(
     igraph = g,
     partition_type = partition_type,
     edge_weights = igraph::E(g)$weight,
     resolution = resolution,
     num_iter = num_it,
-    seed = 168575
+    seed = seed
   )
 
-  fv <- as.factor(stats::setNames(tmp.partition$membership, igraph::V(g)$name))
-  partition <- list(
-    membership = fv, dendrogram = NULL, algorithm = "leiden",
-    resolution = resolution, n.iter = num_it, names = names(fv)
+  # leidenbase already enumerates communities from 1 (the comment in the old
+  # code claiming 0-based enumeration was wrong). Re-index through a factor so
+  # the ids stay a gapless 1..K run even if the backend skips a number.
+  membership <- base::as.integer(base::as.factor(tmp.partition$membership))
+  base::names(membership) <- igraph::V(g)$name
+
+  base::list(
+    membership = membership,
+    algorithm = "leiden",
+    resolution = resolution,
+    n.iter = num_it,
+    names = igraph::V(g)$name
   )
-  class(partition) <- rev("fakeCommunities")
+}
 
 
-  # extract found clusters and the genes belonging to them:
-  clusters_df <- base::data.frame(cluster = base::as.numeric(partition$membership), gene = partition$names)
+leiden_clustering <- function(g, num_it, resolution, partition_type) {
+  color.cluster <- get_cluster_colours()
 
-  # the algo start enumeration at 0, increase to 1 for easier comaptibility with R fucntions:
-  clusters_df$cluster <- clusters_df$cluster + 1
+  # run Leiden algorithm ion network:
+  partition <- .hc_leiden_membership(
+    g = g, num_it = num_it, resolution = resolution,
+    partition_type = partition_type
+  )
+
+  # extract found clusters and the genes belonging to them.
+  # NB: `.hc_leiden_membership()` returns gapless 1-based ids. The previous code
+  # added 1 on top of the already 1-based factor codes, so module ids started at
+  # 2 and the first palette colour (coral) was never used.
+  clusters_df <- base::data.frame(
+    cluster = base::as.integer(partition$membership),
+    gene = partition$names,
+    stringsAsFactors = FALSE
+  )
 
   # get gene counts per cluster:
   cluster_frequencies <- base::table(clusters_df$cluster) %>% base::as.data.frame()
@@ -269,9 +359,27 @@ cluster_calculation_internal <- function(graph_obj,
                                          case,
                                          resolution,
                                          partition_type = "RBConfigurationVertexPartition",
-                                         it = no_of_iterations) {
+                                         it = 2L,
+                                         seed_offset = 0L) {
+  # `it` used to default to the free variable `no_of_iterations`, which does not
+  # exist in the package namespace. The default is only forced in the Leiden
+  # branch, so `cluster_algo = "auto"` ran five algorithms and then died with
+  # "object 'no_of_iterations' not found" on cluster_leiden.
   if (algo == "cluster_leiden") {
-    cfg <- leiden_clustering(g = graph_obj, num_it = it, resolution = resolution, partition_type = partition_type)
+    # leiden_clustering() returns the finished module *table*, which has no
+    # $membership -- modularity() and case = "best" both need a membership
+    # vector, so derive one here instead.
+    #
+    # `seed_offset` makes replicate runs differ. The caller used to vary the
+    # *number of Leiden iterations* per replicate instead, which produced runs
+    # under systematically different algorithm settings rather than repeats of
+    # the same one. Varying the seed keeps replicates comparable and the whole
+    # thing reproducible.
+    cfg <- .hc_leiden_membership(
+      g = graph_obj, num_it = it, resolution = resolution,
+      partition_type = partition_type,
+      seed = 168575L + base::as.integer(seed_offset)
+    )
   } else {
     cfg <- base::getExportedValue("igraph", algo)(graph_obj)
   }
@@ -2287,7 +2395,7 @@ GFC_calculation <- function(info_dataset, grouping_v, x) {
     trans_norm <- stats::setNames(base::data.frame(base::t(norm_data_anno[, -1])), norm_data_anno[, 1])
 
     if (hcobject[["global_settings"]][["data_in_log"]] == TRUE) {
-      trans_norm <- antilog(trans_norm, 2)
+      trans_norm <- .hc_antilog_impl(trans_norm, 2)
     }
 
 
@@ -2320,27 +2428,52 @@ GFC_calculation <- function(info_dataset, grouping_v, x) {
 
     if (hcobject[["global_settings"]][["data_in_log"]] == TRUE) {
       trans_norm[trans_norm == 0] <- 1
-      trans_norm <- antilog(trans_norm, 2)
+      trans_norm <- .hc_antilog_impl(trans_norm, 2)
     }
 
     trans_norm <- base::t(base::apply(trans_norm, 1, function(i) base::tapply(i, base::colnames(trans_norm), base::mean)))
 
 
-    trans_norm_no_ctrl <- trans_norm[, base::grepl(hcobject[["global_settings"]][["control"]], base::colnames(trans_norm), ignore.case = TRUE) == FALSE]
-    if (base::is.vector(trans_norm_no_ctrl)) {
-      trans_norm_no_ctrl <- base::data.frame(trans_norm_no_ctrl = trans_norm_no_ctrl)
-
-      base::colnames(trans_norm_no_ctrl) <- base::colnames(trans_norm)[base::grepl(hcobject[["global_settings"]][["control"]],
-        base::colnames(trans_norm),
-        ignore.case = TRUE
-      ) == FALSE]
-      base::rownames(trans_norm_no_ctrl) <- base::rownames(trans_norm)
+    # Identify the control group. `control` is documented as a substring of the
+    # control group's label, so keep substring matching -- but use fixed = TRUE
+    # (group labels are data, not regular expressions) and fail loudly when the
+    # keyword does not resolve to exactly one group. Previously a typo matched
+    # nothing, `cbind()` appended no column, and the rename below silently
+    # turned the last (alphabetically sorted) condition into the reference, so
+    # every GFC was computed against an arbitrary group with no warning.
+    control_keyword <- base::as.character(hcobject[["global_settings"]][["control"]])
+    is_ctrl <- base::grepl(control_keyword, base::colnames(trans_norm),
+      ignore.case = TRUE, fixed = FALSE
+    )
+    if (base::sum(is_ctrl) == 0) {
+      stop(
+        "The control keyword '", control_keyword, "' does not match any sample group. ",
+        "Available groups: ", base::paste(base::colnames(trans_norm), collapse = ", "),
+        ". Set `control_keyword` to a string contained in the control group's label, ",
+        "or use \"none\" to compute group fold changes against the mean of all groups.",
+        call. = FALSE
+      )
+    }
+    if (base::sum(is_ctrl) > 1) {
+      stop(
+        "The control keyword '", control_keyword, "' matches ", base::sum(is_ctrl),
+        " sample groups (", base::paste(base::colnames(trans_norm)[is_ctrl], collapse = ", "),
+        "). It must identify exactly one control group; choose a more specific keyword.",
+        call. = FALSE
+      )
     }
 
-    trans_norm <- base::cbind(trans_norm_no_ctrl, trans_norm[, base::grepl(hcobject[["global_settings"]][["control"]],
-      base::colnames(trans_norm),
-      ignore.case = TRUE
-    ) == TRUE])
+    ctrl_name <- base::colnames(trans_norm)[is_ctrl]
+    trans_norm_no_ctrl <- trans_norm[, !is_ctrl, drop = FALSE]
+    if (base::ncol(trans_norm_no_ctrl) == 0) {
+      stop(
+        "The only sample group ('", ctrl_name, "') was identified as the control group, ",
+        "so no fold changes can be computed.",
+        call. = FALSE
+      )
+    }
+
+    trans_norm <- base::cbind(trans_norm_no_ctrl, trans_norm[, is_ctrl, drop = FALSE])
 
     base::rownames(trans_norm) <- base::rownames(trans_norm_no_ctrl)
     base::colnames(trans_norm)[base::ncol(trans_norm)] <- "group_mean"
@@ -2350,11 +2483,10 @@ GFC_calculation <- function(info_dataset, grouping_v, x) {
     GFC_all_genes <- base::round(GFC_all_genes, 3)
     base::rownames(GFC_all_genes) <- base::rownames(trans_norm)
     GFC_all_genes$Gene <- base::rownames(GFC_all_genes)
-    tmp_col_names <- base::colnames(GFC_all_genes)[base::grepl(hcobject[["global_settings"]][["control"]],
-      base::colnames(GFC_all_genes),
-      ignore.case = TRUE
-    ) == FALSE]
-    GFC_all_genes <- GFC_all_genes[, base::colnames(GFC_all_genes) %in% tmp_col_names]
+    # The control column was already excluded from `grplist`; drop it by exact
+    # name rather than by substring, which used to also delete any non-control
+    # condition (and potentially the "Gene" column) containing the keyword.
+    GFC_all_genes <- GFC_all_genes[, base::colnames(GFC_all_genes) != ctrl_name, drop = FALSE]
 
     return(GFC_all_genes)
   }
@@ -2403,24 +2535,22 @@ get_intersection <- function(with) {
   # get edgelist of the reference network:
   combined_edgelist <- hcobject[["layer_specific_outputs"]][[with]][["part2"]][["heatmap_out"]][["filt_cutoff_data"]]
 
-  combined_edgelist$merged <- base::paste0(
-    combined_edgelist$V1 %>% base::as.character(),
-    combined_edgelist$V2 %>% base::as.character()
-  )
-  combined_edgelist$revmerged <- base::paste0(
-    combined_edgelist$V2 %>% base::as.character(),
-    combined_edgelist$V1 %>% base::as.character()
-  )
+  # Edge keys need a separator that cannot occur in a gene symbol: pasting the
+  # names directly made ("MT","CO1") and ("M","TCO1") collide, which produced
+  # spurious intersection edges.
+  .edge_key <- function(a, b) {
+    base::paste0(base::as.character(a), "\r", base::as.character(b))
+  }
+
+  combined_edgelist$merged <- .edge_key(combined_edgelist$V1, combined_edgelist$V2)
+  combined_edgelist$revmerged <- .edge_key(combined_edgelist$V2, combined_edgelist$V1)
   # iterate over datasets:
   for (x in base::seq_along(hcobject[["layer_specific_outputs"]])) {
     if (!x == with) {
       # get edgelist of current dataset:
       tmp <- hcobject[["layer_specific_outputs"]][[x]][["part2"]][["heatmap_out"]][["filt_cutoff_data"]]
 
-      tmp$merged <- base::paste0(
-        tmp$V1 %>% base::as.character(),
-        tmp$V2 %>% base::as.character()
-      )
+      tmp$merged <- .edge_key(tmp$V1, tmp$V2)
 
       # check which edges overlap with reference network:
       tmp <- dplyr::filter(tmp, merged %in% combined_edgelist$merged | merged %in% combined_edgelist$revmerged)
@@ -3689,7 +3819,7 @@ find_best_mod <- function(nc, ref) {
 #' @noRd
 
 network_filt <- function() {
-  gtc <- GeneToCluster()
+  gtc <- .hc_gene_to_cluster_impl()
   network <- hcobject[["integrated_output"]][["merged_net"]]
   del_v <- igraph::V(network)$name[!igraph::V(network)$name %in% gtc$gene]
   network <- igraph::delete.vertices(network, del_v)
@@ -3702,16 +3832,38 @@ network_filt <- function() {
 #' @noRd
 
 sample_wise_cluster_expression <- function(set) {
-  gtc <- GeneToCluster()
+  gtc <- .hc_gene_to_cluster_impl()
   counts <- hcobject[["data"]][[base::paste0("set", set, "_counts")]]
-  cluster_means <- base::lapply(base::unique(gtc$color[!gtc$color == "white"]), function(c) {
+  modules <- base::unique(gtc$color[!gtc$color == "white"])
+
+  # Modules are built on the *integrated* network, so they routinely contain
+  # genes that were not measured in this particular layer. `counts` is a matrix
+  # in the S4 pipeline, where indexing by an unknown row name is a hard
+  # "subscript out of bounds" error (a data.frame would have yielded NA rows,
+  # which is what the complete.cases() guard below was written for). Restrict to
+  # the genes actually present, and keep the matrix 2-dimensional so modules
+  # with a single remaining gene do not collapse to a vector.
+  available <- base::rownames(counts)
+  n_samples <- base::ncol(counts)
+
+  cluster_means <- base::lapply(modules, function(c) {
     genes <- dplyr::filter(gtc, color == c) %>% dplyr::pull(., "gene")
-    tmp <- counts[genes, ]
-    tmp <- tmp[stats::complete.cases(tmp), ] %>% base::apply(., 2, base::mean)
+    genes <- base::intersect(genes, available)
+    if (base::length(genes) == 0) {
+      return(base::rep(NA_real_, n_samples))
+    }
+    tmp <- counts[genes, , drop = FALSE]
+    tmp <- tmp[stats::complete.cases(tmp), , drop = FALSE]
+    if (base::nrow(tmp) == 0) {
+      return(base::rep(NA_real_, n_samples))
+    }
+    base::colMeans(tmp)
   }) %>%
     rlist::list.rbind() %>%
     base::as.data.frame()
-  base::rownames(cluster_means) <- base::unique(gtc$color[!gtc$color == "white"])
+
+  base::rownames(cluster_means) <- modules
+  base::colnames(cluster_means) <- base::colnames(counts)
 
   return(cluster_means)
 }
@@ -3719,11 +3871,19 @@ sample_wise_cluster_expression <- function(set) {
 
 #' Hub Node Detection
 #'
-#' Subroutine to find_hubs().
+#' Subroutine to .hc_find_hubs_driver().
 #' @noRd
 
 
-hub_node_detection <- function(cluster, top, save, tree_layout, TF_only, plot) {
+hub_node_detection <- function(cluster, top, save, tree_layout, TF_only, plot,
+                               label = NULL) {
+  # `cluster` selects the subnetwork by colour; `label` is what the user sees
+  # (module label such as "M2.1"). Falls back to the colour when not supplied.
+  if (base::is.null(label) || base::length(label) == 0 ||
+    base::is.na(label[[1]]) || !base::nzchar(base::as.character(label[[1]]))) {
+    label <- cluster
+  }
+  label <- base::as.character(label[[1]])
   # extract chosen cluster as an isolated network:
   g <- cluster_to_network(cluster = cluster)
   # determine hub nodes:
@@ -3783,7 +3943,7 @@ hub_node_detection <- function(cluster, top, save, tree_layout, TF_only, plot) {
       gene_ranks = base::seq_along(hub_out$hub_nodes),
       layout = l,
       centrality = stats::setNames(hub_out$rank_df$sum, hub_out$rank_df$node),
-      title = base::c(cluster, top),
+      title = base::c(label, top),
       save = save,
       plot = plot
     )
@@ -3794,7 +3954,7 @@ hub_node_detection <- function(cluster, top, save, tree_layout, TF_only, plot) {
       gene_ranks = base::seq_along(hub_out$hub_nodes),
       l = l,
       label_offset = 10,
-      title = base::c(cluster, top),
+      title = base::c(label, top),
       save = save,
       plot = plot
     )
@@ -3811,7 +3971,7 @@ hub_node_detection <- function(cluster, top, save, tree_layout, TF_only, plot) {
 #' @noRd
 
 cluster_to_network <- function(cluster) {
-  gtc <- GeneToCluster() %>% dplyr::filter(., color == cluster)
+  gtc <- .hc_gene_to_cluster_impl() %>% dplyr::filter(., color == cluster)
   g <- hcobject[["integrated_output"]][["merged_net"]]
   g <- igraph::delete_vertices(g, igraph::V(g)$name[!igraph::V(g)$name %in% gtc$gene])
 
@@ -3821,7 +3981,7 @@ cluster_to_network <- function(cluster) {
 
 #' Get Hub Nodes
 #'
-#' Subroutine to find_hubs().
+#' Subroutine to .hc_find_hubs_driver().
 #' @noRd
 
 .hc_hub_tf_filter_genes <- function(TF_only = FALSE) {
@@ -3974,7 +4134,7 @@ get_hub_nodes <- function(network = hcobject[["integrated_output"]][["merged_net
 
 #' Combined Centrality Measure
 #'
-#' Subroutine to find_hubs().
+#' Subroutine to .hc_find_hubs_driver().
 #' @noRd
 
 combined_centrality <- function(network) {
@@ -4195,7 +4355,7 @@ weighted_BC <- function(network) {
 
 #' Colours Based On Centrality
 #'
-#' Subroutine to find_hubs().
+#' Subroutine to .hc_find_hubs_driver().
 #' @noRd
 
 centrality_colours <- function(rank_df, network) {
@@ -4328,7 +4488,7 @@ centrality_colours <- function(rank_df, network) {
 
 #' Plots A Network With Labels
 #'
-#' Subroutine to find_hubs().
+#' Subroutine to .hc_find_hubs_driver().
 #' @noRd
 
 network_with_labels <- function(network, gene_labels, gene_ranks, l, label_offset, title, save, plot) {
@@ -4635,7 +4795,7 @@ run_all_cluster_algos <- function() {
 
 #' Plot PCA of top most variant
 #'
-#' Subroutine to PCA_algo_compare().
+#' Subroutine to .hc_PCA_algo_compare_driver().
 #' @noRd
 
 plot_PCA_topvar <- function(PCA_save_folder, cols = cols) {
@@ -4709,7 +4869,7 @@ plot_PCA_topvar <- function(PCA_save_folder, cols = cols) {
 
 #' Plot PCA based on cluster expressions
 #'
-#' Subroutine to PCA_algo_compare().
+#' Subroutine to .hc_PCA_algo_compare_driver().
 #' @noRd
 
 plot_PCA_cluster <- function(gtc = NULL, algo = NULL, PCA_save_folder, cols = cols) {
@@ -4791,12 +4951,12 @@ plot_PCA_cluster <- function(gtc = NULL, algo = NULL, PCA_save_folder, cols = co
 #' Calculate Intra-Sample Fold Changes
 #'
 #' Mean cluster exression from mean sample expression.
-#' Subroutine to PCA_algo_compare().
+#' Subroutine to .hc_PCA_algo_compare_driver().
 #' @noRd
 
 intra_sample_FC <- function(l, gtc = NULL) {
   if (base::is.null(gtc)) {
-    gene_to_cluster <- GeneToCluster()
+    gene_to_cluster <- .hc_gene_to_cluster_impl()
   } else {
     base::colnames(gtc) <- base::c("gene", "cluster")
     gene_to_cluster <- gtc
@@ -4817,8 +4977,13 @@ intra_sample_FC <- function(l, gtc = NULL) {
       genes <- gene_to_cluster[gene_to_cluster$color == c, ] %>%
         dplyr::pull(., "gene")
 
-      filt_counts <- counts[base::rownames(counts) %in% genes, ]
-      tmp <- base::apply(filt_counts, 2, base::mean) %>%
+      # drop = FALSE: a module with a single gene present in this layer would
+      # otherwise collapse to a vector and break apply()
+      filt_counts <- counts[base::rownames(counts) %in% genes, , drop = FALSE]
+      if (base::nrow(filt_counts) == 0) {
+        next
+      }
+      tmp <- base::colMeans(filt_counts) %>%
         base::as.data.frame() %>%
         base::t() %>%
         base::as.data.frame()
@@ -4841,7 +5006,7 @@ intra_sample_FC <- function(l, gtc = NULL) {
 
 #' Find New Control
 #'
-#' Detects sample subset with highest control content. Subroutine to cut_hclust().
+#' Detects sample subset with highest control content. Subroutine to .hc_cut_hclust_impl().
 #' @noRd
 
 find_new_ctrl <- function(anno, l) {
@@ -4862,7 +5027,7 @@ find_new_ctrl <- function(anno, l) {
 
 #' Get Annotation Matrix
 #'
-#' Subroutine to col_anno_categorical().
+#' Subroutine to .hc_col_anno_categorical_driver().
 #' @noRd
 
 get_anno_matrix <- function(variables) {
@@ -4906,7 +5071,7 @@ get_anno_matrix <- function(variables) {
 
 #' Unify Matrices
 #'
-#' Subroutine to col_anno_categorical().
+#' Subroutine to .hc_col_anno_categorical_driver().
 #' @noRd
 
 unify_mats <- function(mat_list) {

@@ -48,7 +48,3 @@ List with \code{pca}, optional \code{umap}, optional \code{cross_tab}, and \code
 \description{
 Plot meta-clustering embeddings and endotype cross-tab
 }
-
-\examples{
-hc <- hc_init()
-}

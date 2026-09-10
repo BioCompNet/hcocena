@@ -15,7 +15,3 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Import layout from Cytoscape (S4 API)
 }
-
-\examples{
-hc <- hc_init()
-}

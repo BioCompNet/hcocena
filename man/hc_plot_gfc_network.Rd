@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_plot_gfc_network}
 \alias{hc_plot_gfc_network}
-\title{Plot network colored by GFC (S4 API)}
+\title{plot gfc network}
 \usage{
 hc_plot_gfc_network(hc)
 }
@@ -15,18 +15,6 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Plot network colored by GFC (S4 API)
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_plot_gfc_network(hc), silent = TRUE)
+hc <- hc_plot_gfc_network(hc)
 }
-}
-

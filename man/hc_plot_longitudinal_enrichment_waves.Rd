@@ -99,7 +99,3 @@ donor/timepoint in module-faceted wave plots.
 Scoring uses GSVA ssGSEA when available (\code{score_method = "ssgsea"}), with a
 rank-based fallback if GSVA is unavailable.
 }
-
-\examples{
-hc <- hc_init()
-}

@@ -67,7 +67,3 @@ Updated \code{HCoCenaExperiment} with tuning report in
 \details{
 The tuning report is stored in \code{hc@satellite$auto_tune}.
 }
-
-\examples{
-hc <- hc_init()
-}

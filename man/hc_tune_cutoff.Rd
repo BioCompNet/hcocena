@@ -82,7 +82,3 @@ available node count across tested cutoffs.
 base filters (\code{slope/components/nodes}).
 }
 }
-
-\examples{
-hc <- hc_init()
-}

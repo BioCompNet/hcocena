@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_read_data}
 \alias{hc_read_data}
-\title{Read expression and annotation data (S4 API)}
+\title{Function To Read All Count And Annotation Files}
 \usage{
 hc_read_data(
   hc,
@@ -45,11 +45,17 @@ directly into \code{dir_output}. If \code{NULL}, keep an already configured
 \value{
 Updated \code{HCoCenaExperiment}.
 }
-\details{
-Count inputs are normalized to numeric expression matrices during import. For object-based count inputs, non-numeric helper columns are dropped. Genes with zero variance are removed during loading because they can destabilize downstream variance-based heuristics such as \code{hc_suggest_topvar()}. As a result, suggested inflection points can differ slightly from older releases on the same raw input.
-}
 \description{
-Read expression and annotation data (S4 API)
+The function loads the count and annotation data for each layer and saves it in the hCoCena-Object's "data" slot.
+Genes with a variance of 0 will be automatically be excluded from the analysis.
+}
+\details{
+Count inputs are normalized to numeric expression matrices during
+import. For object-based count inputs, non-numeric helper columns are
+dropped. Genes with zero variance are removed during loading because they
+can destabilize downstream variance-based heuristics such as
+\code{hc_suggest_topvar()}. As a result, suggested inflection points can differ
+slightly from older releases on the same raw input.
 }
 \examples{
 extdir <- paste0(

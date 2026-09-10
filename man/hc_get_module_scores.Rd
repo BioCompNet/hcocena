@@ -2,14 +2,15 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_get_module_scores}
 \alias{hc_get_module_scores}
-\title{Module scores (S4 API)}
+\title{get module scores}
 \usage{
-hc_get_module_scores(hc, ...)
+hc_get_module_scores(hc, save = TRUE)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{get_module_scores()}.}
+\item{save}{Logical. Write the module-score box plot to PDF.
+Default is \code{TRUE}.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -17,18 +18,6 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Module scores (S4 API)
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_get_module_scores(hc, save = FALSE), silent = TRUE)
+hc <- hc_get_module_scores(hc)
 }
-}
-

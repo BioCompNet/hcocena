@@ -36,7 +36,3 @@ A named list with \code{pca} and \code{waves} ggplot objects.
 Creates a PCA donor plot and a module-wave plot (mean module value over time
 per endotype) from \code{hc_longitudinal_endotype_clustering()} outputs.
 }
-
-\examples{
-hc <- hc_init()
-}

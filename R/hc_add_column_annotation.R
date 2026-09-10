@@ -11,9 +11,8 @@
 #' @param variable_label A string that describes the meta information used. This string will be used to label the annotation in the heatmap.
 #'  If none is provided, the first non-NA string from 'variables' is used as the label.
 #' @param type A string defining whether meta variables should be converted into percentages ("percent") or absolute ("abs"; default) values
-#' @export
 
-col_anno_categorical <- function(variables, variable_label = NULL, type = "abs") {
+.hc_col_anno_categorical_driver <- function(variables, variable_label = NULL, type = "abs") {
   if (base::is.null(variables) || base::length(variables) == 0) {
     annos <- hcobject[["satellite_outputs"]][["column_annos_categorical"]]
     if (base::is.null(variable_label) || base::length(variable_label) == 0) {
@@ -74,9 +73,8 @@ col_anno_categorical <- function(variables, variable_label = NULL, type = "abs")
 #'  If the information only exists in some but not all datasets, then set the vector slots of those that don"t have it to NA, e.g., c(NA, "Age").
 #' @param variable_label A string that describes the meta information used. This string will be used to label the annotation in the heatmap.
 #'  If none is provided, the first non-NA string from 'variables' is used as the label.
-#' @export
 
-col_anno_numerical <- function(variables, variable_label) {
+.hc_col_anno_numerical_driver <- function(variables, variable_label) {
   if (base::is.null(variables) || base::length(variables) == 0) {
     annos <- hcobject[["satellite_outputs"]][["column_annos_numerical"]]
     if (base::is.null(variable_label) || base::length(variable_label) == 0) {
@@ -135,14 +133,23 @@ col_anno_numerical <- function(variables, variable_label) {
   .hc_set_bridge_hcobject_slot(c("satellite_outputs", "column_annos_numerical", variable_label), vals)
 }
 
-.hc_col_anno_categorical_driver <- col_anno_categorical
 
-col_anno_categorical <- function(variables, variable_label = NULL, type = "abs") {
-  .hc_run_alias_via_modern(
-    "col_anno_categorical",
-    hc_col_anno_categorical,
-    variables = variables,
-    variable_label = variable_label,
-    type = type
+
+
+#' Add numeric module heatmap annotations (S4 API)
+#'
+#' Adds numeric annotation tracks to the columns of the module heatmap. Call
+#' with `variables = NULL` to remove previously added tracks.
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param variables Character vector of numeric annotation column names to add.
+#'   Use `NULL` to remove existing numeric annotations.
+#' @param variable_label Display label for the annotation track.
+#' @return Updated `HCoCenaExperiment`.
+#' @export
+hc_col_anno_numerical <- function(hc, variables, variable_label) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_col_anno_numerical_driver,
+    variables = variables, variable_label = variable_label
   )
 }

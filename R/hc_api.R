@@ -670,8 +670,10 @@ hc_define_layers <- function(hc, data_sets = list()) {
   hc
 }
 #
-#' @rdname read_data
-#' @inheritParams read_data
+#' Function To Read All Count And Annotation Files
+#'
+#' The function loads the count and annotation data for each layer and saves it in the hCoCena-Object's "data" slot.
+#' Genes with a variance of 0 will be automatically be excluded from the analysis.
 #' @param hc A `HCoCenaExperiment`.
 #' @param auto_setup_output Boolean. If `TRUE`, run `hc_check_dirs()` and
 #'   initialize the save folder before reading data (if `dir_output` is set).
@@ -719,6 +721,12 @@ hc_define_layers <- function(hc, data_sets = list()) {
 #' )
 #' names(MultiAssayExperiment::experiments(hc_mae(hc)))
 #' @return Updated `HCoCenaExperiment`.
+#' @param sep_counts The separator of the count files. Default is tab separated files. Ignore when loading data from objects instead of files.
+#' @param sep_anno The separator of the annotation files. Default is tab separated files. Ignore when loading data from objects instead of files.
+#' @param gene_symbol_col A String. Name of the column that contains the gene symbols. Ignore when loading data from objects instead of files.
+#' @param sample_col A String. Name of the column that contains the sample IDs. Ignore when loading data from objects instead of files.
+#' @param count_has_rn A Boolean. Whether or not the count file has rownames. Default is TRUE. Ignore when loading data from objects instead of files.
+#' @param anno_has_rn A Boolean. Whether or not the annotation file has rownames. Default is TRUE. Ignore when loading data from objects instead of files.
 #' @export
 hc_read_data <- function(hc,
                          sep_counts = "\t",
@@ -786,8 +794,9 @@ hc_read_data <- function(hc,
   hc
 }
 #
-#' @rdname set_global_settings
-#' @inheritParams set_global_settings
+#' Define Global Settings
+#'
+#' Receives all settings that are globally valid, i.e., that are not dataset specific.
 #' @param hc A `HCoCenaExperiment`.
 #' @examples
 #' extdir <- paste0(
@@ -829,6 +838,20 @@ hc_read_data <- function(hc,
 #' )
 #' as.data.frame(methods::slot(hc_config(hc), "global"))
 #' @return Updated `HCoCenaExperiment`.
+#' @param organism Specification of the organism needed for all TF-related analyses. Set to "human" for human data and "mouse" for mouse data. Currently, hCoCena only supports human and mouse data, however, all analysis steps not related to TFs can be applied to other organisms.
+#' @param control_keyword Either 'none' if no controls are present (only possible when analysing one single dataset) or a string contained in the control sample descriptor of all annotation files, e.g. "healthy".
+#' 	The string must only be contained in the descriptor, e.g. "healthy" would work for "rhinovirusSetHealthy" and "influenzaSetHealthy", it does not have to match it perfectly.
+#' @param variable_of_interest The name of the column that mus be rpesent in all annotation files and which will be used for grouping samples, e.g., "condition"".
+#' @param min_nodes_number_for_network An integer. The minimum number of nodes in the subsequently created network that can define a graph component. Graph components with less nodes will be discarded. Default is 50.
+#' @param min_nodes_number_for_cluster An integer. The minimum number of nodes that constitute a module/cluster when detecting community structures in the network. Default is 50.
+#' @param range_GFC A float. Defines the maximum value the group fold changes (GFCs) can acquire, all values above this value or beneath its negative will be truncated. Default is 2.0.
+#' @param layout_algorithm Layout algorithm used for the network. Supported values are:
+#'  `"layout_with_stress"` (default), `"layout_with_sparse_stress"`, `"layout_with_fr"`,
+#'  `"layout_with_drl"`, `"layout_with_kk"` and `"cytoscape"`.
+#'  The stress-based layouts require the optional `graphlayouts` package and are typically
+#'  more stable/readable than Fruchterman-Reingold for medium/large graphs.
+#'  `"cytoscape"` uses an externally calculated Cytoscape layout.
+#' @param data_in_log Boolean. Whether or not the provided gene expression data is logged to the base of 2.
 #' @export
 hc_set_global_settings <- function(hc,
                                    organism = "human",
@@ -905,8 +928,9 @@ hc_set_global_settings <- function(hc,
   hc
 }
 #
-#' @rdname set_layer_settings
-#' @inheritParams set_layer_settings
+#' Define Layer Settings
+#'
+#' Receives all settings that are dataset specific and not globally valid.
 #' @param hc A `HCoCenaExperiment`.
 #' @examples
 #' extdir <- paste0(
@@ -948,6 +972,17 @@ hc_set_global_settings <- function(hc,
 #' )
 #' as.data.frame(methods::slot(hc_config(hc), "layer"))
 #' @return Updated `HCoCenaExperiment`.
+#' @param top_var A vector with the length equal to the number of datasets/layers. Each entry of the vector is either "all" or an integer.
+#' 	Defines the number of most variable genes to be extracted per dataset. The order in the vector corresponds to the order in which the datasets have been declared in define_layers().
+#' @param min_corr A vector of floats with the length equal to the number of datasets/layers. To construct a meaningful co-expression network for each layer, correlation cut-offs must be determined for every dataset that mark the lower boundary for the correlation
+#' 	of two genes in order for their co-expression to be represented as an edge in the network. To facilitate choosing these cut-offs, a series of parameters will be calculated for a defined number of different cut-offs.
+#' 	The number of cut-offs for which these parameters are calculated is determined by 'range_cutoff_length'.
+#' 	The range from which these possible cut-offs are taken is on the lower end restricted by 'min_corr' and on the upper end by the maximum correlation calculated between any two genes in the dataset. Default is 0.7.
+#' @param range_cutoff_length A vector of integers with the length equal to the number of datasets/layers. Details see "min_corr".
+#' @param print_distribution_plots A vector of Booleans with the length equal to the number of datasets/layers. Whether or not to print the degree distribution plots for all tested cut-offs to pdf files.
+#' 	The number of plots per data set will therefore be equal to the 'range_cutoff_length' parameter you have set.
+#' 	Given the potential size, this should only be set to TRUE, if 'range_cutoff_length' is small or if one wishes to thoroughly analyse how the degree distribution changes in detail for differing cut-offs.
+#' 	Default is FALSE.
 #' @export
 hc_set_layer_settings <- function(hc,
                                   top_var,
@@ -984,8 +1019,9 @@ hc_set_layer_settings <- function(hc,
   hc
 }
 #
-#' @rdname set_supp_files
-#' @inheritParams set_supp_files
+#' Set Supplementary Files
+#'
+#' Receives the file names of the supplementary files
 #' @param hc A `HCoCenaExperiment`.
 #' @param ... Additional supplementary files passed through to `set_supp_files()`.
 #' @examples
@@ -997,6 +1033,12 @@ hc_set_layer_settings <- function(hc,
 #' )
 #' sort(names(hcocena:::as_hcobject(hc)$supplement))
 #' @return Updated `HCoCenaExperiment`.
+#' @param Tf A file name. The file must contain a list of at least two columns. One column should be titled with the organism from which the datasets originate and contain gene names, the other column must always be the last column and contain the information if the gene is a transcription factor ("TF"),
+#' 	a co-factor ("Co_factor"), a chromatin remodelling protein ("Chromatin_remodeller") or a ribonucleic acid binding protein ("RNBP"). The name of the last column may vary. An exmemplary file for mouse and human is found in the Reference Files Folder in the repository.
+#' @param Hallmark A file name for a .gmt MSigDB hallmark gene set file. You can find one in the reference file folder in the repository.
+#' @param Go A file name for a .gmt gene ontology file. You can find one in the reference file folder in the repository.
+#' @param Kegg A file name for a .gmt KEGG database file. You can find one in the reference file folder in the repository.
+#' @param Reactome A file name for a .gmt Reactomte database file. You can find one in the reference file folder in the repository.
 #' @export
 hc_set_supp_files <- function(hc, Tf = NULL, Hallmark = NULL, Go = NULL, Kegg = NULL, Reactome = NULL, ...) {
   .hc_set_supp_files_impl(
@@ -1062,7 +1104,7 @@ hc_set_supp_files <- function(hc, Tf = NULL, Hallmark = NULL, Go = NULL, Kegg = 
   paths <- .hc_row_to_list(hc@config@paths)
   dir_reference_files <- paths[["dir_reference_files"]]
   if (base::is.null(dir_reference_files) || .hc_legacy_dir_is_false(dir_reference_files)) {
-    stop("`dir_reference_files` is not set. Please run `init_wd()`/`hc_set_paths()` first.")
+    stop("`dir_reference_files` is not set. Please run `hc_set_paths()` first.")
   }
 
   loaded <- as.list(hc@references@data)
@@ -1081,7 +1123,9 @@ hc_set_supp_files <- function(hc, Tf = NULL, Hallmark = NULL, Go = NULL, Kegg = 
   hc
 }
 #
-#' @rdname read_supplementary
+#' Read Supplementary Data
+#'
+#' Function to read and collect the supplementary files set in set_supp_files().
 #' @param hc A `HCoCenaExperiment`.
 #' @examples
 #' refdir <- file.path(tempdir(), "hcocena-reference-files")
@@ -1171,10 +1215,40 @@ hc_read_supplementary <- function(hc) {
   )
 }
 #
-#' @rdname run_expression_analysis_1
-#' @inheritParams run_expression_analysis_1
+#' Run First Part Of The Gene Expression Analysis
+#'
+#' This function executes the frist part of the data processing procedure. It leads up to choosing the correlation cut-off for each layer.
+#' 	All datasets will be filtered for their most variant genes as defined in the layer-specific settings.
+#' 	After this filtering step, the pair-wise correlation coefficients for all pairs of genes are calculated.
+#' 	Correlations that are negative or that have an associated p-value higher than 0.05 are immediately discarded.
+#' 	Next, a set of statistics will be calculated for the set range of cut-off values that aim to facilitate the cut-off choice.
+#' 	This includes determining the number of graph components resulting from creating a network when cutting the data with the respective cut-off,
+#' 	as well as the number of nodes and edges this network comprises.
+#' 	The last parameter that is evaluated is the R^2-value of the data to a linear regression through the logged degree distribution for the given network.
 #' @param hc A `HCoCenaExperiment`.
 #' @return Updated `HCoCenaExperiment`.
+#' @param padj A String. Defines the method to be used for p-value adjustment. Valid values are "none" (default) or values for "method" in stats::p.adjust.
+#' @param export A Boolean. If TRUE, correlation values and p-values will be exported.
+#' 	This can save time if you plan on re-running the analysis since computing pari-wise correlations is a bottleneck of the analysis. Default is FALSE.
+#' @param import A list. Each slot in the list corresponds to one of the layers (datasets) and is either a vector of two strings (1. path to file holding the correlation matrix and
+#'  2. Path to the file holding the p-value matrix) or NA. A list slot is set to NA if for that layer you do not want to import a pre-calculated correlation matrix.
+#'  The files do not necessarily have to be exported from a previous run, but can have any kind of origin (created with a different program or method).
+#'  For compatibility it is only important, that it is a whitespace-separated text (.txt) file containing a symmetric, numeric matrix.
+#'  The first line has to be gene names, there must be no row names, since the first line will be used for column names and row names.
+#'  Also, you must provide a matrix with correlation values AND a matrix with corresponding p-values, where cells in the matrices correspond to each other (only a correlation matrix will not be sufficient).
+#'  Default is NULL.
+#' @param bayes Sanchez-Taltavull et al. (2016) suggest superiority of Bayesian correlation analysis to Pearson correlation in some cases.
+#' 	Therefore, the Pearson correlation values can be weighted with Bayesian correlation values. To do so, set the "bayes"-parameter to TRUE. Default is FALSE, using only Pearson correlations.
+#' @param alpha A numeric value from 0 to 1. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.
+#' @param prior An integer, either 2 or 3, using prior 2 or 3 for the Bayes weighting as described in "Bayesian correlation analysis for sequence count data" by Sanchez-Taltavull et al. (2016).
+#' @param corr_method Correlation method to use. Supported values are "pearson"
+#'   (default) and "spearman".
+#' @param corr_backend Correlation backend. `"auto"` (default) uses a fast
+#'   cross-product path (BLAS matmul plus analytic t p-values) that is
+#'   numerically identical to `Hmisc::rcorr` but ~13-25x faster, and
+#'   automatically falls back to `Hmisc::rcorr` when the expression matrix
+#'   contains `NA`s (to preserve pairwise-complete semantics). `"rcorr"` forces
+#'   the original `Hmisc::rcorr` computation.
 #' @export
 hc_run_expression_analysis_1 <- function(hc,
                                          padj = "none",
@@ -1204,9 +1278,10 @@ hc_run_expression_analysis_1 <- function(hc,
 
 #' Set network cutoffs (S4 API)
 #'
-#' @rdname set_cutoff
-#' @inheritParams set_cutoff
 #' @param hc A `HCoCenaExperiment`.
+#' @param cutoff_vector A vector of correlation cutoff values, one per layer,
+#'   in the order the layers were declared in [hc_define_layers()]. Ignored
+#'   when `auto = TRUE`.
 #' @param auto Logical; if `TRUE`, automatically select cutoffs from available
 #'   tuning outputs in this priority:
 #'   1) `hc@satellite$cutoff_tuning$applied_cutoff_vector`,
@@ -1442,10 +1517,17 @@ hc_set_cutoff <- function(hc,
   )
 }
 #
-#' @rdname run_expression_analysis_2
-#' @inheritParams run_expression_analysis_2
+#' Run Second Part Of The Gene Expression Analysis
+#'
+#' This function plots a heatmap for the network genes in each data layer and computes the Group-Fold-Changes for all genes per layer.
 #' @param hc A `HCoCenaExperiment`.
 #' @return Updated `HCoCenaExperiment`.
+#' @param grouping_v A string giving a column name present in all annotation files, if this variable shall be used for grouping the samles isntead of the variable of interest. Default is NULL.
+#' @param plot_HM A Boolean. Whether or not to plot the heatmap (for networks with many genes this may be very demanding for your computer if you are running the analysis locally). Default is TRUE.
+#' @param method The method used for clustering the heatmap in the pheatmap function. Default is "complete".
+#' @param additional_anno A list, with one slot per data set. A slot contains a vector of column names from that data set's annotation file that you wish to annotate with.
+#' 	If for some of the data sets you don't wish any further annotation, you can set the corresponding list slot to NULL. Default is NULL.
+#' @param cols A named list of color vectors. The list names need to match the chosen annotation column names. Default is NULL which uses implemented colors.
 #' @export
 hc_run_expression_analysis_2 <- function(hc,
                                          grouping_v = NULL,
@@ -1518,10 +1600,18 @@ hc_run_expression_analysis_2 <- function(hc,
   .hc_set_bridge_hcobject_slot(c("satellite_outputs", "network_col_by_module"), NULL)
 }
 #
-#' @rdname build_integrated_network
-#' @inheritParams build_integrated_network
+#' Network integration
+#'
+#' The previously constructed layer-specific networks are being integrated.
 #' @param hc A `HCoCenaExperiment`.
 #' @return Updated `HCoCenaExperiment`.
+#' @param mode A string, either "u", if network integration is to be done by union (default), or "i", if integration is to be done by intersection.
+#'  For details please refer to the information pages provided in the repository's Wiki.
+#' @param multi_edges One of "min", "mean" or "max" resulting in the simplification of the multigraph by using the minimum, the mean or the maximum edge weight among the multiple edges, respectively.
+#'  Multiple edges occur when the edge was present in more than one datset.
+#' @param GFC_when_missing The value to substitute missing data in the case where some genes were not measured in all but only some of the datasets.
+#' @param with Either an integer giving the number of the dataset to be used as reference (e.g., 1) or the name given to the layer.
+#'  Can be ignored when integration is done by union.
 #' @export
 hc_build_integrated_network <- function(hc,
                                         mode = "u",
@@ -1616,16 +1706,29 @@ hc_build_integrated_network <- function(hc,
       message(cluster_algo_used, " will be used based on your input.")
     }
 
+    # Deterministic algorithms return the identical partition every time, so
+    # extra replicates only cost runtime and can never change the vote.
+    iterations_to_run <- no_of_iterations
+    if (cluster_algo_used %in% .hc_deterministic_cluster_algos() &&
+      no_of_iterations > 1) {
+      message(
+        cluster_algo_used, " is deterministic; running 1 iteration instead of ",
+        no_of_iterations, " (replicates would be identical)."
+      )
+      iterations_to_run <- 1L
+    }
+
     gene_which_cluster <- base::do.call(
       "cbind",
-      base::lapply(base::seq_len(no_of_iterations), function(iteration_now) {
+      base::lapply(base::seq_len(iterations_to_run), function(iteration_now) {
         cluster_calculation_internal(
           graph_obj = hcobject[["integrated_output"]][["merged_net"]],
           algo = cluster_algo_used,
           case = "best",
           resolution = resolution,
           partition_type = partition_type,
-          it = iteration_now
+          it = no_of_iterations,
+          seed_offset = iteration_now
         )
       })
     )
@@ -1639,6 +1742,20 @@ hc_build_integrated_network <- function(hc,
   gene_which_cluster <- cluster_run$gene_which_cluster
 
   if (base::ncol(gene_which_cluster) > 1) {
+    # Align each replicate's community labels to the first one before voting.
+    # Without this the vote compares arbitrary label permutations instead of
+    # actual assignments, and sends the majority of genes to cluster 0 even when
+    # the partitions agree: on a 726-gene test network cluster_louvain lost
+    # 68% of genes this way, versus 20% once the labels are matched.
+    gene_which_cluster <- base::apply(gene_which_cluster, 2, base::as.character)
+    reference_partition <- gene_which_cluster[, 1]
+    for (j in base::seq_len(base::ncol(gene_which_cluster))[-1]) {
+      gene_which_cluster[, j] <- .hc_match_partition_labels(
+        gene_which_cluster[, j],
+        reference_partition
+      )
+    }
+
     gene_cluster_ident <- base::apply(gene_which_cluster, 1, function(x) {
       if (base::length(base::unique(x)) > max_cluster_count_per_gene) {
         0
@@ -1756,12 +1873,25 @@ hc_build_integrated_network <- function(hc,
   out$hc
 }
 #
-#' @rdname cluster_calculation
-#' @inheritParams cluster_calculation
+#' Cluster Calculation
+#'
+#' The function offers several community detection algorithms to identify dense regions in the co-expression network.
+#'  These dense regions represent collections of highly co-expressed genes likely to form a functional group.
 #' @param hc A `HCoCenaExperiment`.
 #' @return Updated `HCoCenaExperiment`. If `return_result = TRUE` and the
 #'   clustering backend returns a cluster table, that table is returned
 #'   instead.
+#' @param cluster_algo The clustering algorithm to be used. The choice is between "cluster_leiden" (default), "cluster_louvain", "cluster_label_prop", "cluster_fast_greedy",
+#'  "cluster_infomap", "cluster_walktrap" and "auto" (in which case all are tested and the one with the highest modularity is chosen).
+#' @param no_of_iterations Some of the algorithms are iterative (e.g. Leiden Algorithm). Set here, how many iterations should be performed.
+#'  For information on which other algorithms are iterative, please refer to their documentation in the igraph or leidenbase package. Default is 2.
+#' @param max_cluster_count_per_gene The maximum number of different clusters a
+#'  gene is allowed to be associated with during the different iterations
+#'  before it is marked as indecisive and removed. Default is 1.
+#' @param resolution The cluster resolution if the cluster algorithm is set to "cluster_leiden". Default is 0.1. Higher values result in more clusters and vice versa.
+#' @param partition_type Name of the partition type. Select from 'CPMVertexPartition', 'ModularityVertexPartition', 'RBConfigurationVertexPartition' and 'RBERVertexPartition'. Default is 'RBConfigurationVertexPartition'.
+#' @param return_result Logical. If `TRUE`, return the cluster table instead of
+#'  storing it in `hcobject`.
 #' @export
 hc_cluster_calculation <- function(hc,
                                    cluster_algo = "cluster_leiden",
@@ -1818,9 +1948,25 @@ hc_cluster_calculation <- function(hc,
   out$hc
 }
 #
-#' @rdname merge_clusters
-#' @inheritParams merge_clusters
+#' Merge similar modules
+#'
+#' Cuts the dendrogram of the module heatmap to merge modules with similar
+#' expression patterns. Run with `save = FALSE` first to preview a given `k`;
+#' `save = TRUE` overwrites the current module assignment and cannot be undone.
+#'
 #' @param hc A `HCoCenaExperiment`.
+#' @param k Either an integer (the number of merged modules) or `"auto"`
+#'   (default) to pick a data-driven value from the average silhouette score
+#'   across candidate cuts.
+#' @param save Logical. If `FALSE`, only preview the merge. If `TRUE`, replace
+#'   the current module assignment. Default is `TRUE`.
+#' @param method Agglomeration method for the dendrogram. Default `"complete"`.
+#' @param k_min Smallest candidate `k` considered when `k = "auto"`. Default 2.
+#' @param k_max Largest candidate `k` considered when `k = "auto"`. Defaults to
+#'   `min(10, number of modules - 1)`.
+#' @param auto_parsimony_penalty Small penalty applied in auto mode to prefer
+#'   fewer modules when silhouette scores are nearly tied. Default `1e-04`.
+#' @param verbose Logical. Print the selected `k` and selection diagnostics.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_merge_clusters <- function(hc,
@@ -1853,15 +1999,37 @@ hc_merge_clusters <- function(hc,
 
 #' Split one or multiple modules into submodules (S4 API)
 #'
-#' @rdname split_modules
 #' Re-clusters genes within selected modules and replaces those modules by
 #' submodules (with color shades of the parent module).
 #'
 #' @param hc A `HCoCenaExperiment`.
 #' @param modules Character/numeric vector of modules to split. Accepts module
 #'   labels (e.g. `"M3"`), module colors, or module indices.
-#' @inheritParams split_modules
 #' @return Updated `HCoCenaExperiment`.
+#' @param cluster_algo Clustering algorithm for within-module splitting.
+#'  One of `"cluster_leiden"` (default), `"cluster_louvain"`,
+#'  `"cluster_fast_greedy"`, `"cluster_infomap"`, `"cluster_walktrap"`,
+#'  `"cluster_label_prop"` or `"auto"`.
+#' @param no_of_iterations Number of Leiden iterations (used only for Leiden).
+#' @param resolution Leiden resolution (used only for Leiden). Use either one
+#'  positive value for all selected modules or one positive value per selected
+#'  module in the same order as `modules`. Named vectors may use module labels
+#'  or module colors.
+#' @param resolution_grid Optional numeric vector of candidate resolutions to
+#'  test before splitting. For each candidate, hCoCena reports how many
+#'  submodules would be retained after size filtering.
+#' @param resolution_test_only Logical; if `TRUE`, only run the resolution test
+#'  (when `resolution_grid` is set) and do not apply any split.
+#' @param partition_type Leiden partition type (used only for Leiden).
+#' @param seed Random seed used for deterministic clustering.
+#' @param drop_small_submodules Logical; if `TRUE` (default), submodules with
+#'  fewer than `min_submodule_size` genes are dropped from the module
+#'  annotation (their genes become unassigned/white in network visualizations).
+#' @param min_submodule_size Optional minimum size for retained split
+#'  submodules. If `NULL`, uses `global_settings$min_nodes_number_for_cluster`.
+#' @param min_module_size Optional alias for `min_submodule_size`. If set, it
+#'  takes precedence.
+#' @param verbose Logical; print progress messages.
 #' @export
 hc_split_modules <- function(hc,
                              modules,
@@ -1896,12 +2064,13 @@ hc_split_modules <- function(hc,
 
 #' Undo module splitting (S4 API)
 #'
-#' @rdname unsplit_modules
 #' Restores module structure from split history.
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @inheritParams unsplit_modules
 #' @return Updated `HCoCenaExperiment`.
+#' @param which Either `"last"` (undo one split step) or `"all"` (restore the
+#'  original pre-split cluster state).
+#' @param verbose Logical; print progress messages.
 #' @export
 hc_unsplit_modules <- function(hc,
                                which = c("last", "all"),
@@ -2473,11 +2642,11 @@ hc_plot_enrichment_panels <- function(hc,
 
 #' Functional enrichment (S4 API)
 #'
-#' @inheritParams functional_enrichment
 #' @param hc A `HCoCenaExperiment`.
 #' @param ... Additional plotting arguments forwarded to the legacy
-#'   `functional_enrichment()` implementation.
+#'   `.hc_functional_enrichment_driver()` implementation.
 #' @return Updated `HCoCenaExperiment`.
+#' @rdname hc_functional_enrichment
 # Internal implementation shared by S4 and legacy entry points.
 .hc_functional_enrichment_impl <- function(hc, ...) {
   out <- .hc_run_driver_capture(
@@ -2488,6 +2657,78 @@ hc_plot_enrichment_panels <- function(hc,
   list(hc = out$hc, result = out$result)
 }
 #
+#' @rdname hc_functional_enrichment
+#' @param gene_sets A vector. The names of databases enrichment should be performed for. Choose one or multiple of "Go", "Kegg", "Hallmark", and/or "Reactome".
+#'  Available databases depend on supplement files previously set
+#'  Default is "Hallmark".
+#' @param custom_gmt_files Optional custom GMT file(s) to include directly in
+#'  enrichment. Accepts a character vector or named list of file paths.
+#'  Unnamed entries are auto-labeled (`CustomEnrichment1`, ...). Paths can be
+#'  absolute/relative or file names inside `dir_reference_files`.
+#' @param top Integer. The number of most strongly enriched terms to return per cluster. Default is 5.
+#' @param clusters Either "all" (default) or a vector of clusters as strings. Defines for which clusters to perform the enrichment.
+#' @param padj Method to use for multiple testing correction. Can be one of "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none".  Default is "BH" (Benjamini-Hochberg).
+#'  The reported `qvalue` column holds the p-values adjusted with this method,
+#'  and `qval` is applied to it. (Up to and including 0.99.7 the `qvalue` column
+#'  carried `clusterProfiler`'s Storey q-value, which is computed independently
+#'  of `padj`, so this argument did not affect which terms were called
+#'  significant. Result tables from earlier versions can therefore differ.)
+#' @param qval Upper threshold for the adjusted p-value. Default is 0.05.
+#' @param consistent_terms Logical. If `TRUE` (default), use the union of the
+#'  top `top` enriched terms across the selected modules for each database and
+#'  also show those terms in other modules whenever they are significantly
+#'  enriched there. If `FALSE`, show the top enriched terms per module
+#'  separately.
+#' @param heatmap_side Position of the hCoCena heatmap in the combined output.
+#'  Choose one of "left" (default) or "right".
+#' @param heatmap_cluster_rows A Boolean whether or not to cluster rows in the hCoCena heatmap.
+#' @param cluster_columns A Boolean whether or not to cluster columns in the hCoCena heatmap.
+#' @param heatmap_cluster_columns Legacy alias for `cluster_columns`.
+#' @param heatmap_show_row_dend A Boolean whether to show the row dendrogram when `heatmap_cluster_rows = TRUE`.
+#' @param heatmap_show_column_dend A Boolean whether to show the column dendrogram when `cluster_columns = TRUE`.
+#' @param col_order Optional character vector overriding the hCoCena
+#'   heatmap column order for this enrichment plot only. If `NULL` (default),
+#'   the column order from the main module heatmap is reused when available.
+#' @param heatmap_col_order Legacy alias for `col_order`.
+#' @param heatmap_order Optional character vector specifying module order in the hCoCena heatmap.
+#'  Entries can be module colors (e.g. "turquoise") or module labels from the main heatmap
+#'  (e.g. "M1", "M2", ...). Modules not listed are appended afterwards.
+#' @param heatmap_module_label_mode Controls labels inside module color boxes of the hCoCena heatmap.
+#'  One of "same" or "none". "same" reuses the prefix from
+#'  `hc_plot_cluster_heatmap()`
+#'  and reindexes modules consecutively (M1, M2, ...) after final module ordering.
+#' @param heatmap_show_gene_counts A Boolean whether or not to show gene counts per module
+#'  in the right annotation of the hCoCena heatmap. Default is FALSE.
+#' @param heatmap_column_label_fontsize Optional numeric font size for hCoCena
+#'  heatmap column labels in enrichment plots. If NULL (default), uses automatic sizing.
+#' @param heatmap_module_label_fontsize Optional numeric font size for module labels
+#'  inside module color boxes (`M1`, `M2`, ...). If NULL (default), uses automatic sizing.
+#' @param legend_fontsize Optional numeric base font size for enrichment-related legends
+#'  (GFC legend and enrichment significance legend). If NULL (default), uses automatic sizing.
+#' @param enrichment_label_fontsize Optional numeric font size for enrichment term labels.
+#'  If NULL (default), uses automatic sizing.
+#' @param enrichment_db_header_fontsize Optional numeric font size for database
+#'  headers in combined all-DB enrichment plots (e.g. "Go", "Kegg", "Hallmark").
+#'  If NULL (default), uses automatic sizing.
+#' @param enrichment_label_wrap Logical. If TRUE, wraps enrichment term labels using
+#'  `enrichment_label_wrap_width`. Default is FALSE.
+#' @param enrichment_label_wrap_width Integer wrap width used when
+#'  `enrichment_label_wrap = TRUE`. Default is 30.
+#' @param gfc_scale_limits Optional numeric vector controlling the module-heatmap
+#'  color scale limits used in enrichment plots. Provide one positive number
+#'  (`x` -> `c(-x, x)`) or two numbers (`c(min, max)`). If NULL, uses stored
+#'  limits from the latest main module heatmap when available, otherwise
+#'  falls back to `c(-range_GFC, range_GFC)`.
+#' @param pdf_width Optional numeric width (inches) for enrichment PDFs.
+#'  If NULL (default), width is auto-estimated from content.
+#' @param pdf_height Optional numeric height (inches) for enrichment PDFs.
+#'  If NULL (default), height is auto-estimated from content.
+#' @param pdf_pointsize Numeric base pointsize used for PDF devices.
+#'  Default is 11.
+#' @param store_panel_objects One of `"auto"` (default), `"always"`, or `"never"`.
+#'  Controls whether heavy heatmap/panel objects are stored inside `hc` for later
+#'  redraw with `hc_plot_enrichment_panels()`. `"auto"` stores them only for a
+#'  single selected database; multi-database runs keep only tables to save memory.
 #' @export
 hc_functional_enrichment <- function(hc,
                                      gene_sets = c("Go", "Kegg", "Hallmark", "Reactome"),
@@ -2559,9 +2800,11 @@ hc_functional_enrichment <- function(hc,
 
 #' Upstream regulator/pathway inference (S4 API)
 #'
-#' @inheritParams upstream_inference
 #' @param hc A `HCoCenaExperiment`.
+#' @param ... Arguments forwarded to `.hc_upstream_inference_driver()`; see the
+#'   parameters of [hc_upstream_inference()].
 #' @return Updated `HCoCenaExperiment`.
+#' @rdname hc_upstream_inference
 # Internal implementation shared by S4 and legacy entry points.
 .hc_upstream_inference_impl <- function(hc, ...) {
   out <- .hc_run_driver_capture(
@@ -2572,6 +2815,74 @@ hc_functional_enrichment <- function(hc,
   list(hc = out$hc, result = out$result)
 }
 #
+#' @rdname hc_upstream_inference
+#' @param resources Character vector of upstream resources to use.
+#'   Allowed values are `"TF"` and `"Pathway"`. Default is both.
+#' @param top Integer. Number of top significant regulators/pathways to keep
+#'   per module and resource in the selected summary. Default is 5.
+#' @param clusters Either `"all"` (default) or a character vector of module
+#'   colors to process.
+#' @param padj Multiple-testing correction method passed to
+#'   [stats::p.adjust()]. Default is `"BH"`.
+#' @param qval Adjusted p-value threshold for significance. Default is 0.05.
+#' @param tf_confidence Character vector of DoRothEA confidence levels to keep.
+#'   Default is `c("A", "B", "C")`.
+#' @param minsize Minimum number of targets required per source in
+#'   `decoupleR::run_ulm()`. Default is 5.
+#' @param method Inference method name used via `decoupleR::run_<method>`.
+#'   Currently only `"ulm"` is supported. Default is `"ulm"`.
+#' @param activity_input Character scalar selecting the matrix used for
+#'   decoupleR activity inference:
+#'   `"gfc"` (default) uses `integrated_output$GFC_all_layers`,
+#'   `"fc"` uses user-defined pairwise fold-changes from `fc_comparisons`,
+#'   `"expression"` uses layer-wise mean expression values (anti-log transformed
+#'   when `data_in_log = TRUE`) across samples.
+#' @param fc_comparisons Character vector of pairwise comparisons used only when
+#'   `activity_input = "fc"`. Each entry must be formatted as
+#'   `"groupA_vs_groupB"` (numerator vs denominator), e.g.
+#'   `c("IFNg_seq_vs_baseline_seq", "IL4_seq_vs_baseline_seq")`.
+#' @param custom_pathway_gmt Optional custom pathway GMT file(s) added to the
+#'   pathway inference resource. Accepts a character vector or named list of
+#'   file paths. Paths can be absolute/relative or file names inside
+#'   `dir_reference_files`.
+#' @param heatmap_side Position of the hCoCena heatmap in the combined output.
+#'   Choose one of `"left"` (default) or `"right"`.
+#' @param cluster_columns Logical. If `FALSE` (default), reuse the
+#'   column order from the main hCoCena heatmap when available. If `TRUE`,
+#'   cluster the columns for this upstream plot instead.
+#' @param heatmap_cluster_columns Legacy alias for `cluster_columns`.
+#' @param col_order Optional character vector overriding the hCoCena
+#'   heatmap column order for this upstream plot only. If `NULL` (default),
+#'   the column order from the main module heatmap is reused when available.
+#' @param heatmap_col_order Legacy alias for `col_order`.
+#' @param gfc_scale_limits Optional numeric vector controlling the module-heatmap
+#'   color scale limits used in upstream combined heatmaps (left/right hCoCena
+#'   panel). Provide one positive number (`x` -> `c(-x, x)`) or two numbers
+#'   (`c(min, max)`). If NULL, uses stored limits from the main heatmap when
+#'   available, otherwise falls back to `c(-range_GFC, range_GFC)`.
+#' @param plot Logical; if `TRUE` (default), draw plot outputs in the active
+#'   graphics device.
+#' @param save_pdf Logical; if `TRUE` (default), export plots to
+#'   `Upstream_Inference.pdf`.
+#' @param pdf_width Optional numeric width (inches) for `Upstream_Inference.pdf`.
+#'   If NULL (default), width is auto-estimated from content.
+#' @param pdf_height Optional numeric height (inches) for `Upstream_Inference.pdf`.
+#'   If NULL (default), height is auto-estimated from content.
+#' @param pdf_pointsize Numeric base pointsize used for the upstream PDF device.
+#'   Default is 11.
+#' @param plot_per_comparison Logical; if `TRUE`, additionally create one
+#'   combined upstream heatmap page per activity column (GFC condition or FC
+#'   comparison), each with the matching one-column module heatmap.
+#' @param consistent_terms Logical; controls term comparability when
+#'   `plot_per_comparison = TRUE`.
+#'   If `TRUE`, per-comparison pages still show only values from the currently
+#'   shown condition, but use a global (all-condition) term axis for
+#'   comparability; `*` marks significance for the currently shown condition.
+#'   If `FALSE`, each page uses only local selected activities from
+#'   the shown condition and no significance marker is drawn.
+#' @param overall_plot_scale Numeric scaling factor for plot typography and
+#'   marker sizes. Default is 1.
+#'
 #' @export
 hc_upstream_inference <- function(hc,
                                   resources = c("TF", "Pathway"),
@@ -2631,9 +2942,11 @@ hc_upstream_inference <- function(hc,
 
 #' Module cell-type annotation from Enrichr (S4 API)
 #'
-#' @inheritParams celltype_annotation
 #' @param hc A `HCoCenaExperiment`.
+#' @param ... Arguments forwarded to `.hc_celltype_annotation_driver()`; see the
+#'   parameters of [hc_celltype_annotation()].
 #' @return Updated `HCoCenaExperiment`.
+#' @rdname hc_celltype_annotation
 # Internal implementation shared by S4 and legacy entry points.
 .hc_celltype_annotation_impl <- function(hc, ...) {
   out <- .hc_run_driver_capture(
@@ -2644,6 +2957,42 @@ hc_upstream_inference <- function(hc,
   list(hc = out$hc, result = out$result)
 }
 #
+#' @rdname hc_celltype_annotation
+#' @param databases Character vector of Enrichr library names.
+#' @param custom_gmt_files Optional custom GMT file(s) to include in the
+#'   cell-type annotation. Accepts a character vector or named list of file
+#'   paths. Paths can be absolute/relative or file names inside
+#'   `dir_reference_files`.
+#' @param clusters Either `"all"` (default) or a character vector of module
+#'   IDs/colors.
+#' @param mode Either `"coarse"` (broad classes) or `"fine"` (specific terms).
+#' @param top Number of selected categories per module.
+#' @param qval Maximum adjusted p-value (`qvalue`) for significant terms.
+#' @param padj Multiple-testing correction method for [clusterProfiler::enricher()].
+#' @param min_term_genes Minimum number of genes required per Enrichr term.
+#' @param min_gs_size Minimum gene-set size used in [clusterProfiler::enricher()]
+#'   (`minGSSize`).
+#' @param max_gs_size Maximum gene-set size used in [clusterProfiler::enricher()]
+#'   (`maxGSSize`).
+#' @param annotation_slot Backward-compatibility option when only one database
+#'   is used. With multiple databases, one slot per DB is always written
+#'   (`enriched_per_cluster_<db>`), and previous DB slots are reset on each run.
+#' @param slot_suffix Optional character suffix appended to generated annotation
+#'   slots (for example `"decoupler"` -> `enriched_per_cluster_<db>_decoupler`).
+#'   Useful to keep multiple annotation runs side by side.
+#' @param clear_previous_slots Logical. If `TRUE` (default), previous
+#'   `enriched_per_cluster*` slots are removed before writing new results.
+#'   Set to `FALSE` to keep existing slots.
+#' @param coarse_map Optional named character vector with regex rules for
+#'   `mode = "coarse"`. Names are output class labels.
+#' @param coarse_include_other Logical. Keep unmatched terms as `"Other"` in
+#'   `mode = "coarse"`.
+#' @param refresh_db Logical. If `TRUE`, re-download Enrichr metadata/libraries.
+#' @param export_excel Logical. If `TRUE`, write summary tables to Excel.
+#' @param excel_file Excel file name in the configured output folder.
+#' @param plot_heatmap Logical. If `TRUE`, run [hc_plot_cluster_heatmap()] after
+#'   updating annotation slots.
+#' @param heatmap_file_name File name used when `plot_heatmap = TRUE`.
 #' @export
 hc_celltype_annotation <- function(hc,
                                    databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
@@ -2695,9 +3044,11 @@ hc_celltype_annotation <- function(hc,
 
 #' Module cell-type activity from Enrichr markers via decoupleR (S4 API)
 #'
-#' @inheritParams celltype_activity_decoupler
 #' @param hc A `HCoCenaExperiment`.
+#' @param ... Arguments forwarded to `.hc_celltype_activity_decoupler_driver()`; see the
+#'   parameters of [hc_celltype_activity_decoupler()].
 #' @return Updated `HCoCenaExperiment`.
+#' @rdname hc_celltype_activity_decoupler
 # Internal implementation shared by S4 and legacy entry points.
 .hc_celltype_activity_decoupler_impl <- function(hc, ...) {
   out <- .hc_run_driver_capture(
@@ -2708,6 +3059,30 @@ hc_celltype_annotation <- function(hc,
   list(hc = out$hc, result = out$result)
 }
 #
+#' @rdname hc_celltype_activity_decoupler
+#' @param databases Character vector of Enrichr library names.
+#' @param custom_gmt_files Optional custom GMT file(s) to include as additional
+#' marker resources. Accepts a character vector or named list of file paths.
+#' @param clusters Either `"all"` (default) or a character vector of module IDs/colors.
+#' @param mode Either `"coarse"` (default) or `"fine"`.
+#' @param top Number of selected marker activities per module.
+#' @param qval Adjusted p-value cutoff.
+#' @param padj Multiple-testing correction method.
+#' @param activity_input One of `"gfc"` (default), `"fc"`, `"expression"`.
+#' @param fc_comparisons Vector like `c("A_vs_B", "C_vs_B")` when `activity_input = "fc"`.
+#' @param method decoupleR method suffix (e.g. `"ulm"`).
+#' @param minsize Minimum target size passed to decoupleR.
+#' @param min_term_genes Minimum genes per Enrichr term.
+#' @param annotation_slot Legacy slot override for single-database runs.
+#' @param slot_suffix Optional slot suffix; default `"decoupler"`.
+#' @param clear_previous_slots If TRUE, clears old `enriched_per_cluster*` slots first.
+#' @param coarse_map Optional named regex map used in coarse mode.
+#' @param coarse_include_other Keep `"Other"` class in coarse mode.
+#' @param refresh_db Refresh Enrichr cache.
+#' @param export_excel Write summary workbook.
+#' @param excel_file Excel filename.
+#' @param plot_heatmap Replot cluster heatmap with dynamic slots.
+#' @param heatmap_file_name Heatmap filename when `plot_heatmap = TRUE`.
 #' @export
 hc_celltype_activity_decoupler <- function(hc,
                                            databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
@@ -2763,9 +3138,11 @@ hc_celltype_activity_decoupler <- function(hc,
 
 #' Plot module knowledge network from enrichment + upstream inference (S4 API)
 #'
-#' @inheritParams plot_enrichment_upstream_network
 #' @param hc A `HCoCenaExperiment`.
+#' @param ... Arguments forwarded to `.hc_plot_enrichment_upstream_network_driver()`; see the
+#'   parameters of [hc_plot_enrichment_upstream_network()].
 #' @return Updated `HCoCenaExperiment`.
+#' @rdname hc_plot_enrichment_upstream_network
 # Internal implementation shared by S4 and legacy entry points.
 .hc_plot_enrichment_upstream_network_impl <- function(hc, ...) {
   out <- .hc_run_driver_capture(
@@ -2776,6 +3153,45 @@ hc_celltype_activity_decoupler <- function(hc,
   list(hc = out$hc, result = out$result)
 }
 #
+#' @rdname hc_plot_enrichment_upstream_network
+#' @param enrichment_mode Character scalar. One of `"selected"` (default) or
+#'   `"significant"`.
+#' @param upstream_mode Character scalar. One of `"selected"` (default) or
+#'   `"significant"`.
+#' @param clusters Either `"all"` (default) or a character vector of module
+#'   colors to include.
+#' @param max_enrichment_per_module Optional positive integer. If set, keeps at
+#'   most this many enrichment edges per module (best q-values first).
+#' @param max_upstream_per_module Optional positive integer. If set, keeps at
+#'   most this many upstream edges per module (best q-values first).
+#' @param label_mode Character scalar controlling term label density:
+#'   `"both"` (default), `"upstream_only"`, or `"focus_only"`.
+#' @param show_plot Logical; if `TRUE` (default), prints the combined overview
+#'   (heatmap + network) in the active graphics device.
+#' @param save_pdf Logical; if `TRUE` (default), writes a multi-page PDF to the
+#'   current hCoCena save folder (overview + per-module focus pages).
+#' @param pdf_name Output PDF filename.
+#' @param gfc_scale_limits Optional numeric vector controlling the left module
+#'   heatmap color scale limits. Provide one positive number (`x` -> `c(-x, x)`)
+#'   or two numbers (`c(min, max)`). If NULL, uses upstream inference settings
+#'   first (if available), then main heatmap settings, then `c(-range_GFC, range_GFC)`.
+#' @param col_order Optional character vector overriding the hCoCena
+#'   heatmap column order for this knowledge-network plot only. If `NULL`
+#'   (default), the column order from the main module heatmap is reused when
+#'   available.
+#' @param heatmap_col_order Legacy alias for `col_order`.
+#' @param cluster_columns Logical. If `FALSE` (default), reuse the
+#'   column order from the main hCoCena heatmap when available. If `TRUE`,
+#'   cluster the columns for this knowledge-network plot instead.
+#' @param heatmap_cluster_columns Legacy alias for `cluster_columns`.
+#' @param pdf_width Optional numeric width (inches) for network PDFs.
+#'   If NULL (default), width is auto-estimated from content.
+#' @param pdf_height Optional numeric height (inches) for network PDFs.
+#'   If NULL (default), height is auto-estimated from content.
+#' @param pdf_pointsize Numeric base pointsize used for PDF export devices.
+#'   Default is 11.
+#' @param overall_plot_scale Numeric scaling factor for text and line sizes.
+#'
 #' @export
 hc_plot_enrichment_upstream_network <- function(hc,
                                                 enrichment_mode = "selected",
@@ -2849,7 +3265,9 @@ hc_plot_enrichment_upstream_network <- function(hc,
   hc
 }
 #
-#' @rdname check_dirs
+#' Fixes Directories
+#'
+#' Iteratively calls fix_dir() on the provided working directory paths to fix them if necessary or throw an error if they are invalid.
 #' @param hc A `HCoCenaExperiment`.
 #' @param create_output_dir Boolean. If TRUE and `dir_output` is missing, create it.
 #' @return Updated `HCoCenaExperiment`.
@@ -2875,7 +3293,7 @@ hc_check_dirs <- function(hc, create_output_dir = TRUE) {
   paths <- .hc_row_to_list(hc@config@paths)
   out_dir <- paths[["dir_output"]]
   if (base::is.null(out_dir) || base::identical(out_dir, FALSE) || !base::nzchar(base::as.character(out_dir))) {
-    stop("`dir_output` is not set. Please run `init_wd()`/`hc_set_paths()` first.")
+    stop("`dir_output` is not set. Please run `hc_set_paths()` first.")
   }
 
   if (!base::dir.exists(out_dir)) {
@@ -2903,7 +3321,9 @@ hc_check_dirs <- function(hc, create_output_dir = TRUE) {
   hc
 }
 #
-#' @rdname init_save_folder
+#' Creates a Save Folder
+#'
+#' A folder with the given name is created in the output directory. All analysis outputs will be saved to this folder.
 #' @param hc A `HCoCenaExperiment`.
 #' @param name Folder name. Use `""` to write directly into `dir_output`.
 #' @param use_output_dir Boolean. If TRUE, ignore `name` and use `dir_output` directly.
@@ -2915,7 +3335,7 @@ hc_init_save_folder <- function(hc, name, use_output_dir = FALSE) {
 
 #' Plot cut-off diagnostics (S4 API)
 #'
-#' @rdname plot_cutoffs
+#' @noRd
 #' @param hc A `HCoCenaExperiment`.
 #' @param ... Additional arguments for cut-off plotting.
 #' @template example-hc-after-part1
@@ -2932,19 +3352,33 @@ hc_init_save_folder <- function(hc, name, use_output_dir = FALSE) {
   list(hc = out$hc, result = out$result)
 }
 #
+#' plot cutoffs
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param interactive Logical. If `TRUE` (default), render the cutoff
+#'   statistics as an interactive plotly widget; if `FALSE`, as a static plot.
+#' @param hline Named list of horizontal reference lines to draw, with the
+#'   entries `R.squared`, `no_edges`, `no_nodes` and `no_networks`. `NULL`
+#'   entries (the default) draw no line for that panel.
 #' @export
-hc_plot_cutoffs <- function(hc, ...) {
-  .hc_plot_cutoffs_impl(hc = hc, ...)[["hc"]]
+hc_plot_cutoffs <- function(hc,
+                            interactive = TRUE,
+                            hline = list(
+                              R.squared = NULL, no_edges = NULL,
+                              no_nodes = NULL, no_networks = NULL
+                            )) {
+  .hc_plot_cutoffs_impl(hc = hc, interactive = interactive, hline = hline)[["hc"]]
 }
 
 #' Plot degree distributions (S4 API)
 #'
-#' @rdname plot_deg_dist
+#' @noRd
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-after-part1
 #' @examples
 #' hc <- hc_plot_deg_dist(hc)
 #' @return Updated `HCoCenaExperiment`.
+#' @rdname hc_plot_deg_dist
 # Internal implementation shared by S4 and legacy entry points.
 .hc_plot_deg_dist_impl <- function(hc) {
   out <- .hc_run_driver_capture(
@@ -2954,6 +3388,14 @@ hc_plot_cutoffs <- function(hc, ...) {
   list(hc = out$hc, result = out$result)
 }
 #
+#' Plot degree distributions (S4 API)
+#'
+#' Plots the logged degree distribution and its linear fit for each layer
+#' at the chosen correlation cutoff, to check how well the network follows
+#' a scale-free topology.
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @return Updated `HCoCenaExperiment`.
 #' @export
 hc_plot_deg_dist <- function(hc) {
   .hc_plot_deg_dist_impl(hc = hc)[["hc"]]
@@ -3000,13 +3442,14 @@ hc_plot_cluster_heatmap <- function(hc, file_name = "Heatmap_modules.pdf", ...) 
   )
 }
 
+#' change grouping parameter
+#'
 #' Recalculate grouped GFCs and replot module heatmap (S4 API)
 #'
 #' Uses the existing module definitions from the current object and only
 #' recalculates grouped GFCs for a different grouping variable. No integrated
 #' network rebuild and no module re-clustering is performed.
 #'
-#' @rdname change_grouping_parameter
 #' @param hc A `HCoCenaExperiment`.
 #' @param group_by Grouping column to use (must be present in all annotation tables).
 #' @param col_order Optional heatmap column order.
@@ -3038,21 +3481,37 @@ hc_change_grouping_parameter <- function(hc,
 
 #' Plot integrated network (S4 API)
 #'
-#' @rdname plot_integrated_network
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional plotting arguments for the integrated network view.
+#' @param layout Optional pre-computed layout matrix. If `NULL` (default), the
+#'   stored layout is reused or a new one is computed.
+#' @param layout_algorithm Optional igraph layout function name, e.g.
+#'   `"layout_with_fr"`. Overrides the layout set in the global settings.
+#' @param gene_labels Optional character vector of genes to label in the plot.
+#' @param save Logical. Write the network to PDF. Default is `TRUE`.
+#' @param store_plot Logical. Keep the plot object in `hc`. Default is `FALSE`.
+#' @param label_offset Distance between a node and its label. Default is 50.
 #' @template example-hc-clustered
 #' @examples
 #' hc <- hc_plot_integrated_network(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_plot_integrated_network <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_plot_integrated_network_driver, ...)
+hc_plot_integrated_network <- function(hc, layout = NULL,
+                                       layout_algorithm = NULL,
+                                       gene_labels = NULL, save = TRUE,
+                                       store_plot = FALSE,
+                                       label_offset = 50) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_plot_integrated_network_driver,
+    layout = layout, layout_algorithm = layout_algorithm,
+    gene_labels = gene_labels, save = save, store_plot = store_plot,
+    label_offset = label_offset
+  )
 }
 
+#' plot gfc network
+#'
 #' Plot network colored by GFC (S4 API)
 #'
-#' @rdname plot_GFC_network
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-clustered
 #' @examples
@@ -3066,21 +3525,36 @@ hc_plot_gfc_network <- function(hc) {
 #' TF enrichment per module (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for module-level TF enrichment.
+#' @param clusters Either "all" (default) or a vector of module colours/labels
+#'   for which the TF enrichment should be performed.
+#' @param topTF Integer. Number of top ranking transcription factors to return
+#'   per module. Default is 5.
+#' @param topTarget Integer. Number of top ranking targets to return per
+#'   transcription factor. Default is 5.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_tf_overrep_module <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_TF_overrep_module_driver, ...)
+hc_tf_overrep_module <- function(hc, clusters = "all", topTF = 5,
+                                 topTarget = 5) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_TF_overrep_module_driver,
+    clusters = clusters, topTF = topTF, topTarget = topTarget
+  )
 }
 
 #' TF enrichment network-wide (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for network-level TF enrichment.
+#' @param topTF Integer. Number of transcription factors with the highest
+#'   number of enriched targets network-wide. Default is 100.
+#' @param topTarget Integer. Number of top enriched targets to return per
+#'   transcription factor. Default is 30.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_tf_overrep_network <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_TF_overrep_network_driver, ...)
+hc_tf_overrep_network <- function(hc, topTF = 100, topTarget = 30) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_TF_overrep_network_driver,
+    topTF = topTF, topTarget = topTarget
+  )
 }
 
 #' Check TF targets (S4 API)
@@ -3093,9 +3567,10 @@ hc_check_tf <- function(hc, TF) {
   .hc_run_driver(hc = hc, fun = .hc_check_tf_driver, TF = TF)
 }
 
+#' write session info
+#'
 #' Write session info (S4 API)
 #'
-#' @rdname write_session_info
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-prepared
 #' @examples
@@ -3106,9 +3581,10 @@ hc_write_session_info <- function(hc) {
   .hc_run_driver(hc = hc, fun = .hc_write_session_info_driver)
 }
 
+#' suggest topvar
+#'
 #' Suggest top variable genes (S4 API)
 #'
-#' @rdname suggest_topvar
 #' @param hc A `HCoCenaExperiment`.
 #' @details `hc_suggest_topvar()` operates on the counts stored in `hc`, i.e.
 #'   after `hc_read_data()` preprocessing. Because `hc_read_data()` removes
@@ -3125,51 +3601,87 @@ hc_suggest_topvar <- function(hc) {
   .hc_run_driver(hc = hc, fun = .hc_suggest_topvar_driver)
 }
 
+#' plot sample distributions
+#'
 #' Plot sample distributions (S4 API)
 #'
-#' @rdname plot_sample_distributions
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for sample-distribution plotting.
+#' @param plot_type Either "boxplot" (default) or "freqdist" for a
+#'   distribution-focused view.
+#' @param log_2 Logical. Log2-transform the values before plotting.
+#'   Default is `TRUE`.
+#' @param plot Logical. Draw the plot. Default is `TRUE`.
 #' @template example-hc-prepared
 #' @examples
 #' hc <- hc_plot_sample_distributions(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_plot_sample_distributions <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_plot_sample_distributions_driver, ...)
+hc_plot_sample_distributions <- function(hc, plot_type = "boxplot",
+                                         log_2 = TRUE, plot = TRUE) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_plot_sample_distributions_driver,
+    plot_type = plot_type, log_2 = log_2, plot = plot
+  )
 }
 
+#' pca
+#'
 #' PCA plotting (S4 API)
 #'
-#' @rdname PCA
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional PCA plotting arguments.
+#' @param which Which gene set to run the PCA on: "all" (default, all genes),
+#'   "topvar" (the top-variable genes of each layer) or "network_genes" (only
+#'   genes that ended up in the integrated network).
+#' @param color_by Optional annotation column name used to colour the samples.
+#'   If `NULL` (default), the variable of interest from the global settings is
+#'   used.
+#' @param ellipses Logical. Whether to draw group confidence ellipses.
+#'   Default is `FALSE`.
+#' @param cols Optional named vector of colours for the groups. If `NULL`
+#'   (default), a built-in palette is used.
 #' @template example-hc-prepared
 #' @examples
 #' hc <- hc_pca(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_pca <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_PCA_driver, ...)
+hc_pca <- function(hc, which = "all", color_by = NULL, ellipses = FALSE,
+                   cols = NULL) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_PCA_driver,
+    which = which, color_by = color_by, ellipses = ellipses, cols = cols
+  )
 }
 
+#' meta plot
+#'
 #' Meta-data plotting (S4 API)
 #'
-#' @rdname meta_plot
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional metadata plotting arguments.
+#' @param set An integer. Number of the dataset/layer to inspect.
+#' @param group_col Annotation column used to group the samples, e.g. the
+#'   timepoint or condition.
+#' @param meta_col Annotation column whose distribution is plotted.
+#' @param type Either "cat" (default) for categorical `meta_col` or "num" for
+#'   continuous ones.
+#' @param cols Optional named vector of colours for the groups.
 #' @template example-hc-prepared
 #' @examples
-#' hc <- hc_meta_plot(hc)
+#' hc <- hc_meta_plot(hc, set = 1)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_meta_plot <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_meta_plot_driver, ...)
+hc_meta_plot <- function(hc, set, group_col = NULL, meta_col = NULL,
+                         type = "cat", cols = NULL) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_meta_plot_driver,
+    set = set, group_col = group_col, meta_col = meta_col,
+    type = type, cols = cols
+  )
 }
 
+#' export clusters
+#'
 #' Export clusters (S4 API)
 #'
-#' @rdname export_clusters
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-clustered
 #' @examples
@@ -3180,23 +3692,26 @@ hc_export_clusters <- function(hc) {
   .hc_run_driver(hc = hc, fun = .hc_export_clusters_driver)
 }
 
+#' get module scores
+#'
 #' Module scores (S4 API)
 #'
-#' @rdname get_module_scores
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for module-score calculation.
+#' @param save Logical. Write the module-score box plot to PDF.
+#'   Default is `TRUE`.
 #' @template example-hc-clustered
 #' @examples
 #' hc <- hc_get_module_scores(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_get_module_scores <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_get_module_scores_driver, ...)
+hc_get_module_scores <- function(hc, save = TRUE) {
+  .hc_run_driver(hc = hc, fun = .hc_get_module_scores_driver, save = save)
 }
 
+#' algo alluvial
+#'
 #' Alluvial comparison plots (S4 API)
 #'
-#' @rdname algo_alluvial
 #' @param hc A `HCoCenaExperiment`.
 #' @template example-hc-clustered
 #' @examples
@@ -3207,62 +3722,102 @@ hc_algo_alluvial <- function(hc) {
   .hc_run_driver(hc = hc, fun = .hc_algo_alluvial_driver)
 }
 
+#' pca algo compare
+#'
 #' PCA algorithm comparison (S4 API)
 #'
-#' @rdname PCA_algo_compare
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional PCA-comparison arguments.
+#' @param gtc Optional gene-to-cluster table to compare against. If `NULL`
+#'   (default), the current module assignment is used.
+#' @param algo Optional name of the clustering algorithm the `gtc` came from,
+#'   used for the plot title.
+#' @param cols Optional named vector of colours for the sample groups.
 #' @template example-hc-prepared
 #' @examples
 #' hc <- hc_pca_algo_compare(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_pca_algo_compare <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_PCA_algo_compare_driver, ...)
+hc_pca_algo_compare <- function(hc, gtc = NULL, algo = NULL, cols = NULL) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_PCA_algo_compare_driver,
+    gtc = gtc, algo = algo, cols = cols
+  )
 }
 
+#' update clustering algorithm
+#'
 #' Update clustering algorithm (S4 API)
 #'
-#' @rdname update_clustering_algorithm
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional clustering-update arguments.
+#' @param new_algo Name of the clustering algorithm to switch to, e.g.
+#'   `"cluster_louvain"`. Mutually exclusive with `gtc`.
+#' @param gtc Optional externally supplied gene-to-cluster table to adopt
+#'   instead of re-running an algorithm.
 #' @template example-hc-clustered
 #' @examples
-#' hc <- hc_update_clustering_algorithm(hc, cluster_algo = "cluster_louvain")
+#' hc <- hc_update_clustering_algorithm(hc, new_algo = "cluster_louvain")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_update_clustering_algorithm <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_update_clustering_algorithm_driver, ...)
+hc_update_clustering_algorithm <- function(hc, new_algo = NULL, gtc = NULL) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_update_clustering_algorithm_driver,
+    new_algo = new_algo, gtc = gtc
+  )
 }
 
 #' Export network to local folder (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional export arguments for local folder output.
+#' @param file Target folder for the exported network files. If omitted, the
+#'   current output/save folder configured in `hc` is used.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_export_to_local_folder <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_export_to_local_folder_driver, ...)
+hc_export_to_local_folder <- function(hc, file) {
+  # `file`'s default in the driver is built from the live `hcobject`, which only
+  # exists inside the driver's frame - so forward it only when supplied instead
+  # of copying the default up here.
+  if (missing(file)) {
+    .hc_run_driver(hc = hc, fun = .hc_export_to_local_folder_driver)
+  } else {
+    .hc_run_driver(hc = hc, fun = .hc_export_to_local_folder_driver, file = file)
+  }
 }
 
 #' Import Cytoscape layout from local folder (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for local layout import.
+#' @param file Path to the `network_layout.csv` exported from Cytoscape. If
+#'   omitted, the current output/save folder is used.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_import_layout_from_local_folder <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_import_layout_from_local_folder_driver, ...)
+hc_import_layout_from_local_folder <- function(hc, file) {
+  # the driver's default is built from the live `hcobject`, so only forward
+  # `file` when the caller actually supplied one
+  if (missing(file)) {
+    .hc_run_driver(hc = hc, fun = .hc_import_layout_from_local_folder_driver)
+  } else {
+    .hc_run_driver(
+      hc = hc, fun = .hc_import_layout_from_local_folder_driver, file = file
+    )
+  }
 }
 
 #' Export network to Cytoscape (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for Cytoscape export.
+#' @param name Name under which the network is created in Cytoscape.
+#'   Default is "my igraph".
+#' @param docker_container Logical. Set to `TRUE` when running hCoCena inside a
+#'   Docker container that talks to a Cytoscape instance on the host.
+#'   Default is `FALSE`.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_export_to_cytoscape <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_export_to_cytoscape_driver, ...)
+hc_export_to_cytoscape <- function(hc, name = "my igraph",
+                                   docker_container = FALSE) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_export_to_cytoscape_driver,
+    name = name, docker_container = docker_container
+  )
 }
 
 #' Import layout from Cytoscape (S4 API)
@@ -3276,86 +3831,189 @@ hc_import_layout_from_cytoscape <- function(hc) {
 
 #' Hub detection (S4 API)
 #'
-#' @rdname find_hubs
+#' Determines hub genes per module from a combined ranking of weighted degree,
+#' closeness and betweenness centrality.
+#'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for hub detection.
+#' @param clusters Either "all" (default) or a vector of module colours for
+#'   which hub detection should be performed.
+#' @param top Integer. Number of top-ranked genes per module to report as hubs.
+#'   Default is 10.
+#' @param tree_layout Logical. Draw the per-module hub network with a tree
+#'   layout. Default is `FALSE`.
+#' @param TF_only Either `FALSE` (default, consider all genes), `"all"` (only
+#'   genes from the transcription-factor reference file), or one gene category
+#'   from that file's last column.
+#' @param save Logical. Write the hub network and expression heatmap to PDF.
+#'   Default is `FALSE`.
+#' @param plot Logical. Draw the per-module network. Default is `FALSE`.
 #' @template example-hc-clustered
 #' @examples
 #' hc <- hc_find_hubs(hc)
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_find_hubs <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_find_hubs_driver, ...)
+hc_find_hubs <- function(hc, clusters = c("all"), top = 10,
+                         tree_layout = FALSE, TF_only = FALSE,
+                         save = FALSE, plot = FALSE) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_find_hubs_driver,
+    clusters = clusters, top = top, tree_layout = tree_layout,
+    TF_only = TF_only, save = save, plot = plot
+  )
 }
 
 #' Visualize gene expression (S4 API)
 #'
-#' @rdname visualize_gene_expression
+#' Plots the mean expression per condition for a set of genes as a heatmap.
+#'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for gene-expression visualization.
+#' @param genes Character vector of gene symbols to plot.
+#' @param name Optional name used for the plot title and output file. If `NULL`
+#'   (default), a name is derived automatically.
+#' @param width Plot width in inches. Default is 15.
+#' @param height Plot height in inches. Default is 10.
+#' @param save Logical. Write the heatmap to PDF. Default is `TRUE`.
 #' @template example-hc-prepared
 #' @examples
-#' hc <- hc_visualize_gene_expression(hc, gene = "G1")
+#' hc <- hc_visualize_gene_expression(hc, genes = "G1")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_visualize_gene_expression <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_visualize_gene_expression_driver, ...)
+hc_visualize_gene_expression <- function(hc, genes, name = NULL, width = 15,
+                                         height = 10, save = TRUE) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_visualize_gene_expression_driver,
+    genes = genes, name = name, width = width, height = height, save = save
+  )
 }
 
 #' Highlight gene set in network (S4 API)
 #'
-#' @rdname highlight_geneset
+#' Re-plots the integrated network with a gene set of interest highlighted.
+#'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for gene-set highlighting.
+#' @param gene_set Character vector of gene symbols to highlight.
+#' @param name Optional name used for the plot title and output file.
+#' @param col Colour used for the highlighted genes. Default is `"black"`.
+#' @param label_offset Distance between a node and its label. Default is 3.
+#' @param plot Logical. Draw the network. Default is `TRUE`.
+#' @param save Logical. Write the network to PDF. Default is `TRUE`.
 #' @template example-hc-clustered
 #' @examples
-#' hc <- hc_highlight_geneset(hc, geneset = c("G1", "G2"))
+#' hc <- hc_highlight_geneset(hc, gene_set = c("G1", "G2"))
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_highlight_geneset <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_highlight_geneset_driver, ...)
+hc_highlight_geneset <- function(hc, gene_set, name = NULL, col = "black",
+                                 label_offset = 3, plot = TRUE, save = TRUE) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_highlight_geneset_driver,
+    gene_set = gene_set, name = name, col = col,
+    label_offset = label_offset, plot = plot, save = save
+  )
 }
 
 #' Highlight single cluster in network (S4 API)
 #'
-#' @rdname colour_single_cluster
+#' Re-plots the integrated network with one module emphasised by colour and
+#' node size.
+#'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for single-cluster highlighting.
+#' @param cluster The module to highlight, given as its colour or module label.
 #' @template example-hc-clustered
 #' @examples
-#' hc <- hc_colour_single_cluster(hc, selected_cluster = 1)
+#' hc <- hc_colour_single_cluster(hc, cluster = "gold")
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_colour_single_cluster <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_colour_single_cluster_driver, ...)
+hc_colour_single_cluster <- function(hc, cluster) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_colour_single_cluster_driver, cluster = cluster
+  )
 }
 
 #' Add categorical module heatmap annotations (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for categorical module annotations.
+#' @param variables Character vector of categorical annotation column names to
+#'   add as heatmap column annotations.
+#' @param variable_label Optional display label(s) for `variables`. If `NULL`
+#'   (default), the column names themselves are used.
+#' @param type Either "abs" (default) for absolute counts or "rel" for
+#'   relative proportions.
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_col_anno_categorical <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_col_anno_categorical_driver, ...)
+hc_col_anno_categorical <- function(hc, variables, variable_label = NULL,
+                                    type = "abs") {
+  .hc_run_driver(
+    hc = hc, fun = .hc_col_anno_categorical_driver,
+    variables = variables, variable_label = variable_label, type = type
+  )
 }
 
 #' Correlate categorical metadata with modules (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for categorical metadata correlation.
+#' @param meta A single string. Name of the categorical annotation column to
+#'   correlate with the module expression patterns.
+#' @param set An integer. Number of the dataset/layer to use.
+#' @param p_val Maximum adjusted p-value for a correlation to count as
+#'   significant. Default is 0.05. Non-significant cells are shown in grey.
+#' @param padj Multiple-testing correction method passed to
+#'   [stats::p.adjust()]. Default is "BH".
 #' @return Updated `HCoCenaExperiment`.
 #' @export
-hc_meta_correlation_cat <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_meta_correlation_cat_driver, ...)
+hc_meta_correlation_cat <- function(hc, meta, set, p_val = 0.05,
+                                    padj = "BH") {
+  .hc_run_driver(
+    hc = hc, fun = .hc_meta_correlation_cat_driver,
+    meta = meta, set = set, p_val = p_val, padj = padj
+  )
 }
 
 #' Test module differences between conditions (S4 API)
 #'
 #' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional arguments for module-condition significance testing.
 #' @return Updated `HCoCenaExperiment`.
+#' @param set Integer vector of layer indices or `"all"` (default).
+#' @param condition_col Column name in annotation files defining conditions.
+#'   If `NULL`, uses `hcobject[["global_settings"]][["voi"]]`.
+#' @param donor_col Optional donor identifier column in annotation files.
+#'   Required if `run_lmm = TRUE`.
+#' @param time_col Optional time column in annotation files (used by LMM when
+#'   available and `lmm_include_time = TRUE`).
+#' @param run_wilcox Logical; run Wilcoxon/Kruskal module-wise test.
+#' @param run_limma Logical; run limma pairwise contrasts.
+#' @param run_lmm Logical; run linear mixed model (`nlme::lme`) per module.
+#' @param lmm_include_time Logical; include `time_col` as fixed effect in LMM
+#'   when available.
+#' @param limma_reference Optional reference condition for one-vs-reference
+#'   limma contrasts. If `NULL`, all pairwise contrasts are tested.
+#' @param limma_trend Logical; passed to `limma::eBayes(trend = ...)`.
+#' @param padj Multiple-testing correction method (passed to `p.adjust`/limma).
+#' @param export_excel Logical; write result tables to Excel in save folder.
+#' @param excel_file File name for the Excel export.
+#' @param slot_name Satellite slot name for storing results.
 #' @export
-hc_module_condition_significance <- function(hc, ...) {
-  .hc_run_driver(hc = hc, fun = .hc_module_condition_significance_driver, ...)
+hc_module_condition_significance <- function(hc,
+                                             set = "all",
+                                             condition_col = NULL,
+                                             donor_col = NULL,
+                                             time_col = NULL,
+                                             run_wilcox = TRUE,
+                                             run_limma = TRUE,
+                                             run_lmm = FALSE,
+                                             lmm_include_time = TRUE,
+                                             limma_reference = NULL,
+                                             limma_trend = TRUE,
+                                             padj = "BH",
+                                             export_excel = TRUE,
+                                             excel_file = "Module_condition_significance.xlsx",
+                                             slot_name = "module_condition_significance") {
+  .hc_run_driver(
+    hc = hc, fun = .hc_module_condition_significance_driver,
+    set = set, condition_col = condition_col, donor_col = donor_col,
+    time_col = time_col, run_wilcox = run_wilcox, run_limma = run_limma,
+    run_lmm = run_lmm, lmm_include_time = lmm_include_time,
+    limma_reference = limma_reference, limma_trend = limma_trend,
+    padj = padj, export_excel = export_excel, excel_file = excel_file,
+    slot_name = slot_name
+  )
 }

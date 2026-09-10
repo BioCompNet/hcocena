@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_read_supplementary}
 \alias{hc_read_supplementary}
-\title{Load supplementary references (S4 API)}
+\title{Read Supplementary Data}
 \usage{
 hc_read_supplementary(hc)
 }
@@ -13,7 +13,7 @@ hc_read_supplementary(hc)
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Load supplementary references (S4 API)
+Function to read and collect the supplementary files set in set_supp_files().
 }
 \examples{
 refdir <- file.path(tempdir(), "hcocena-reference-files")

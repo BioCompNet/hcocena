@@ -61,7 +61,3 @@ slots.
 Runs the exact CAP -> PCA -> graph -> Leiden donor meta-clustering and
 returns the PCA/UMAP embeddings.
 }
-
-\examples{
-hc <- hc_init()
-}

@@ -2,14 +2,26 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_pca}
 \alias{hc_pca}
-\title{PCA plotting (S4 API)}
+\title{pca}
 \usage{
-hc_pca(hc, ...)
+hc_pca(hc, which = "all", color_by = NULL, ellipses = FALSE, cols = NULL)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{PCA()}.}
+\item{which}{Which gene set to run the PCA on: "all" (default, all genes),
+"topvar" (the top-variable genes of each layer) or "network_genes" (only
+genes that ended up in the integrated network).}
+
+\item{color_by}{Optional annotation column name used to colour the samples.
+If \code{NULL} (default), the variable of interest from the global settings is
+used.}
+
+\item{ellipses}{Logical. Whether to draw group confidence ellipses.
+Default is \code{FALSE}.}
+
+\item{cols}{Optional named vector of colours for the groups. If \code{NULL}
+(default), a built-in palette is used.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -17,18 +29,6 @@ Updated \code{HCoCenaExperiment}.
 \description{
 PCA plotting (S4 API)
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_pca(hc, which = "all"), silent = TRUE)
+hc <- hc_pca(hc)
 }
-}
-

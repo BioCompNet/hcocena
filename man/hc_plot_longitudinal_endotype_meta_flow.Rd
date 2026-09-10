@@ -27,7 +27,3 @@ A list with \code{sankey} htmlwidget (or \code{NULL} if unavailable) and
 \description{
 Plot endotype-to-meta-cluster flow as Sankey diagram
 }
-
-\examples{
-hc <- hc_init()
-}

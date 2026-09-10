@@ -41,7 +41,3 @@ Creates three consensus diagnostics:
 \item donor stability distribution per meta-cluster.
 }
 }
-
-\examples{
-hc <- hc_init()
-}

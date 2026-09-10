@@ -2,14 +2,20 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_pca_algo_compare}
 \alias{hc_pca_algo_compare}
-\title{PCA algorithm comparison (S4 API)}
+\title{pca algo compare}
 \usage{
-hc_pca_algo_compare(hc, ...)
+hc_pca_algo_compare(hc, gtc = NULL, algo = NULL, cols = NULL)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{PCA_algo_compare()}.}
+\item{gtc}{Optional gene-to-cluster table to compare against. If \code{NULL}
+(default), the current module assignment is used.}
+
+\item{algo}{Optional name of the clustering algorithm the \code{gtc} came from,
+used for the plot title.}
+
+\item{cols}{Optional named vector of colours for the sample groups.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -17,18 +23,6 @@ Updated \code{HCoCenaExperiment}.
 \description{
 PCA algorithm comparison (S4 API)
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_pca_algo_compare(hc), silent = TRUE)
+hc <- hc_pca_algo_compare(hc)
 }
-}
-

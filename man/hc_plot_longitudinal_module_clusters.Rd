@@ -68,7 +68,3 @@ and produces:
 \item a module-by-donor cluster heatmap
 }
 }
-
-\examples{
-hc <- hc_init()
-}

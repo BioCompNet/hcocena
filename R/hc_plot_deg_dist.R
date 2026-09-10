@@ -1,9 +1,8 @@
 #' Plot Degree Distribution
 #'
 #' A function that plot the degree distribution of each network after being cut with the set cutoff values.
-#' @export
 
-plot_deg_dist <- function() {
+.hc_plot_deg_dist_driver <- function() {
   for (x in base::seq_along(hcobject[["layers"]])) {
     if (!hcobject[["cutoff_vec"]][x] %in% hcobject[["layer_specific_outputs"]][[base::paste0("set", x)]][["part1"]][["cutoff_stats"]][["cutoff"]]) {
       tmp_vec <- hcobject[["layer_specific_outputs"]][[base::paste0("set", x)]][["part1"]][["cutoff_stats"]][["cutoff"]]
@@ -45,10 +44,4 @@ plot_deg_dist <- function() {
   }
 }
 
-.hc_plot_deg_dist_driver <- plot_deg_dist
 
-plot_deg_dist <- function() {
-  .hc_alias_warning("plot_deg_dist")
-  out <- .hc_run_modern_bridge_capture(.hc_plot_deg_dist_impl)
-  out$result
-}

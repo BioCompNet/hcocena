@@ -2,10 +2,9 @@
 #'
 #' Replots the integrated network, highlighting a given cluster.
 #' @param cluster A string, giving the colour of the cluster to be highlighted.
-#' @export
 
-colour_single_cluster <- function(cluster) {
-  gtc <- GeneToCluster() %>% dplyr::filter(., !color == "white")
+.hc_colour_single_cluster_driver <- function(cluster) {
+  gtc <- .hc_gene_to_cluster_impl() %>% dplyr::filter(., !color == "white")
   g <- hcobject[["integrated_output"]][["merged_net"]]
   g <- igraph::delete_vertices(g, igraph::V(g)$name[!igraph::V(g)$name %in% gtc$gene])
 
@@ -32,12 +31,4 @@ colour_single_cluster <- function(cluster) {
   igraph::plot.igraph(g, vertex.label = NA, layout = l)
 }
 
-.hc_colour_single_cluster_driver <- colour_single_cluster
 
-colour_single_cluster <- function(cluster) {
-  .hc_run_alias_via_modern(
-    "colour_single_cluster",
-    hc_colour_single_cluster,
-    cluster = cluster
-  )
-}

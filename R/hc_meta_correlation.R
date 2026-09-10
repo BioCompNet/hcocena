@@ -7,10 +7,9 @@
 #' @param meta A vector of strings. The names of the numeric annotation column(s) which to correlate to the cluster expression patterns.
 #' @param p_val The maximum p-value to determine a correlation as significant. Default is 0.05. Non-significant correlations are shown in grey.
 #' @param padj Method to use for multiple testing correction. Can be one of "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none".  Default is "BH" (Benjamini-Hochberg).
-#' @export
 
 
-meta_correlation_num <- function(set, meta, p_val = 0.05, padj = "BH") {
+.hc_meta_correlation_num_driver <- function(set, meta, p_val = 0.05, padj = "BH") {
   meta_data <- dplyr::select(hcobject[["data"]][[base::paste0("set", set, "_anno")]], dplyr::all_of(meta))
   counts <- sample_wise_cluster_expression(set = set)
   cors <- base::lapply(base::colnames(meta_data), function(x) {
@@ -32,13 +31,13 @@ meta_correlation_num <- function(set, meta, p_val = 0.05, padj = "BH") {
 
   cors$p_adj <- stats::p.adjust(cors$p, method = padj)
 
-  cors$pearson_corr <- base::apply(cors, 1, function(x) {
-    if (as.double(x["p_adj"]) > p_val) {
-      return(NA)
-    } else {
-      return(as.double(x["r"]))
-    }
-  }) %>% base::as.numeric()
+  cors$p_adj <- .hc_as_numeric_safely(cors$p_adj)
+  cors$r <- .hc_as_numeric_safely(cors$r)
+  cors$pearson_corr <- base::ifelse(
+    base::is.finite(cors$p_adj) & cors$p_adj <= p_val,
+    cors$r,
+    NA_real_
+  )
 
   heatmap_info <- .hc_heatmap_cache_info(hcobject[["integrated_output"]][["cluster_calc"]])
   row_levels <- heatmap_info$row_order
@@ -91,9 +90,8 @@ meta_correlation_num <- function(set, meta, p_val = 0.05, padj = "BH") {
 #' @param meta A single string. The name of the categorical annotation column which to correlate to the cluster expression patterns.
 #' @param p_val The maximum adjusted p-value to determine a correlation as significant. Default is 0.05. Non-significant correlations are shown in grey.
 #' @param padj Method to use for multiple testing correction. Can be one of "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none".  Default is "BH" (Benjamini-Hochberg).
-#' @export
 
-meta_correlation_cat <- function(meta, set, p_val = 0.05, padj = "BH") {
+.hc_meta_correlation_cat_driver <- function(meta, set, p_val = 0.05, padj = "BH") {
   set_name <- base::paste0("set", set)
   gfc_all_genes <- hcobject[["layer_specific_outputs"]][[set_name]][["part2"]][["GFC_all_genes"]]
 
@@ -192,13 +190,17 @@ meta_correlation_cat <- function(meta, set, p_val = 0.05, padj = "BH") {
 
   vals$p_adj <- stats::p.adjust(vals$p, method = padj)
 
-  vals$pearson_corr <- base::apply(vals, 1, function(x) {
-    if (x["p_adj"] > p_val) {
-      return(NA)
-    } else {
-      return(x["r"])
-    }
-  }) %>% base::as.numeric()
+  # NB: this used to go through apply() over the data frame, which coerces every
+  # row to character, so `p_adj > p_val` became a *string* comparison:
+  # "1e-08" > "0.05" is TRUE, i.e. the most significant correlations were the
+  # ones being discarded. Compare numerically.
+  vals$p_adj <- .hc_as_numeric_safely(vals$p_adj)
+  vals$r <- .hc_as_numeric_safely(vals$r)
+  vals$pearson_corr <- base::ifelse(
+    base::is.finite(vals$p_adj) & vals$p_adj <= p_val,
+    vals$r,
+    NA_real_
+  )
 
   vals["r"] <- base::round(vals["r"], digits = 2)
 
@@ -236,15 +238,29 @@ meta_correlation_cat <- function(meta, set, p_val = 0.05, padj = "BH") {
   graphics::plot(g)
 }
 
-.hc_meta_correlation_cat_driver <- meta_correlation_cat
 
-meta_correlation_cat <- function(meta, set, p_val = 0.05, padj = "BH") {
-  .hc_run_alias_via_modern(
-    "meta_correlation_cat",
-    hc_meta_correlation_cat,
-    meta = meta,
-    set = set,
-    p_val = p_val,
-    padj = padj
+
+
+#' Correlate numeric metadata with modules (S4 API)
+#'
+#' Correlates the mean expression of each module's genes per sample with one or
+#' more numeric annotation columns, and shows the result as a heatmap.
+#' Non-significant correlations are left blank.
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param set An integer. Number of the dataset/layer to use.
+#' @param meta Character vector of numeric annotation column names to correlate
+#'   with the module expression patterns.
+#' @param p_val Maximum adjusted p-value for a correlation to count as
+#'   significant. Default is 0.05.
+#' @param padj Multiple-testing correction method passed to
+#'   [stats::p.adjust()]. Default is `"BH"`.
+#' @return Updated `HCoCenaExperiment`.
+#' @export
+hc_meta_correlation_num <- function(hc, set, meta, p_val = 0.05,
+                                    padj = "BH") {
+  .hc_run_driver(
+    hc = hc, fun = .hc_meta_correlation_num_driver,
+    set = set, meta = meta, p_val = p_val, padj = padj
   )
 }

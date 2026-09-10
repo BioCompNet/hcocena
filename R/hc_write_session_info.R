@@ -3,9 +3,8 @@
 #' The parameters of the analysis session are written to a text file to enhance reproducibility without keeping adn sharing a markdown for every analysis.
 #' It documents the name of the files and their location used as count and annotation files, the global settings set in the session,
 #' 	the layer settings set for each dataset as well as the cut-offs and the clustering algorithm used.
-#' @export
 
-write_session_info <- function() {
+.hc_write_session_info_driver <- function() {
   f <- base::file(base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/session_info.txt"), "w")
   # number of layers:
   base::writeLines(base::paste0("Number of layers: ", base::length(hcobject[["layers"]])), f, sep = "\n")
@@ -59,8 +58,4 @@ write_session_info <- function() {
   base::close(f)
 }
 
-.hc_write_session_info_driver <- write_session_info
 
-write_session_info <- function() {
-  .hc_run_alias_via_modern("write_session_info", hc_write_session_info)
-}

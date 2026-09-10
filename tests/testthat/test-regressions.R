@@ -1425,11 +1425,11 @@ test_that("regression: enrichment panel storage defaults to memory-saving for mu
 
 
 test_that("regression: large result stores are no longer mirrored across legacy slots", {
-  fun_enrich_src <- paste(deparse(get("functional_enrichment", asNamespace("hcocena"))), collapse = "\n")
-  heatmap_src <- paste(deparse(get("plot_cluster_heatmap", asNamespace("hcocena"))), collapse = "\n")
+  fun_enrich_src <- paste(deparse(get(".hc_functional_enrichment_driver", asNamespace("hcocena"))), collapse = "\n")
+  heatmap_src <- paste(deparse(get(".hc_plot_cluster_heatmap_driver", asNamespace("hcocena"))), collapse = "\n")
   heatmap_new_src <- paste(deparse(get("plot_cluster_heatmap_new", asNamespace("hcocena"))), collapse = "\n")
-  upstream_src <- paste(deparse(get("upstream_inference", asNamespace("hcocena"))), collapse = "\n")
-  knowledge_src <- paste(deparse(get("plot_enrichment_upstream_network", asNamespace("hcocena"))), collapse = "\n")
+  upstream_src <- paste(deparse(get(".hc_upstream_inference_driver", asNamespace("hcocena"))), collapse = "\n")
+  knowledge_src <- paste(deparse(get(".hc_plot_enrichment_upstream_network_driver", asNamespace("hcocena"))), collapse = "\n")
   network_plot_src <- paste(
     deparse(get(".hc_plot_integrated_network_driver", asNamespace("hcocena"))),
     collapse = "\n"
@@ -1850,8 +1850,8 @@ test_that("regression: duplicate heatmap condition labels get layer prefixes and
 
 
 test_that("regression: enrichment-related heatmap legends use standard font settings", {
-  fun_enrich_src <- paste(deparse(get("functional_enrichment", asNamespace("hcocena"))), collapse = "\n")
-  upstream_src <- paste(deparse(get("upstream_inference", asNamespace("hcocena"))), collapse = "\n")
+  fun_enrich_src <- paste(deparse(get(".hc_functional_enrichment_driver", asNamespace("hcocena"))), collapse = "\n")
+  upstream_src <- paste(deparse(get(".hc_upstream_inference_driver", asNamespace("hcocena"))), collapse = "\n")
   replot_src <- paste(deparse(get("replot_cluster_heatmap", asNamespace("hcocena"))), collapse = "\n")
 
   expect_false(grepl('fontfamily = "mono"', fun_enrich_src, fixed = TRUE))
@@ -1933,12 +1933,12 @@ test_that("regression: lightweight heatmap cache works without ComplexHeatmap ob
   llm_capture <- get(".hc_llm_capture_combined_heatmap_grob", asNamespace("hcocena"))
   llm_style <- get(".hc_llm_resolve_heatmap_style", asNamespace("hcocena"))
   llm_title_wrap_width <- get(".hc_llm_title_wrap_width", asNamespace("hcocena"))
-  plot_heatmap <- get("plot_cluster_heatmap", asNamespace("hcocena"))
+  plot_heatmap <- get(".hc_plot_cluster_heatmap_driver", asNamespace("hcocena"))
   plot_heatmap_new <- get("plot_cluster_heatmap_new", asNamespace("hcocena"))
-  plot_network <- get("plot_integrated_network", asNamespace("hcocena"))
-  fun_enrich <- get("functional_enrichment", asNamespace("hcocena"))
-  up_inf <- get("upstream_inference", asNamespace("hcocena"))
-  knowledge_plot <- get("plot_enrichment_upstream_network", asNamespace("hcocena"))
+  plot_network <- get(".hc_plot_integrated_network_driver", asNamespace("hcocena"))
+  fun_enrich <- get(".hc_functional_enrichment_driver", asNamespace("hcocena"))
+  up_inf <- get(".hc_upstream_inference_driver", asNamespace("hcocena"))
+  knowledge_plot <- get(".hc_plot_enrichment_upstream_network_driver", asNamespace("hcocena"))
   llm_plot <- get("hc_plot_module_function_llm", asNamespace("hcocena"))
 
   cluster_calc <- list(
@@ -2962,24 +2962,24 @@ test_that("regression: plot heatmaps default to main order unless clustering is 
   expect_setequal(colnames(clustered$mat), c("T1", "T2", "T3"))
   expect_true(inherits(clustered$col_dend, "dendrogram"))
 
-  expect_true("cluster_columns" %in% names(formals(hcocena:::upstream_inference)))
-  expect_true("cluster_columns" %in% names(formals(hcocena:::plot_enrichment_upstream_network)))
+  expect_true("cluster_columns" %in% names(formals(hcocena:::.hc_upstream_inference_driver)))
+  expect_true("cluster_columns" %in% names(formals(hcocena:::.hc_plot_enrichment_upstream_network_driver)))
   expect_true("cluster_columns" %in% names(formals(hcocena::hc_upstream_inference)))
   expect_true("cluster_columns" %in% names(formals(hcocena::hc_plot_enrichment_upstream_network)))
   expect_true("cluster_columns" %in% names(formals(hcocena::hc_plot_module_function_llm)))
-  expect_true("heatmap_cluster_columns" %in% names(formals(hcocena:::upstream_inference)))
-  expect_true("heatmap_cluster_columns" %in% names(formals(hcocena:::plot_enrichment_upstream_network)))
+  expect_true("heatmap_cluster_columns" %in% names(formals(hcocena:::.hc_upstream_inference_driver)))
+  expect_true("heatmap_cluster_columns" %in% names(formals(hcocena:::.hc_plot_enrichment_upstream_network_driver)))
   expect_true("heatmap_cluster_columns" %in% names(formals(hcocena::hc_upstream_inference)))
   expect_true("heatmap_cluster_columns" %in% names(formals(hcocena::hc_plot_enrichment_upstream_network)))
   expect_true("heatmap_cluster_columns" %in% names(formals(hcocena::hc_plot_module_function_llm)))
-  expect_identical(formals(hcocena:::plot_cluster_heatmap)$cluster_columns, FALSE)
+  expect_identical(formals(hcocena:::.hc_plot_cluster_heatmap_driver)$cluster_columns, FALSE)
   expect_identical(formals(hcocena:::plot_cluster_heatmap_new)$cluster_columns, FALSE)
-  expect_identical(formals(hcocena:::plot_cluster_heatmap)$smart_column_gaps, FALSE)
+  expect_identical(formals(hcocena:::.hc_plot_cluster_heatmap_driver)$smart_column_gaps, FALSE)
   expect_identical(formals(hcocena:::plot_cluster_heatmap_new)$smart_column_gaps, FALSE)
   expect_true("column_gap_by" %in% names(formals(hcocena:::plot_cluster_heatmap_new)))
   expect_identical(formals(hcocena:::plot_cluster_heatmap_new)$column_gap_mm, 0.6)
   expect_identical(formals(hcocena:::replot_cluster_heatmap)$cluster_columns, FALSE)
-  expect_identical(formals(hcocena:::change_grouping_parameter)$cluster_columns, FALSE)
+  expect_identical(formals(hcocena:::.hc_change_grouping_parameter_driver)$cluster_columns, FALSE)
   expect_identical(formals(hcocena::hc_change_grouping_parameter)$cluster_columns, FALSE)
 })
 

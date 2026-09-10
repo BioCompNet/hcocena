@@ -18,9 +18,8 @@
 #' @param db "Go" to use Gene Ontology database, "Kegg" to use KEGG database, "Hallmark" to use Hallmark genesets or custom database. Will be ignored when 'from_file' is TRUE.
 #' @param padj Method to use for multiple testing correction. Can be one of "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none".  Default is "BH" (Benjamini-Hochberg).
 #' @param qval q-value cutoff to define terms to consider after pathway enrichment.
-#' @export
 
-user_specific_cluster_profiling <- function(from_file = FALSE,
+.hc_user_specific_cluster_profiling_driver <- function(from_file = FALSE,
                                             path = NULL,
                                             enrichment_keys = NULL,
                                             db = c("Go", "Kegg", "Hallmark"),
@@ -151,4 +150,37 @@ user_specific_cluster_profiling <- function(from_file = FALSE,
   } else {
     .hc_set_bridge_hcobject_slot(c("satellite_outputs", "enriched_per_cluster"), output)
   }
+}
+
+
+#' Profile modules against user-defined enrichment terms
+#'
+#' Scores every module against a user-supplied list of terms of interest, either
+#' given directly via `enrichment_keys` or read from a file.
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param from_file Logical. If `TRUE`, read the terms of interest from `path`
+#'   instead of `enrichment_keys`. Default is `FALSE`.
+#' @param path Path to the file holding the terms of interest. Only used when
+#'   `from_file = TRUE`.
+#' @param enrichment_keys Character vector of terms to profile the modules
+#'   against. Required when `from_file = FALSE`.
+#' @param db Databases to search for the terms. Default is
+#'   `c("Go", "Kegg", "Hallmark")`.
+#' @param padj Multiple-testing correction method. Default is `"BH"`.
+#' @param qval Maximum adjusted p-value for a term to count. Default is 0.1.
+#' @return Updated `HCoCenaExperiment`.
+#' @export
+hc_user_specific_cluster_profiling <- function(hc,
+                                               from_file = FALSE,
+                                               path = NULL,
+                                               enrichment_keys = NULL,
+                                               db = c("Go", "Kegg", "Hallmark"),
+                                               padj = "BH",
+                                               qval = 0.1) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_user_specific_cluster_profiling_driver,
+    from_file = from_file, path = path, enrichment_keys = enrichment_keys,
+    db = db, padj = padj, qval = qval
+  )
 }

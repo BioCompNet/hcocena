@@ -111,7 +111,3 @@ Creates one plot per enrichment database. For each module, the top \code{x} term
 are placed into dedicated side-by-side panels (\verb{Top 1}, \verb{Top 2}, ...), and
 meta-cluster trajectories are drawn as longitudinal waves.
 }
-
-\examples{
-hc <- hc_init()
-}

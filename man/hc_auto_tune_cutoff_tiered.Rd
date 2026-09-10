@@ -80,7 +80,3 @@ For each layer, the function:
 Results are stored in \code{hc@satellite$cutoff_tuning}
 (and mirrored to \code{hc@satellite$auto_tune_cutoff_tiered} for compatibility).
 }
-
-\examples{
-hc <- hc_init()
-}

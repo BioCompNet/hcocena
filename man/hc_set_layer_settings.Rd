@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_set_layer_settings}
 \alias{hc_set_layer_settings}
-\title{Set layer settings (S4 API)}
+\title{Define Layer Settings}
 \usage{
 hc_set_layer_settings(
   hc,
@@ -34,7 +34,7 @@ Default is FALSE.}
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Set layer settings (S4 API)
+Receives all settings that are dataset specific and not globally valid.
 }
 \examples{
 extdir <- paste0(

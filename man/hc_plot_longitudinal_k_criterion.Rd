@@ -33,7 +33,3 @@ List with ggplots \code{global_k} and \code{module_k}.
 \description{
 Plot k-criterion diagnostics for longitudinal clustering
 }
-
-\examples{
-hc <- hc_init()
-}

@@ -2,8 +2,10 @@
 #'
 #' Plots a heatmap with sample groups as columns and gene clusters as rows. The cells are coloured according to the mean GFC of a given cluster in the respective sample group.
 #'  If categorical or numerical metadata annotations or user-defined enrichments have been created with satellite functions, they will be incorporated into the heatmap as column/row annotations.
-#'  A `Module_Gene_List.xlsx` export (columns: `genes`, `module`) is written to the save folder
-#'  based on the currently displayed module labels (including split-module labels, if present).
+#'  A module-gene export (columns: `genes`, `module`) is written to the save
+#'  folder based on the currently displayed module labels. Unsplit analyses use
+#'  `Module_Gene_List.xlsx`; analyses containing split-module labels use
+#'  `Module_Gene_splitted_List.xlsx` so the original export is preserved.
 #'  For the available options check out the satellite functions.
 #' @param col_order Defines the order in which the sample groups (conditions) appear in the heatmap.
 #'  Accepts a vector of strings giving the conditions in their desired order.
@@ -101,7 +103,7 @@
 #'  annotation with module-significance labels from
 #'  `satellite_outputs[[module_significance_slot]]`.
 #' @param module_significance_slot Character scalar naming the satellite slot
-#'  produced by `module_condition_significance()`. Default is
+#'  produced by `.hc_module_condition_significance_driver()`. Default is
 #'  `"module_condition_significance"`.
 #' @param module_significance_method Which method to visualize. One of
 #'  `"auto"`, `"wilcox"`, `"limma"`, `"lmm"`. `"auto"` prefers `wilcox`,
@@ -114,7 +116,6 @@
 #'  labels (`***`, `**`, `*`).
 #' @param module_significance_annotation_name Column name displayed above the
 #'  significance annotation.
-#' @export
 
 
 .hc_plot_cluster_heatmap_driver <- function(col_order = NULL,
@@ -217,67 +218,6 @@
   )
 }
 
-plot_cluster_heatmap <- function(col_order = NULL,
-                                 row_order = NULL,
-                                 cluster_columns = FALSE,
-                                 cluster_rows = TRUE,
-                                 k = 0,
-                                 return_HM = FALSE,
-                                 cat_as_bp = NULL,
-                                 file_name = "Heatmap_modules.pdf",
-                                 module_label_mode = "prefix",
-                                 module_prefix = "M",
-                                 module_label_numbering = "after_clustering",
-                                 show_module_color_names = FALSE,
-                                 gene_count_mode = "text",
-                                 module_label_preset = "balanced",
-                                 module_label_color = "white",
-                                 module_label_fontsize = NULL,
-                                 module_label_pt_size = NULL,
-                                 module_box_width_cm = NULL,
-                                 gene_count_fontsize = NULL,
-                                 gene_count_fontface = "plain",
-                                 gene_count_renderer = "pch",
-                                 gene_count_pt_size = NULL,
-                                 gfc_colors = NULL,
-                                 gfc_scale_limits = NULL,
-                                 gfc_legend_side = "right",
-                                 pdf_width = 50,
-                                 pdf_height = 30,
-                                 pdf_pointsize = 11,
-                                 pdf_dpi = 300,
-                                 overall_plot_scale = 1,
-                                 smart_column_gaps = FALSE,
-                                 column_gap_by = NULL,
-                                 column_gap_mm = 0.6,
-                                 include_dynamic_enrichment_slots = FALSE,
-                                 celltype_bar_top_n = 3,
-                                 celltype_bar_include_other = TRUE,
-                                 celltype_bar_other_label = "Other",
-                                 celltype_bar_show_dominant = TRUE,
-                                 celltype_bar_dominant_width_cm = 2.8,
-                                 celltype_bar_mode = "bar_and_text",
-                                 include_module_significance = FALSE,
-                                 module_significance_slot = "module_condition_significance",
-                                 module_significance_method = "auto",
-                                 module_significance_show_qvalue = FALSE,
-                                 module_significance_width_cm = 1.6,
-                                 module_significance_p_cutoffs = c(0.001, 0.01, 0.05),
-                                 module_significance_annotation_name = "sig",
-                                 write_module_tables = TRUE) {
-  .hc_alias_warning("plot_cluster_heatmap")
-  if (missing(module_label_numbering) &&
-    .hc_module_label_map_has_split_labels(
-      hcobject[["integrated_output"]][["cluster_calc"]][["module_label_map"]]
-    )) {
-    module_label_numbering <- "preserve_existing"
-  }
-  args <- as.list(environment())
-  invisible(base::do.call(
-    .hc_run_modern_bridge,
-    c(list(fun = hc_plot_cluster_heatmap), args)
-  ))
-}
 
 .hc_resolve_cluster_heatmap_row_order <- function(row_order,
                                                   cluster_calc,
@@ -362,6 +302,17 @@ plot_cluster_heatmap <- function(col_order = NULL,
   # further suffixes ("M3.1.2"). Anchor on the trailing ".<number>" so nested
   # splits are still detected.
   base::any(base::grepl("\\.[0-9]+$", labels))
+}
+
+.hc_module_gene_list_filename <- function(module_label_map = NULL,
+                                          split_history = NULL) {
+  has_split_history <- base::is.list(split_history) &&
+    base::length(split_history) > 0
+  if (has_split_history ||
+    .hc_module_label_map_has_split_labels(module_label_map)) {
+    return("Module_Gene_splitted_List.xlsx")
+  }
+  "Module_Gene_List.xlsx"
 }
 
 .hc_module_label_draw_width_cm <- function(module_box_width_cm,
@@ -1477,7 +1428,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     row_order <- base::unique(c_df$color)
   }
 
-  # Optional module-significance labels from `module_condition_significance()`.
+  # Optional module-significance labels from `.hc_module_condition_significance_driver()`.
   module_sig_labels <- NULL
   module_sig_q <- NULL
   module_sig_method_used <- NULL
@@ -3052,10 +3003,17 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
     )
   }
   if (base::isTRUE(write_module_tables)) {
+    stored_module_label_map <- hcobject[["integrated_output"]][["cluster_calc"]][["module_label_map"]]
+    split_history <- hcobject[["satellite_outputs"]][["module_split_history"]]
+    module_gene_list_name <- .hc_module_gene_list_filename(
+      module_label_map = base::c(stored_module_label_map, module_export_labels),
+      split_history = split_history
+    )
     module_gene_list_file <- base::paste0(
       hcobject[["working_directory"]][["dir_output"]],
       hcobject[["global_settings"]][["save_folder"]],
-      "/Module_Gene_List.xlsx"
+      "/",
+      module_gene_list_name
     )
     tryCatch(
       {
@@ -3067,7 +3025,7 @@ plot_cluster_heatmap_new <- function(col_order = NULL,
       },
       error = function(e) {
         warning(
-          "Could not write Module_Gene_List.xlsx: ",
+          "Could not write ", module_gene_list_name, ": ",
           base::conditionMessage(e)
         )
       }

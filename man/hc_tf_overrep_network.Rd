@@ -4,20 +4,20 @@
 \alias{hc_tf_overrep_network}
 \title{TF enrichment network-wide (S4 API)}
 \usage{
-hc_tf_overrep_network(hc, ...)
+hc_tf_overrep_network(hc, topTF = 100, topTarget = 30)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Additional arguments for network-level TF enrichment.}
+\item{topTF}{Integer. Number of transcription factors with the highest
+number of enriched targets network-wide. Default is 100.}
+
+\item{topTarget}{Integer. Number of top enriched targets to return per
+transcription factor. Default is 30.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
 TF enrichment network-wide (S4 API)
-}
-
-\examples{
-hc <- hc_init()
 }

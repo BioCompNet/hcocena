@@ -54,7 +54,3 @@ timepoint labels (e.g. \code{MC1__24h}). This column can be used as \code{groupi
 in \code{hc_run_expression_analysis_2()} to build a cluster heatmap by
 meta-cluster x timepoint.
 }
-
-\examples{
-hc <- hc_init()
-}

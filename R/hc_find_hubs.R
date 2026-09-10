@@ -9,21 +9,25 @@
 #'  or any gene category listed in the last column of the provided transcriptionfactor supplementary file (only that subgroup condired for hub genes).
 #' @param plot A Boolean. Wheather or not to plot the network (per cluster) with highlighted hub nodes. Default is FALSE.
 #' @param clusters Either "all" (default) or a vector of cluster colours for which the hub detection should be performed.
-#' @export
 
-find_hubs <- function(clusters = c("all"),
+.hc_find_hubs_driver <- function(clusters = c("all"),
                       top = 10,
                       tree_layout = FALSE,
                       TF_only = FALSE,
                       save = FALSE,
                       plot = FALSE) {
-  gtc <- GeneToCluster()
+  gtc <- .hc_gene_to_cluster_impl()
   if (clusters[1] == "all") {
     clusters <- base::unique(gtc$color[!gtc$color == "white"])
   }
 
+  cluster_labels <- .hc_hub_display_labels(clusters)
+
   hubs <- base::lapply(clusters, function(x) {
-    tmp <- hub_node_detection(cluster = x, top = top, save = save, tree_layout = tree_layout, TF_only = TF_only, plot = plot)
+    tmp <- hub_node_detection(
+      cluster = x, top = top, save = save, tree_layout = tree_layout,
+      TF_only = TF_only, plot = plot, label = cluster_labels[[x]]
+    )
     return(tmp$hub_nodes)
   })
 
@@ -40,7 +44,7 @@ find_hubs <- function(clusters = c("all"),
     rlist::list.cbind() %>%
     base::as.data.frame()
 
-  base::colnames(hubs_df) <- clusters
+  base::colnames(hubs_df) <- base::unname(cluster_labels[clusters])
 
   hubs_df[base::is.na(hubs_df)] <- " "
 
@@ -78,33 +82,56 @@ find_hubs <- function(clusters = c("all"),
     hub_genes <- base::trimws(base::as.character(dplyr::pull(hubs_df, col)))
     hub_genes <- base::unique(hub_genes[!base::is.na(hub_genes) & base::nzchar(hub_genes)])
     if (base::length(hub_genes) > 0) {
-      visualize_gene_expression(
+      .hc_visualize_gene_expression_driver(
         genes = hub_genes,
         name = base::paste0("Hub_genes_", col, "_module_expression"),
         width = 10,
         height = 10,
-        save = save
+        save = save,
+        label_map = cluster_labels
       )
     }
   }
 }
 
-.hc_find_hubs_driver <- find_hubs
 
-find_hubs <- function(clusters = c("all"),
-                      top = 10,
-                      tree_layout = FALSE,
-                      TF_only = FALSE,
-                      save = FALSE,
-                      plot = FALSE) {
-  .hc_run_alias_via_modern(
-    "find_hubs",
-    hc_find_hubs,
-    clusters = clusters,
-    top = top,
-    tree_layout = tree_layout,
-    TF_only = TF_only,
-    save = save,
-    plot = plot
+#' Resolve module display labels for a vector of cluster colours
+#'
+#' Clusters are addressed internally by colour, but every user-facing output
+#' uses the module label (`M1`, `M2.1`, ...) held in
+#' `cluster_calc[["module_label_map"]]`. After [hc_split_modules()] the colours
+#' of new submodules are generated hex codes, so labelling by colour produces
+#' names such as `#30A89C` that cannot be matched to any other output.
+#' Falls back to the colour itself when no label is available.
+#' @noRd
+.hc_hub_display_labels <- function(clusters) {
+  clusters <- base::as.character(clusters)
+  cluster_calc <- hcobject[["integrated_output"]][["cluster_calc"]]
+  label_map <- if (!base::is.null(cluster_calc) &&
+    "module_label_map" %in% base::names(cluster_calc)) {
+    cluster_calc[["module_label_map"]]
+  } else {
+    NULL
+  }
+  label_map <- .hc_resolve_module_label_map_for_colors(
+    label_map = label_map,
+    module_colors = clusters
   )
+  if (base::is.null(label_map) || base::length(label_map) == 0) {
+    return(stats::setNames(clusters, clusters))
+  }
+  out <- base::vapply(clusters, function(cl) {
+    lbl <- label_map[[cl]]
+    if (base::is.null(lbl) || base::length(lbl) == 0 || base::is.na(lbl[[1]]) ||
+      !base::nzchar(base::as.character(lbl[[1]]))) {
+      cl
+    } else {
+      base::as.character(lbl[[1]])
+    }
+  }, FUN.VALUE = base::character(1))
+  # Duplicate labels would collide as Excel sheet names and file names.
+  if (base::anyDuplicated(out) > 0) {
+    return(stats::setNames(clusters, clusters))
+  }
+  stats::setNames(out, clusters)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_suggest_topvar}
 \alias{hc_suggest_topvar}
-\title{Suggest top variable genes (S4 API)}
+\title{suggest topvar}
 \usage{
 hc_suggest_topvar(hc)
 }
@@ -12,24 +12,17 @@ hc_suggest_topvar(hc)
 \value{
 Updated \code{HCoCenaExperiment}.
 }
-\details{
-\code{hc_suggest_topvar()} operates on the counts stored in \code{hc}, i.e. after \code{hc_read_data()} preprocessing. Because \code{hc_read_data()} removes zero-variance genes and drops non-numeric helper columns from object-based count inputs, suggested inflection points can differ slightly from older releases on the same raw input even though the \code{hc_suggest_topvar()} heuristic itself is unchanged.
-}
 \description{
 Suggest top variable genes (S4 API)
 }
-
+\details{
+\code{hc_suggest_topvar()} operates on the counts stored in \code{hc}, i.e.
+after \code{hc_read_data()} preprocessing. Because \code{hc_read_data()} removes
+zero-variance genes and drops non-numeric helper columns from object-based
+count inputs, suggested inflection points can differ slightly from older
+releases on the same raw input even though the \code{hc_suggest_topvar()}
+heuristic itself is unchanged.
+}
 \examples{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_suggest_topvar(hc), silent = TRUE)
+hc <- hc_suggest_topvar(hc)
 }
-}
-

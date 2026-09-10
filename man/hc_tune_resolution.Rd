@@ -49,7 +49,3 @@ Convenience wrapper for clustering-focused auto-tuning.
 Internally this calls \code{hc_auto_tune(..., tune_cutoff = FALSE, tune_clustering = TRUE)}.
 The clustering report is additionally mirrored to \code{hc@satellite$resolution_tuning}.
 }
-
-\examples{
-hc <- hc_init()
-}

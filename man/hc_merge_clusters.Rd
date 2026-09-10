@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_merge_clusters}
 \alias{hc_merge_clusters}
-\title{Merge modules based on module-heatmap similarity (S4 API)}
+\title{Merge similar modules}
 \usage{
 hc_merge_clusters(
   hc,
@@ -18,43 +18,30 @@ hc_merge_clusters(
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{k}{Either an integer (number of merged modules) or \code{"auto"} to choose
-a data-driven value based on the average silhouette score across candidate
-cuts of the module dendrogram.}
+\item{k}{Either an integer (the number of merged modules) or \code{"auto"}
+(default) to pick a data-driven value from the average silhouette score
+across candidate cuts.}
 
-\item{save}{Boolean. If FALSE (default) cutting is showcased but not saved.
-Set to TRUE once you have found the right clustering and overwrite the old
-cluster assignment (cannot be reversed).}
+\item{save}{Logical. If \code{FALSE}, only preview the merge. If \code{TRUE}, replace
+the current module assignment. Default is \code{TRUE}.}
 
-\item{method}{Method used for clustering. Default is "complete".}
+\item{method}{Agglomeration method for the dendrogram. Default \code{"complete"}.}
 
-\item{k_min}{Minimum candidate \code{k} for automatic selection (\code{k = "auto"}).}
+\item{k_min}{Smallest candidate \code{k} considered when \code{k = "auto"}. Default 2.}
 
-\item{k_max}{Maximum candidate \code{k} for automatic selection (\code{k = "auto"}).
-Defaults to \code{min(10, n_modules - 1)}.}
+\item{k_max}{Largest candidate \code{k} considered when \code{k = "auto"}. Defaults to
+\verb{min(10, number of modules - 1)}.}
 
-\item{auto_parsimony_penalty}{Small penalty used in auto mode to prefer
-simpler solutions when silhouette scores are very similar.}
+\item{auto_parsimony_penalty}{Small penalty applied in auto mode to prefer
+fewer modules when silhouette scores are nearly tied. Default \code{1e-04}.}
 
-\item{verbose}{Boolean. Print selected \code{k} and selection diagnostics.}
+\item{verbose}{Logical. Print the selected \code{k} and selection diagnostics.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Merge modules based on module-heatmap similarity (S4 API)
-}
-
-\examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_merge_clusters(hc, k = 1), silent = TRUE)
-}
+Cuts the dendrogram of the module heatmap to merge modules with similar
+expression patterns. Run with \code{save = FALSE} first to preview a given \code{k};
+\code{save = TRUE} overwrites the current module assignment and cannot be undone.
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_cluster_calculation}
 \alias{hc_cluster_calculation}
-\title{Cluster integrated network (S4 API)}
+\title{Cluster Calculation}
 \usage{
 hc_cluster_calculation(
   hc,
@@ -40,20 +40,6 @@ clustering backend returns a cluster table, that table is returned
 instead.
 }
 \description{
-Cluster integrated network (S4 API)
+The function offers several community detection algorithms to identify dense regions in the co-expression network.
+These dense regions represent collections of highly co-expressed genes likely to form a functional group.
 }
-
-\examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_cluster_calculation(hc, cluster_algo = "cluster_louvain"), silent = TRUE)
-}
-}
-

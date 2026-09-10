@@ -74,8 +74,7 @@
 #'
 #' @return A named list with selected/significant summaries, per-resource
 #'   summaries and plot objects.
-#' @export
-upstream_inference <- function(resources = c("TF", "Pathway"),
+.hc_upstream_inference_driver <- function(resources = c("TF", "Pathway"),
                                top = 5,
                                clusters = c("all"),
                                padj = "BH",
@@ -100,11 +99,10 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
                                plot_per_comparison = TRUE,
                                consistent_terms = TRUE,
                                overall_plot_scale = 1) {
-  .hc_alias_warning("upstream_inference")
 
   if (!requireNamespace("decoupleR", quietly = TRUE)) {
     stop(
-      "`upstream_inference()` requires package `decoupleR`. ",
+      "`.hc_upstream_inference_driver()` requires package `decoupleR`. ",
       "Please install it first (e.g. `BiocManager::install('decoupleR')`)."
     )
   }
@@ -169,13 +167,13 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
   if (isTRUE(plot_per_comparison)) {
     if (isTRUE(consistent_terms)) {
       message(
-        "upstream_inference(): per-condition comparison mode enabled ",
+        ".hc_upstream_inference_driver(): per-condition comparison mode enabled ",
         "(`consistent_terms = TRUE`). ",
         "Term axis is fixed across conditions; `*` marks significance in the shown condition."
       )
     } else {
       message(
-        "upstream_inference(): per-condition discovery mode enabled ",
+        ".hc_upstream_inference_driver(): per-condition discovery mode enabled ",
         "(`consistent_terms = FALSE`). ",
         "Each condition uses its own term set (not intended for strict cross-condition comparison)."
       )
@@ -193,14 +191,14 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
     heatmap_col_order = heatmap_col_order,
     col_order_missing = missing(col_order),
     heatmap_col_order_missing = missing(heatmap_col_order),
-    context = "upstream_inference()"
+    context = ".hc_upstream_inference_driver()"
   )
   cluster_columns <- .hc_resolve_cluster_columns_alias(
     cluster_columns = cluster_columns,
     heatmap_cluster_columns = heatmap_cluster_columns,
     cluster_columns_missing = missing(cluster_columns),
     heatmap_cluster_columns_missing = missing(heatmap_cluster_columns),
-    context = "upstream_inference()"
+    context = ".hc_upstream_inference_driver()"
   )
   if (!base::is.logical(cluster_columns) ||
     base::length(cluster_columns) != 1 ||
@@ -283,7 +281,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
   gfc_scale_ticks <- compute_scale_ticks(gfc_scale_limits)
 
   if (base::is.null(hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]])) {
-    stop("No cluster information found. Run `cluster_calculation()` first.")
+    stop("No cluster information found. Run `hc_cluster_calculation()` first.")
   }
   cluster_info <- hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]]
   all_clusters <- base::unique(base::as.character(cluster_info$color))
@@ -404,7 +402,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
   .hc_ui_get_integrated_net_genes <- function() {
     merged_net <- hcobject[["integrated_output"]][["merged_net"]]
     if (base::is.null(merged_net)) {
-      stop("Missing integrated network. Run `build_integrated_network()` first.")
+      stop("Missing integrated network. Run `hc_build_integrated_network()` first.")
     }
     net_genes <- igraph::get.vertex.attribute(merged_net, "name")
     net_genes <- base::unique(base::as.character(net_genes))
@@ -444,7 +442,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
       grpvar[bad_grp] <- samples[bad_grp]
     }
     if (isTRUE(hcobject[["global_settings"]][["data_in_log"]])) {
-      expr_mat <- antilog(expr_mat, 2)
+      expr_mat <- .hc_antilog_impl(expr_mat, 2)
     }
     grp_levels <- base::unique(grpvar)
     set_mean_mat <- base::vapply(
@@ -1531,64 +1529,7 @@ upstream_inference <- function(resources = c("TF", "Pathway"),
   output
 }
 
-.hc_upstream_inference_driver <- upstream_inference
 
-upstream_inference <- function(resources = c("TF", "Pathway"),
-                               top = 5,
-                               clusters = c("all"),
-                               padj = "BH",
-                               qval = 0.05,
-                               tf_confidence = c("A", "B", "C"),
-                               minsize = 5,
-                               method = "ulm",
-                               activity_input = "gfc",
-                               fc_comparisons = NULL,
-                               custom_pathway_gmt = NULL,
-                               heatmap_side = "left",
-                               cluster_columns = FALSE,
-                               heatmap_cluster_columns = NULL,
-                               col_order = NULL,
-                               heatmap_col_order = NULL,
-                               gfc_scale_limits = NULL,
-                               plot = TRUE,
-                               save_pdf = TRUE,
-                               pdf_width = NULL,
-                               pdf_height = NULL,
-                               pdf_pointsize = 11,
-                               plot_per_comparison = TRUE,
-                               consistent_terms = TRUE,
-                               overall_plot_scale = 1) {
-  .hc_alias_warning("upstream_inference")
-  out <- .hc_run_modern_bridge_capture(
-    .hc_upstream_inference_impl,
-    resources = resources,
-    top = top,
-    clusters = clusters,
-    padj = padj,
-    qval = qval,
-    tf_confidence = tf_confidence,
-    minsize = minsize,
-    method = method,
-    activity_input = activity_input,
-    fc_comparisons = fc_comparisons,
-    custom_pathway_gmt = custom_pathway_gmt,
-    heatmap_side = heatmap_side,
-    cluster_columns = cluster_columns,
-    heatmap_cluster_columns = heatmap_cluster_columns,
-    col_order = col_order,
-    heatmap_col_order = heatmap_col_order,
-    gfc_scale_limits = gfc_scale_limits,
-    plot = plot,
-    save_pdf = save_pdf,
-    pdf_width = pdf_width,
-    pdf_height = pdf_height,
-    pdf_pointsize = pdf_pointsize,
-    plot_per_comparison = plot_per_comparison,
-    consistent_terms = consistent_terms,
-    overall_plot_scale = overall_plot_scale
-  )
-  out$result
-}
 
 .hc_ui_load_tf_network <- function(organism, tf_confidence) {
   net <- NULL

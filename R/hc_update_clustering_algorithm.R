@@ -2,10 +2,9 @@
 #'
 #' The clustering can be updated to another algortihm (one of "cluster_louvain", "cluster_fast_greedy", "cluster_infomap", "cluster_walktrap", "cluster_label_prop", "cluster_leiden") or to a user defined clsutering using the 'gtc' parameter.
 #' @param new_algo A string (name of the new algorithm), or NULL (if gtc is provided)
-#' @param gtc A user defined clsutering can be provided as long as it has the same format as the output of GeneToCluster(): A data frame with two columns, the first containing gene names as strings, the second containing cluster colours as strings.
-#' @export
+#' @param gtc A user defined clsutering can be provided as long as it has the same format as the output of .hc_gene_to_cluster_impl(): A data frame with two columns, the first containing gene names as strings, the second containing cluster colours as strings.
 
-update_clustering_algorithm <- function(new_algo = NULL, gtc = NULL) {
+.hc_update_clustering_algorithm_driver <- function(new_algo = NULL, gtc = NULL) {
   # recycle clustering of all algos from alluvial function, if it exists, otherwise conduct clustering now:
   if (!"alluvials" %in% names(hcobject[["integrated_output"]])) {
     all_clusterings <- run_all_cluster_algos()
@@ -66,17 +65,8 @@ update_clustering_algorithm <- function(new_algo = NULL, gtc = NULL) {
 
   .hc_set_bridge_hcobject_slot(c("global_settings", "chosen_clustering_algo"), new_algo)
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "cluster_information"), new_cluster_info)
-  plot_cluster_heatmap(return_HM = TRUE)
-  plot_integrated_network(layout = hcobject[["integrated_output"]][["cluster_calc"]][["layout"]])
+  .hc_plot_cluster_heatmap_driver(return_HM = TRUE)
+  .hc_plot_integrated_network_driver(layout = hcobject[["integrated_output"]][["cluster_calc"]][["layout"]])
 }
 
-.hc_update_clustering_algorithm_driver <- update_clustering_algorithm
 
-update_clustering_algorithm <- function(new_algo = NULL, gtc = NULL) {
-  .hc_run_alias_via_modern(
-    "update_clustering_algorithm",
-    hc_update_clustering_algorithm,
-    new_algo = new_algo,
-    gtc = gtc
-  )
-}

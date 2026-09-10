@@ -43,7 +43,3 @@ plus a \code{slot_info} table describing the resolved slots.
 Plots module trajectories after meta-clustering using donor and meta-cluster
 mean waves.
 }
-
-\examples{
-hc <- hc_init()
-}

@@ -24,7 +24,3 @@ This is a convenience plotting helper for notebook/interactive usage. It
 draws the enrichment panels already stored in \code{hc@satellite$enrichments}
 after \code{hc_functional_enrichment()}, without recomputing enrichment.
 }
-
-\examples{
-hc <- hc_init()
-}

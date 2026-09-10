@@ -4,20 +4,17 @@
 \alias{hc_export_to_local_folder}
 \title{Export network to local folder (S4 API)}
 \usage{
-hc_export_to_local_folder(hc, ...)
+hc_export_to_local_folder(hc, file)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Additional export arguments for local folder output.}
+\item{file}{Target folder for the exported network files. If omitted, the
+current output/save folder configured in \code{hc} is used.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
 Export network to local folder (S4 API)
-}
-
-\examples{
-hc <- hc_init()
 }

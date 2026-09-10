@@ -61,7 +61,3 @@ A list with one ggplot object (\code{meta_module_waves}).
 Creates module-wise wave plots after meta-clustering: faint donor trajectories
 plus bold meta-cluster mean trajectories.
 }
-
-\examples{
-hc <- hc_init()
-}

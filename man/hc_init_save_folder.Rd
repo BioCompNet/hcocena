@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_init_save_folder}
 \alias{hc_init_save_folder}
-\title{Run \code{init_save_folder()} with S4 state synchronization}
+\title{Creates a Save Folder}
 \usage{
 hc_init_save_folder(hc, name, use_output_dir = FALSE)
 }
@@ -17,20 +17,5 @@ hc_init_save_folder(hc, name, use_output_dir = FALSE)
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Run \code{init_save_folder()} with S4 state synchronization
+A folder with the given name is created in the output directory. All analysis outputs will be saved to this folder.
 }
-
-\examples{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_init_save_folder(hc, name = ""), silent = TRUE)
-}
-}
-

@@ -9,7 +9,6 @@
 #'  containing the groups by which you want to color.
 #' @param ellipses A Boolean. Whether or not to add ellipses to the PCA plot. For details see documentation on factoextra::fviz_pca_ind. Default is FALSE.
 #' @param cols Optional color palette passed to `factoextra::fviz_pca_ind()`.
-#' @export
 
 
 .hc_pca_prepare_expression <- function(x,
@@ -144,7 +143,7 @@
 }
 
 
-PCA <- function(which = "all", color_by = NULL, ellipses = FALSE, cols = NULL) {
+.hc_PCA_driver <- function(which = "all", color_by = NULL, ellipses = FALSE, cols = NULL) {
   default_color_by <- hcobject[["global_settings"]][["voi"]]
   if (is.null(default_color_by) || length(default_color_by) == 0 || is.na(default_color_by[[1]])) {
     default_color_by <- "none"
@@ -262,15 +261,4 @@ PCA <- function(which = "all", color_by = NULL, ellipses = FALSE, cols = NULL) {
   .hc_set_bridge_hcobject_slot(c("satellite_outputs", "pca"), out)
 }
 
-.hc_PCA_driver <- PCA
 
-PCA <- function(which = "all", color_by = NULL, ellipses = FALSE, cols = NULL) {
-  .hc_run_alias_via_modern(
-    "PCA",
-    hc_pca,
-    which = which,
-    color_by = color_by,
-    ellipses = ellipses,
-    cols = cols
-  )
-}

@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_run_expression_analysis_1}
 \alias{hc_run_expression_analysis_1}
-\title{Run expression analysis part I (S4 API)}
+\title{Run First Part Of The Gene Expression Analysis}
 \usage{
 hc_run_expression_analysis_1(
   hc,
@@ -39,33 +39,26 @@ Therefore, the Pearson correlation values can be weighted with Bayesian correlat
 
 \item{alpha}{A numeric value from 0 to 1. Allows to adjust the strength of the Bayes weighting: For alpha = 0 the Pearson correlation values remain unaltered, for alpha = 1 the Pearson correlation value and the Bayesian correlation value contribute equally to the final correlation.}
 
-\item{corr_method}{Default is "pearson", but can alternatively be set to "spearman".}
+\item{corr_method}{Correlation method to use. Supported values are "pearson"
+(default) and "spearman".}
 
 \item{corr_backend}{Correlation backend. \code{"auto"} (default) uses a fast
-cross-product path (BLAS matmul plus analytic t p-values) that is numerically
-identical to \code{Hmisc::rcorr} but roughly 2-4x faster, and automatically
-falls back to \code{Hmisc::rcorr} when the expression matrix contains \code{NA}s
-(to preserve pairwise-complete semantics). \code{"rcorr"} forces the original
-\code{Hmisc::rcorr} computation.}
+cross-product path (BLAS matmul plus analytic t p-values) that is
+numerically identical to \code{Hmisc::rcorr} but ~13-25x faster, and
+automatically falls back to \code{Hmisc::rcorr} when the expression matrix
+contains \code{NA}s (to preserve pairwise-complete semantics). \code{"rcorr"} forces
+the original \code{Hmisc::rcorr} computation.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Run expression analysis part I (S4 API)
+This function executes the frist part of the data processing procedure. It leads up to choosing the correlation cut-off for each layer.
+All datasets will be filtered for their most variant genes as defined in the layer-specific settings.
+After this filtering step, the pair-wise correlation coefficients for all pairs of genes are calculated.
+Correlations that are negative or that have an associated p-value higher than 0.05 are immediately discarded.
+Next, a set of statistics will be calculated for the set range of cut-off values that aim to facilitate the cut-off choice.
+This includes determining the number of graph components resulting from creating a network when cutting the data with the respective cut-off,
+as well as the number of nodes and edges this network comprises.
+The last parameter that is evaluated is the R^2-value of the data to a linear regression through the logged degree distribution for the given network.
 }
-
-\examples{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_run_expression_analysis_1(hc, export = FALSE), silent = TRUE)
-}
-}
-

@@ -4,16 +4,15 @@
 #' 	to allow the user to query specific transcription factors of interest and see how their top targets are spread across modules.
 #' 	The goal is to uncover potential co-regulations between clusters.
 #' @param TF A string giving the name of the transcription factor to be queried.
-#' @export
 
-check_tf <- function(TF) {
+.hc_check_tf_driver <- function(TF) {
   # get edgelist from integrated network:
   edgelist <- hcobject[["integrated_output"]][["combined_edgelist"]][, base::c(1, 2)]
   edgelist[] <- base::lapply(edgelist, as.character)
   edgelist$merged <- base::paste0(edgelist$V1, edgelist$V2)
   edgelist$merged2 <- base::paste0(edgelist$V2, edgelist$V1)
 
-  gtc <- GeneToCluster()
+  gtc <- .hc_gene_to_cluster_impl()
   base::colnames(gtc) <- base::c("gene", "cluster")
 
   # the targets of the transcription factor in question:
@@ -72,8 +71,4 @@ check_tf <- function(TF) {
   )
 }
 
-.hc_check_tf_driver <- check_tf
 
-check_tf <- function(TF) {
-  .hc_run_alias_via_modern("check_tf", hc_check_tf, TF = TF)
-}

@@ -450,8 +450,7 @@ hc_preview_celltype_database <- function(database,
 #'
 #' @return Invisibly returns a list with selected/significant results and a
 #'   `annotation_slot_map` (database -> slot).
-#' @export
-celltype_annotation <- function(
+.hc_celltype_annotation_driver <- function(
   databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
   custom_gmt_files = NULL,
   clusters = c("all"),
@@ -474,13 +473,12 @@ celltype_annotation <- function(
   heatmap_file_name = "Heatmap_modules_celltype_annotation.pdf",
   ...
 ) {
-  .hc_alias_warning("celltype_annotation")
 
   mode <- base::match.arg(mode)
   annotation_slot <- base::match.arg(annotation_slot)
 
   if (!requireNamespace("clusterProfiler", quietly = TRUE)) {
-    stop("Package `clusterProfiler` is required for `celltype_annotation()`.")
+    stop("Package `clusterProfiler` is required for `.hc_celltype_annotation_driver()`.")
   }
   if (base::is.null(databases)) {
     databases <- base::character(0)
@@ -542,7 +540,7 @@ celltype_annotation <- function(
 
   cluster_info <- tryCatch(hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]], error = function(e) NULL)
   if (base::is.null(cluster_info) || base::nrow(cluster_info) == 0) {
-    stop("No cluster information found. Run `cluster_calculation()` first.")
+    stop("No cluster information found. Run `hc_cluster_calculation()` first.")
   }
   if (!all(c("color", "gene_n") %in% base::colnames(cluster_info))) {
     stop("`cluster_information` is missing required columns (`color`, `gene_n`).")
@@ -1138,61 +1136,10 @@ celltype_annotation <- function(
     if (base::length(extra) > 0) {
       hm_args <- utils::modifyList(hm_args, extra)
     }
-    base::do.call(plot_cluster_heatmap, hm_args)
+    base::do.call(.hc_plot_cluster_heatmap_driver, hm_args)
   }
 
   invisible(out)
 }
 
-.hc_celltype_annotation_driver <- celltype_annotation
 
-celltype_annotation <- function(
-  databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
-  custom_gmt_files = NULL,
-  clusters = c("all"),
-  mode = c("coarse", "fine"),
-  top = 3,
-  qval = 0.1,
-  padj = "BH",
-  min_term_genes = 5,
-  min_gs_size = 10,
-  max_gs_size = 5000,
-  annotation_slot = c("auto", "enriched_per_cluster", "enriched_per_cluster2"),
-  slot_suffix = NULL,
-  clear_previous_slots = TRUE,
-  coarse_map = NULL,
-  coarse_include_other = TRUE,
-  refresh_db = FALSE,
-  export_excel = TRUE,
-  excel_file = "Module_Celltype_Annotation.xlsx",
-  plot_heatmap = FALSE,
-  heatmap_file_name = "Heatmap_modules_celltype_annotation.pdf",
-  ...
-) {
-  .hc_alias_warning("celltype_annotation")
-  out <- .hc_run_modern_bridge_capture(
-    .hc_celltype_annotation_impl,
-    databases = databases,
-    custom_gmt_files = custom_gmt_files,
-    clusters = clusters,
-    mode = mode,
-    top = top,
-    qval = qval,
-    padj = padj,
-    min_term_genes = min_term_genes,
-    min_gs_size = min_gs_size,
-    max_gs_size = max_gs_size,
-    annotation_slot = annotation_slot,
-    slot_suffix = slot_suffix,
-    clear_previous_slots = clear_previous_slots,
-    coarse_map = coarse_map,
-    coarse_include_other = coarse_include_other,
-    refresh_db = refresh_db,
-    export_excel = export_excel,
-    excel_file = excel_file,
-    plot_heatmap = plot_heatmap,
-    heatmap_file_name = heatmap_file_name,
-    ...
-  )
-  invisible(out$result)
-}

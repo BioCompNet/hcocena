@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_set_supp_files}
 \alias{hc_set_supp_files}
-\title{Register supplementary references (S4 API)}
+\title{Set Supplementary Files}
 \usage{
 hc_set_supp_files(
   hc,
@@ -34,7 +34,7 @@ a co-factor ("Co_factor"), a chromatin remodelling protein ("Chromatin_remodelle
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Register supplementary references (S4 API)
+Receives the file names of the supplementary files
 }
 \examples{
 hc <- hc_init()

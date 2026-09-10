@@ -3,10 +3,9 @@
 #' For visualization of the GFC for every gene under the different observed groups, the network can be additionally replotted once for every group,
 #' 	with nodes being coloured according to their GFC value.
 #' 	This provides a more detailed resolution of the information acquired from the module heatmap.
-#' @export
 
 
-plot_GFC_network <- function() {
+.hc_plot_GFC_network_driver <- function() {
   GFCs <- hcobject[["integrated_output"]][["GFC_all_layers"]]
   sat <- hcobject[["satellite_outputs"]]
   network <- NULL
@@ -88,8 +87,4 @@ plot_GFC_network <- function() {
   }
 }
 
-.hc_plot_GFC_network_driver <- plot_GFC_network
 
-plot_GFC_network <- function() {
-  .hc_run_alias_via_modern("plot_GFC_network", hc_plot_gfc_network)
-}

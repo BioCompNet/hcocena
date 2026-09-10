@@ -45,8 +45,7 @@
 #' @param overall_plot_scale Numeric scaling factor for text and line sizes.
 #'
 #' @return A list with overview/focus plots, nodes, edges, and output file.
-#' @export
-plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
+.hc_plot_enrichment_upstream_network_driver <- function(enrichment_mode = "selected",
                                              upstream_mode = "selected",
                                              clusters = c("all"),
                                              max_enrichment_per_module = NULL,
@@ -64,7 +63,6 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
                                              pdf_height = NULL,
                                              pdf_pointsize = 11,
                                              overall_plot_scale = 1) {
-  .hc_alias_warning("plot_enrichment_upstream_network")
 
   enrichment_mode <- base::match.arg(
     base::tolower(base::as.character(enrichment_mode)),
@@ -113,14 +111,14 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     heatmap_col_order = heatmap_col_order,
     col_order_missing = missing(col_order),
     heatmap_col_order_missing = missing(heatmap_col_order),
-    context = "plot_enrichment_upstream_network()"
+    context = ".hc_plot_enrichment_upstream_network_driver()"
   )
   cluster_columns <- .hc_resolve_cluster_columns_alias(
     cluster_columns = cluster_columns,
     heatmap_cluster_columns = heatmap_cluster_columns,
     cluster_columns_missing = missing(cluster_columns),
     heatmap_cluster_columns_missing = missing(heatmap_cluster_columns),
-    context = "plot_enrichment_upstream_network()"
+    context = ".hc_plot_enrichment_upstream_network_driver()"
   )
   if (!base::is.logical(cluster_columns) ||
     base::length(cluster_columns) != 1 ||
@@ -189,7 +187,7 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
 
   cluster_info <- hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]]
   if (base::is.null(cluster_info) || base::nrow(cluster_info) == 0) {
-    stop("No cluster information found. Run `cluster_calculation()` first.")
+    stop("No cluster information found. Run `hc_cluster_calculation()` first.")
   }
   all_clusters <- base::unique(base::as.character(cluster_info$color))
   all_clusters <- all_clusters[all_clusters != "white" & !base::is.na(all_clusters)]
@@ -453,7 +451,7 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     enrich_df <- normalize_enrichment_df(read_enrichment_xlsx_by_mode(enrich_file, enrichment_mode))
   }
   if (base::is.null(enrich_df) || base::nrow(enrich_df) == 0) {
-    stop("Missing enrichment results. Run `functional_enrichment()` first.")
+    stop("Missing enrichment results. Run `.hc_functional_enrichment_driver()` first.")
   }
 
   upstream_store <- hcobject[["integrated_output"]][["upstream_inference"]]
@@ -470,7 +468,7 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
     upstream_df <- normalize_upstream_df(read_xlsx_sheet(upstream_file, upstream_key))
   }
   if (base::is.null(upstream_df) || base::nrow(upstream_df) == 0) {
-    stop("Missing upstream results. Run `upstream_inference()` first.")
+    stop("Missing upstream results. Run `.hc_upstream_inference_driver()` first.")
   }
   upstream_settings <- upstream_store[["settings"]]
   upstream_activity_input <- "gfc"
@@ -651,7 +649,7 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
         grpvar[bad] <- samples[bad]
       }
       if (isTRUE(hcobject[["global_settings"]][["data_in_log"]])) {
-        expr_mat <- antilog(expr_mat, 2)
+        expr_mat <- .hc_antilog_impl(expr_mat, 2)
       }
       grp_levels <- base::unique(grpvar)
       set_mean <- base::vapply(
@@ -1982,47 +1980,4 @@ plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
   output
 }
 
-.hc_plot_enrichment_upstream_network_driver <- plot_enrichment_upstream_network
 
-plot_enrichment_upstream_network <- function(enrichment_mode = "selected",
-                                             upstream_mode = "selected",
-                                             clusters = c("all"),
-                                             max_enrichment_per_module = NULL,
-                                             max_upstream_per_module = NULL,
-                                             label_mode = "both",
-                                             show_plot = TRUE,
-                                             save_pdf = TRUE,
-                                             pdf_name = "Module_Knowledge_Network.pdf",
-                                             gfc_scale_limits = NULL,
-                                             col_order = NULL,
-                                             heatmap_col_order = NULL,
-                                             cluster_columns = FALSE,
-                                             heatmap_cluster_columns = NULL,
-                                             pdf_width = NULL,
-                                             pdf_height = NULL,
-                                             pdf_pointsize = 11,
-                                             overall_plot_scale = 1) {
-  .hc_alias_warning("plot_enrichment_upstream_network")
-  out <- .hc_run_modern_bridge_capture(
-    .hc_plot_enrichment_upstream_network_impl,
-    enrichment_mode = enrichment_mode,
-    upstream_mode = upstream_mode,
-    clusters = clusters,
-    max_enrichment_per_module = max_enrichment_per_module,
-    max_upstream_per_module = max_upstream_per_module,
-    label_mode = label_mode,
-    show_plot = show_plot,
-    save_pdf = save_pdf,
-    pdf_name = pdf_name,
-    gfc_scale_limits = gfc_scale_limits,
-    col_order = col_order,
-    heatmap_col_order = heatmap_col_order,
-    cluster_columns = cluster_columns,
-    heatmap_cluster_columns = heatmap_cluster_columns,
-    pdf_width = pdf_width,
-    pdf_height = pdf_height,
-    pdf_pointsize = pdf_pointsize,
-    overall_plot_scale = overall_plot_scale
-  )
-  out$result
-}

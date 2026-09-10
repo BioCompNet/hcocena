@@ -1,13 +1,12 @@
 #' Import Clusters From File
 #'
 #' Uses an imported clustering model instead of clustering the integrated network.
-#' 	The model must be saved as two columns, the first containing genes, the second cluster colors (this is the format export_clusters() exports to).
+#' 	The model must be saved as two columns, the first containing genes, the second cluster colors (this is the format .hc_export_clusters_driver() exports to).
 #' @param file File path.
 #' @param sep The separator of the file. Default is tab-separated.
 #' @param header A Boolean. Whether or not the file has headers (column names).
-#' @export
 
-import_clusters <- function(file, sep = "\t", header = TRUE) {
+.hc_import_clusters_driver <- function(file, sep = "\t", header = TRUE) {
   gtc <- readr::read_delim(file = file, delim = sep, col_names = header)
   base::colnames(gtc) <- base::c("gene", "cluster")
   gtc[] <- base::lapply(gtc, base::as.character)
@@ -51,4 +50,24 @@ import_clusters <- function(file, sep = "\t", header = TRUE) {
     )
   }
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "cluster_information"), new_cluster_info)
+}
+
+
+#' Import an external gene-to-cluster assignment
+#'
+#' Replaces the current module assignment with one read from a file, e.g. a
+#' clustering exported earlier with [hc_export_clusters()].
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param file Path to the gene-to-cluster file. Column 1 holds gene symbols,
+#'   column 2 the cluster each gene belongs to.
+#' @param sep Field separator of the file. Default is `"\t"`.
+#' @param header Logical. Whether the file carries a header row. Default `TRUE`.
+#' @return Updated `HCoCenaExperiment`.
+#' @export
+hc_import_clusters <- function(hc, file, sep = "\t", header = TRUE) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_import_clusters_driver,
+    file = file, sep = sep, header = header
+  )
 }

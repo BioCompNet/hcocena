@@ -20,7 +20,3 @@ Invisibly returns \code{x}.
 \description{
 Convenience printer for outputs from the stepwise longitudinal functions.
 }
-
-\examples{
-hc <- hc_init()
-}

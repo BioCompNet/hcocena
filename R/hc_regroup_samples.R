@@ -22,10 +22,9 @@
 #' 	The file will be saved in the same directory as the original annotation, bearing the name of the annotation file with the '_regrouped' suffix.
 #' 	THEN RE-RUN CoCena FROM THE 'run_expression_analysis_2' FUNCTION ONWARD (including that function).
 #' 	NOTE: New annotation files are always exported without rownames.
-#' @export
 
 
-cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::rep(1, base::length(hcobject[["layers"]])), save = FALSE) {
+.hc_cut_hclust_impl <- function(by = "all", set = "all", method = "complete", k = base::rep(1, base::length(hcobject[["layers"]])), save = FALSE) {
   # plots heatmaps AND dendrograms for options "module" and "network", but only dendrogram for option "all".
   # This is due to performance issues with massive heatmaps like that
 
@@ -69,7 +68,7 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
             sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE
           )
           .hc_set_bridge_hcobject_slot(c("data", base::paste0("set", l, "_anno")), anno)
-          message("After the regrouping, you must rerun the steps from the main markdown beginning with run_expression_analysis_2(), since the sample groups have now changed.")
+          message("After the regrouping, you must rerun the steps from the main markdown beginning with hc_run_expression_analysis_2(), since the sample groups have now changed.")
         }
       } # end for loop
     } else {
@@ -105,7 +104,7 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
             sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE
           )
           .hc_set_bridge_hcobject_slot(c("data", base::paste0("set", l, "_anno")), anno)
-          message("After the regrouping, you must rerun the steps from the main markdown beginning with run_expression_analysis_2(), since the sample groups have now changed.")
+          message("After the regrouping, you must rerun the steps from the main markdown beginning with hc_run_expression_analysis_2(), since the sample groups have now changed.")
         }
       } # end for loop
     } # end if-else
@@ -166,7 +165,7 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
             sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE
           )
           .hc_set_bridge_hcobject_slot(c("data", base::paste0("set", l, "_anno")), anno)
-          message("After the regrouping, you must rerun the steps from the main markdown beginning with run_expression_analysis_2(), since the sample groups have now changed.")
+          message("After the regrouping, you must rerun the steps from the main markdown beginning with hc_run_expression_analysis_2(), since the sample groups have now changed.")
         }
       } # end for loop
     } else {
@@ -218,7 +217,7 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
             sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE
           )
           .hc_set_bridge_hcobject_slot(c("data", base::paste0("set", l, "_anno")), anno)
-          message("After the regrouping, you must rerun the steps from the main markdown beginning with run_expression_analysis_2(), since the sample groups have now changed.")
+          message("After the regrouping, you must rerun the steps from the main markdown beginning with hc_run_expression_analysis_2(), since the sample groups have now changed.")
         }
       } # end for loop
     } # end if-else
@@ -237,7 +236,7 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
     }
     if (set == "all") {
       for (l in base::seq_along(hcobject[["layers"]])) {
-        gtc <- GeneToCluster()
+        gtc <- .hc_gene_to_cluster_impl()
         counts <- hcobject[["data"]][[base::paste0("set", l, "_counts")]]
         FCs <- NULL
         for (c in base::unique(gtc$color)) {
@@ -299,12 +298,12 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
             sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE
           )
           .hc_set_bridge_hcobject_slot(c("data", base::paste0("set", l, "_anno")), anno)
-          message("After the regrouping, you must rerun the steps from the main markdown beginning with run_expression_analysis_2(), since the sample groups have now changed.")
+          message("After the regrouping, you must rerun the steps from the main markdown beginning with hc_run_expression_analysis_2(), since the sample groups have now changed.")
         }
       } # end for loop
     } else {
       for (l in set) {
-        gtc <- GeneToCluster()
+        gtc <- .hc_gene_to_cluster_impl()
         counts <- hcobject[["data"]][[base::paste0("set", l, "_counts")]]
         FCs <- NULL
         for (c in base::unique(gtc$color)) {
@@ -366,9 +365,54 @@ cut_hclust <- function(by = "all", set = "all", method = "complete", k = base::r
             sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE
           )
           .hc_set_bridge_hcobject_slot(c("data", base::paste0("set", l, "_anno")), anno)
-          message("After the regrouping, you must rerun the steps from the main markdown beginning with run_expression_analysis_2(), since the sample groups have now changed.")
+          message("After the regrouping, you must rerun the steps from the main markdown beginning with hc_run_expression_analysis_2(), since the sample groups have now changed.")
         }
       } # end for loop
     } # end if-else
   } # end by == "module"
+}
+
+
+#' Cut a hierarchical clustering tree to regroup samples (S4 API)
+#'
+#' Assigns new sample group labels from the data structure rather than from
+#' metadata, by cutting a hierarchical clustering tree. Useful when the variable
+#' of interest does not match the structure seen in the heatmaps or the PCA.
+#'
+#' Re-run with `save = FALSE` to try different `k` values; only set
+#' `save = TRUE` once you have settled on one, since that overwrites the
+#' original groups and exports a new annotation file (without row names). After
+#' saving, re-run the pipeline from [hc_run_expression_analysis_2()] onward.
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param by What to regroup on: `"all"` (default, all genes; dendrogram only,
+#'   for memory reasons), `"network"` (network genes) or `"module"` (mean
+#'   expression per module). The latter two also draw a heatmap.
+#' @param set Layers to regroup: `"all"` (default) or an integer vector of
+#'   layer indices.
+#' @param method Agglomeration method passed to [stats::hclust()].
+#'   Default is `"complete"`.
+#' @param k Integer vector giving, per regrouped layer, the number of clusters
+#'   to cut the dendrogram into. Defaults to 1 per layer (no cutting - good for
+#'   a first look).
+#' @param save Logical. If `TRUE`, overwrite the sample groups and export a new
+#'   annotation file with the `_regrouped` suffix; the original groups are kept
+#'   in a `<voi>_old` column. Default is `FALSE`.
+#' @return Updated `HCoCenaExperiment`.
+#' @export
+hc_cut_hclust <- function(hc, by = "all", set = "all", method = "complete",
+                          k, save = FALSE) {
+  # `k`'s default is derived from the live `hcobject` inside the driver, so
+  # only forward it when the caller supplied one
+  if (missing(k)) {
+    .hc_run_driver(
+      hc = hc, fun = .hc_cut_hclust_impl,
+      by = by, set = set, method = method, save = save
+    )
+  } else {
+    .hc_run_driver(
+      hc = hc, fun = .hc_cut_hclust_impl,
+      by = by, set = set, method = method, k = k, save = save
+    )
+  }
 }

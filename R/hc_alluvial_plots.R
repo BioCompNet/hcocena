@@ -2,12 +2,10 @@
 #'
 #' Alluvial plots will be generated demonstrating how the genes change clusters if the current clustering algorithm (always shown on the left) was changed to any of the other clustering options (always shown on the right).
 #' 	The produced plot is interactive, hover over it to get more details.
-#' @export
 
-algo_alluvial <- function() {
-  .hc_alias_warning("algo_alluvial")
+.hc_algo_alluvial_driver <- function() {
   if (!requireNamespace("networkD3", quietly = TRUE)) {
-    stop("Package `networkD3` is required for `algo_alluvial()`. Install it first.")
+    stop("Package `networkD3` is required for `.hc_algo_alluvial_driver()`. Install it first.")
   }
 
   network <- hcobject[["integrated_output"]][["merged_net"]]
@@ -53,7 +51,7 @@ algo_alluvial <- function() {
         partition_df
       },
       error = function(e) {
-        warning("Skipping `", a, "` in `algo_alluvial()`: ", base::conditionMessage(e), call. = FALSE)
+        warning("Skipping `", a, "` in `.hc_algo_alluvial_driver()`: ", base::conditionMessage(e), call. = FALSE)
         NULL
       }
     ))
@@ -127,15 +125,11 @@ algo_alluvial <- function() {
   }
 
   if (base::length(output) <= 1) {
-    warning("No alternative clustering algorithm completed in `algo_alluvial()`.", call. = FALSE)
+    warning("No alternative clustering algorithm completed in `.hc_algo_alluvial_driver()`.", call. = FALSE)
   }
 
   .hc_set_bridge_hcobject_slot(c("integrated_output", "alluvials"), output)
   invisible(output)
 }
 
-.hc_algo_alluvial_driver <- algo_alluvial
 
-algo_alluvial <- function() {
-  .hc_run_alias_via_modern("algo_alluvial", hc_algo_alluvial)
-}

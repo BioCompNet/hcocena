@@ -15,31 +15,8 @@
 #'  more stable/readable than Fruchterman-Reingold for medium/large graphs.
 #'  `"cytoscape"` uses an externally calculated Cytoscape layout.
 #' @param data_in_log Boolean. Whether or not the provided gene expression data is logged to the base of 2.
-#' @export
 
 
-set_global_settings <- function(organism = "human",
-                                control_keyword = "none",
-                                variable_of_interest = "merged",
-                                min_nodes_number_for_network = 50,
-                                min_nodes_number_for_cluster = 50,
-                                range_GFC = 2.0,
-                                layout_algorithm = "layout_with_stress",
-                                data_in_log = TRUE) {
-  .hc_alias_warning("set_global_settings")
-
-  invisible(.hc_run_modern_bridge(
-    .hc_set_global_settings_impl,
-    organism = organism,
-    control_keyword = control_keyword,
-    variable_of_interest = variable_of_interest,
-    min_nodes_number_for_network = min_nodes_number_for_network,
-    min_nodes_number_for_cluster = min_nodes_number_for_cluster,
-    range_GFC = range_GFC,
-    layout_algorithm = layout_algorithm,
-    data_in_log = data_in_log
-  ))
-}
 
 .hc_normalize_layout_algorithm <- function(layout_algorithm) {
   if (!is.character(layout_algorithm) || length(layout_algorithm) != 1 || is.na(layout_algorithm)) {

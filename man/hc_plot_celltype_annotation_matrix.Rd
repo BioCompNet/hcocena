@@ -48,7 +48,3 @@ A \code{ggplot} object or a list containing plot + data.
 Uses \code{hc@satellite$celltype_annotation} and draws a heatmap-like matrix
 (modules x cell types) for easier interpretation than stacked barplots.
 }
-
-\examples{
-hc <- hc_init()
-}

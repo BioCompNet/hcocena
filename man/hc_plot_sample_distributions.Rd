@@ -2,14 +2,25 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_plot_sample_distributions}
 \alias{hc_plot_sample_distributions}
-\title{Plot sample distributions (S4 API)}
+\title{plot sample distributions}
 \usage{
-hc_plot_sample_distributions(hc, ...)
+hc_plot_sample_distributions(
+  hc,
+  plot_type = "boxplot",
+  log_2 = TRUE,
+  plot = TRUE
+)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{plot_sample_distributions()}.}
+\item{plot_type}{Either "boxplot" (default) or "freqdist" for a
+distribution-focused view.}
+
+\item{log_2}{Logical. Log2-transform the values before plotting.
+Default is \code{TRUE}.}
+
+\item{plot}{Logical. Draw the plot. Default is \code{TRUE}.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -17,18 +28,6 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Plot sample distributions (S4 API)
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_plot_sample_distributions(hc, plot_type = "boxplot"), silent = TRUE)
+hc <- hc_plot_sample_distributions(hc)
 }
-}
-

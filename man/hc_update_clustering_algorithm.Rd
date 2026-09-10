@@ -2,14 +2,18 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_update_clustering_algorithm}
 \alias{hc_update_clustering_algorithm}
-\title{Update clustering algorithm (S4 API)}
+\title{update clustering algorithm}
 \usage{
-hc_update_clustering_algorithm(hc, ...)
+hc_update_clustering_algorithm(hc, new_algo = NULL, gtc = NULL)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{update_clustering_algorithm()}.}
+\item{new_algo}{Name of the clustering algorithm to switch to, e.g.
+\code{"cluster_louvain"}. Mutually exclusive with \code{gtc}.}
+
+\item{gtc}{Optional externally supplied gene-to-cluster table to adopt
+instead of re-running an algorithm.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -17,18 +21,6 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Update clustering algorithm (S4 API)
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_update_clustering_algorithm(hc, new_algo = "cluster_louvain"), silent = TRUE)
+hc <- hc_update_clustering_algorithm(hc, new_algo = "cluster_louvain")
 }
-}
-

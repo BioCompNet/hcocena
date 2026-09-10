@@ -54,7 +54,3 @@ proportion of repeated clustering runs assigned to each module-specific
 cluster. This is the generalized, data-agnostic analogue of the CAP concept
 used in the legacy longitudinal scripts.
 }
-
-\examples{
-hc <- hc_init()
-}

@@ -4,20 +4,21 @@
 \alias{hc_export_to_cytoscape}
 \title{Export network to Cytoscape (S4 API)}
 \usage{
-hc_export_to_cytoscape(hc, ...)
+hc_export_to_cytoscape(hc, name = "my igraph", docker_container = FALSE)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Additional arguments for Cytoscape export.}
+\item{name}{Name under which the network is created in Cytoscape.
+Default is "my igraph".}
+
+\item{docker_container}{Logical. Set to \code{TRUE} when running hCoCena inside a
+Docker container that talks to a Cytoscape instance on the host.
+Default is \code{FALSE}.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
 Export network to Cytoscape (S4 API)
-}
-
-\examples{
-hc <- hc_init()
 }

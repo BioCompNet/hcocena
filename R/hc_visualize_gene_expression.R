@@ -6,12 +6,15 @@
 #' @param name A string giving the plot title and the name for the save file (WITHOUT file ending).
 #' @param width Width of the PDF, default ist 15, only change if plots overlap in PDF.
 #' @param height Height of the PDF, default ist 10, only change if plots overlap in PDF.
-#' @export
+#' @param label_map Optional named character vector mapping cluster colours to
+#'  module labels (`M1`, `M2.1`, ...). When supplied, row labels show the module
+#'  label instead of the raw colour. Defaults to NULL (colour, as before).
 
-visualize_gene_expression <- function(genes, name = NULL, width = 15, height = 10, save = TRUE) {
+.hc_visualize_gene_expression_driver <- function(genes, name = NULL, width = 15, height = 10, save = TRUE,
+                                                 label_map = NULL) {
   # Filter for genes present in the network
 
-  gtc <- GeneToCluster() %>%
+  gtc <- .hc_gene_to_cluster_impl() %>%
     dplyr::filter(., gene %in% genes) %>%
     dplyr::filter(., !color == "white")
 
@@ -81,6 +84,9 @@ visualize_gene_expression <- function(genes, name = NULL, width = 15, height = 1
 
     base::rownames(mexp) <- base::lapply(base::rownames(mexp), function(r) {
       color <- dplyr::filter(gtc, gene == r) %>% dplyr::pull(., "color")
+      if (!base::is.null(label_map) && base::as.character(color)[1] %in% base::names(label_map)) {
+        color <- base::as.character(label_map[[base::as.character(color)[1]]])
+      }
       return(paste0(r, " [", color, "]"))
     }) %>% base::unlist()
 
@@ -143,16 +149,4 @@ visualize_gene_expression <- function(genes, name = NULL, width = 15, height = 1
   ComplexHeatmap::plot.HeatmapList(plotls, column_title = heatmap_title, column_title_gp = grid::gpar(fontsize = 14, fontface = "bold"))
 }
 
-.hc_visualize_gene_expression_driver <- visualize_gene_expression
 
-visualize_gene_expression <- function(genes, name = NULL, width = 15, height = 10, save = TRUE) {
-  .hc_run_alias_via_modern(
-    "visualize_gene_expression",
-    hc_visualize_gene_expression,
-    genes = genes,
-    name = name,
-    width = width,
-    height = height,
-    save = save
-  )
-}

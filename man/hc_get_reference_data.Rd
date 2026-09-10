@@ -18,7 +18,3 @@ The resource stored under \code{hub_id}.
 This is the transition API for the planned \code{hcocenaData} companion package.
 The function expects an ExperimentHub ID (e.g. \code{"EH12345"}).
 }
-
-\examples{
-hc <- hc_init()
-}

@@ -30,8 +30,7 @@
 #' @param heatmap_file_name Heatmap filename when `plot_heatmap = TRUE`.
 #' @param ... Passed to `hc_plot_cluster_heatmap()`.
 #' @return Invisibly returns a list with activity tables and slot mapping.
-#' @export
-celltype_activity_decoupler <- function(
+.hc_celltype_activity_decoupler_driver <- function(
   databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
   custom_gmt_files = NULL,
   clusters = c("all"),
@@ -56,10 +55,9 @@ celltype_activity_decoupler <- function(
   heatmap_file_name = "Heatmap_modules_celltype_activity_decoupler.pdf",
   ...
 ) {
-  .hc_alias_warning("celltype_activity_decoupler")
 
   if (!requireNamespace("decoupleR", quietly = TRUE)) {
-    stop("Package `decoupleR` is required for `celltype_activity_decoupler()`.")
+    stop("Package `decoupleR` is required for `.hc_celltype_activity_decoupler_driver()`.")
   }
   mode <- base::match.arg(mode)
   annotation_slot <- base::match.arg(annotation_slot)
@@ -193,7 +191,7 @@ celltype_activity_decoupler <- function(
     grp <- resolve_group_labels(anno)
     bad <- base::is.na(grp) | grp == ""
     if (base::any(bad)) grp[bad] <- samples[bad]
-    if (isTRUE(hcobject[["global_settings"]][["data_in_log"]])) expr <- antilog(expr, 2)
+    if (isTRUE(hcobject[["global_settings"]][["data_in_log"]])) expr <- .hc_antilog_impl(expr, 2)
     lv <- base::unique(grp)
     mat <- base::vapply(lv, function(v) {
       i <- base::which(grp == v)
@@ -558,65 +556,10 @@ celltype_activity_decoupler <- function(
     hm_args <- list(file_name = heatmap_file_name, gene_count_mode = "none", module_label_preset = "compact", include_dynamic_enrichment_slots = TRUE)
     extra <- list(...)
     if (base::length(extra) > 0) hm_args <- utils::modifyList(hm_args, extra)
-    base::do.call(plot_cluster_heatmap, hm_args)
+    base::do.call(.hc_plot_cluster_heatmap_driver, hm_args)
   }
 
   invisible(out)
 }
 
-.hc_celltype_activity_decoupler_driver <- celltype_activity_decoupler
 
-celltype_activity_decoupler <- function(
-  databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
-  custom_gmt_files = NULL,
-  clusters = c("all"),
-  mode = c("coarse", "fine"),
-  top = 3,
-  qval = 0.1,
-  padj = "BH",
-  activity_input = c("gfc", "fc", "expression"),
-  fc_comparisons = NULL,
-  method = "ulm",
-  minsize = 5,
-  min_term_genes = 5,
-  annotation_slot = c("auto", "enriched_per_cluster", "enriched_per_cluster2"),
-  slot_suffix = "decoupler",
-  clear_previous_slots = FALSE,
-  coarse_map = NULL,
-  coarse_include_other = TRUE,
-  refresh_db = FALSE,
-  export_excel = TRUE,
-  excel_file = "Module_Celltype_Activity_decoupler.xlsx",
-  plot_heatmap = FALSE,
-  heatmap_file_name = "Heatmap_modules_celltype_activity_decoupler.pdf",
-  ...
-) {
-  .hc_alias_warning("celltype_activity_decoupler")
-  out <- .hc_run_modern_bridge_capture(
-    .hc_celltype_activity_decoupler_impl,
-    databases = databases,
-    custom_gmt_files = custom_gmt_files,
-    clusters = clusters,
-    mode = mode,
-    top = top,
-    qval = qval,
-    padj = padj,
-    activity_input = activity_input,
-    fc_comparisons = fc_comparisons,
-    method = method,
-    minsize = minsize,
-    min_term_genes = min_term_genes,
-    annotation_slot = annotation_slot,
-    slot_suffix = slot_suffix,
-    clear_previous_slots = clear_previous_slots,
-    coarse_map = coarse_map,
-    coarse_include_other = coarse_include_other,
-    refresh_db = refresh_db,
-    export_excel = export_excel,
-    excel_file = excel_file,
-    plot_heatmap = plot_heatmap,
-    heatmap_file_name = heatmap_file_name,
-    ...
-  )
-  invisible(out$result)
-}

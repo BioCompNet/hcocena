@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_check_dirs}
 \alias{hc_check_dirs}
-\title{Run \code{check_dirs()} with S4 state synchronization}
+\title{Fixes Directories}
 \usage{
 hc_check_dirs(hc, create_output_dir = TRUE)
 }
@@ -15,20 +15,5 @@ hc_check_dirs(hc, create_output_dir = TRUE)
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Run \code{check_dirs()} with S4 state synchronization
+Iteratively calls fix_dir() on the provided working directory paths to fix them if necessary or throw an error if they are invalid.
 }
-
-\examples{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_check_dirs(hc), silent = TRUE)
-}
-}
-

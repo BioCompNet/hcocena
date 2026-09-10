@@ -4,31 +4,44 @@
 \alias{hc_find_hubs}
 \title{Hub detection (S4 API)}
 \usage{
-hc_find_hubs(hc, ...)
+hc_find_hubs(
+  hc,
+  clusters = c("all"),
+  top = 10,
+  tree_layout = FALSE,
+  TF_only = FALSE,
+  save = FALSE,
+  plot = FALSE
+)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{find_hubs()}.}
+\item{clusters}{Either "all" (default) or a vector of module colours for
+which hub detection should be performed.}
+
+\item{top}{Integer. Number of top-ranked genes per module to report as hubs.
+Default is 10.}
+
+\item{tree_layout}{Logical. Draw the per-module hub network with a tree
+layout. Default is \code{FALSE}.}
+
+\item{TF_only}{Either \code{FALSE} (default, consider all genes), \code{"all"} (only
+genes from the transcription-factor reference file), or one gene category
+from that file's last column.}
+
+\item{save}{Logical. Write the hub network and expression heatmap to PDF.
+Default is \code{FALSE}.}
+
+\item{plot}{Logical. Draw the per-module network. Default is \code{FALSE}.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Hub detection (S4 API)
+Determines hub genes per module from a combined ranking of weighted degree,
+closeness and betweenness centrality.
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_find_hubs(hc, clusters = c("all"), top = 3, save = FALSE, plot = FALSE), silent = TRUE)
+hc <- hc_find_hubs(hc)
 }
-}
-

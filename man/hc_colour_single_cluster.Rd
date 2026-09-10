@@ -4,34 +4,20 @@
 \alias{hc_colour_single_cluster}
 \title{Highlight single cluster in network (S4 API)}
 \usage{
-hc_colour_single_cluster(hc, ...)
+hc_colour_single_cluster(hc, cluster)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{colour_single_cluster()}.}
+\item{cluster}{The module to highlight, given as its colour or module label.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Highlight single cluster in network (S4 API)
+Re-plots the integrated network with one module emphasised by colour and
+node size.
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-hco <- hcocena:::as_hcobject(hc)
-mods <- unique(as.character(hco[["integrated_output"]][["cluster_calc"]][["cluster_information"]][["color"]]))
-mods <- mods[!is.na(mods) & mods != "white"]
-if (length(mods) > 0) try(hc <- hc_colour_single_cluster(hc, cluster = mods[1]), silent = TRUE)
+hc <- hc_colour_single_cluster(hc, cluster = "gold")
 }
-}
-

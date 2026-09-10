@@ -2,7 +2,7 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_export_clusters}
 \alias{hc_export_clusters}
-\title{Export clusters (S4 API)}
+\title{export clusters}
 \usage{
 hc_export_clusters(hc)
 }
@@ -15,18 +15,6 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Export clusters (S4 API)
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_export_clusters(hc), silent = TRUE)
+hc <- hc_export_clusters(hc)
 }
-}
-

@@ -30,26 +30,4 @@
 #'   automatically falls back to `Hmisc::rcorr` when the expression matrix
 #'   contains `NA`s (to preserve pairwise-complete semantics). `"rcorr"` forces
 #'   the original `Hmisc::rcorr` computation.
-#' @export
 
-run_expression_analysis_1 <- function(padj = "none",
-                                      export = FALSE,
-                                      import = NULL,
-                                      bayes = FALSE,
-                                      prior = 2,
-                                      alpha = 0.5,
-                                      corr_method = "pearson",
-                                      corr_backend = "auto") {
-  .hc_alias_warning("run_expression_analysis_1")
-  invisible(.hc_run_modern_bridge(
-    .hc_run_expression_analysis_1_impl,
-    padj = padj,
-    export = export,
-    import = import,
-    bayes = bayes,
-    prior = prior,
-    alpha = alpha,
-    corr_method = corr_method,
-    corr_backend = corr_backend
-  ))
-}

@@ -15,10 +15,9 @@
 #' @param cluster_columns A Boolean, whether or not to cluster the columns of
 #'  the heatmap. Default is FALSE so the main hCoCena column order is preserved.
 #' @param cluster_rows Like cluster_columns but for rows.
-#' @export
 
 
-change_grouping_parameter <- function(group_by, col_order = NULL, cluster_columns = FALSE, row_order = NULL, cluster_rows = TRUE) {
+.hc_change_grouping_parameter_driver <- function(group_by, col_order = NULL, cluster_columns = FALSE, row_order = NULL, cluster_rows = TRUE) {
   # check if grouping variables are present:
   if (base::length(group_by) == 1) {
     for (i in base::seq_along(hcobject[["layers"]])) {
@@ -199,16 +198,4 @@ change_grouping_parameter <- function(group_by, col_order = NULL, cluster_column
   invisible(hm)
 }
 
-.hc_change_grouping_parameter_driver <- change_grouping_parameter
 
-change_grouping_parameter <- function(group_by, col_order = NULL, cluster_columns = FALSE, row_order = NULL, cluster_rows = TRUE) {
-  .hc_run_alias_via_modern(
-    "change_grouping_parameter",
-    hc_change_grouping_parameter,
-    group_by = group_by,
-    col_order = col_order,
-    cluster_columns = cluster_columns,
-    row_order = row_order,
-    cluster_rows = cluster_rows
-  )
-}

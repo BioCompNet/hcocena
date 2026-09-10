@@ -13,20 +13,7 @@ hc_plot_deg_dist(hc)
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Plot degree distributions (S4 API)
+Plots the logged degree distribution and its linear fit for each layer
+at the chosen correlation cutoff, to check how well the network follows
+a scale-free topology.
 }
-
-\examples{
-hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_after_part1.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_plot_deg_dist(hc), silent = TRUE)
-}
-}
-

@@ -3,16 +3,15 @@
 #' This function calculates and visualizes the Jaccard-Index of all pairs of clusters from two networks.
 #' This allows the comparison of the two networks with respect to the clusters they form and how those clusters relate to each other.
 #' @param gtc1_path File path to a 'gtc'-file (gene-to-clsuter) of the first network: Essentially just a file with two columns, the first containing gene symbols and the second
-#' giving the cluster each gene belongs to. Such a file can be generated during an hCoCena analysis using the function 'hcocena::export_clusters()', but as long as
+#' giving the cluster each gene belongs to. Such a file can be generated during an hCoCena analysis using the function 'hcocena::.hc_export_clusters_driver()', but as long as
 #' the described structure is preserved it can also be generated manually elsewhere.
 #' @param gtc2_path See 'gtc1_path', only for network 2.
 #' @param sep The separator of the 'gtc'-file. Default is tab-separated.
 #' @param header A Boolean. Whether or not the file has headers (column names).
 #' @param cellsize The size of the cells/tiles in the plotted heatmap. Default is 18, may be adjusted for aestetics reasons.
 #' @return The heatmap object for replotting/re-sizing etc. and the result matrix. Output can be found under hcobject$satellite_outputs$network_comparison_1
-#' @export
 
-network_comparison_1 <- function(gtc1_path, gtc2_path, sep = "\t", header = TRUE, cellsize = 18) {
+.hc_network_comparison_1_driver <- function(gtc1_path, gtc2_path, sep = "\t", header = TRUE, cellsize = 18) {
   gtc1 <- readr::read_delim(file = gtc1_path, delim = sep, col_names = header)
   base::colnames(gtc1) <- c("gene", "color")
   gtc2 <- readr::read_delim(file = gtc2_path, delim = sep, col_names = header)
@@ -95,9 +94,8 @@ calc_jaccard <- function(set1, set2) {
 #' @param as In the future we plan to provide either an igraph object or an edge list. For now, only the igraph option is available.
 #' @param gene_vec A vector of gene symbols you wish to investigate. Gene symbols must be provided as strings, e.g., c( "YME1L1", "SLC2A5", "SIAH2", "GPI", "IL10RB").
 #' @return The ggplot object for replotting/re-sizing/modification etc. and the data used to plot the ggplot. Output can be found under hcobject$satellite_outputs$network_comparison_2
-#' @export
 
-network_comparison_2 <- function(net1, net2, as = "igraph", gene_vec) {
+.hc_network_comparison_2_driver <- function(net1, net2, as = "igraph", gene_vec) {
   nodes1 <- igraph::V(net1)$name
   nodes1 <- nodes1[nodes1 %in% gene_vec]
   nodes2 <- igraph::V(net2)$name
@@ -149,4 +147,46 @@ network_comparison_2 <- function(net1, net2, as = "igraph", gene_vec) {
     height = 6
   )
   .hc_set_bridge_hcobject_slot(c("satellite_outputs", "network_comparison_2"), list(plot = g, data = out))
+}
+
+
+#' Compare two gene-to-cluster assignments
+#'
+#' Compares two externally stored gene-to-cluster tables and visualises how the
+#' modules of the first assignment map onto those of the second.
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param gtc1_path Path to the first gene-to-cluster file.
+#' @param gtc2_path Path to the second gene-to-cluster file.
+#' @param sep Field separator of both files. Default is `"\t"`.
+#' @param header Logical. Whether the files carry a header row. Default `TRUE`.
+#' @param cellsize Cell size of the resulting heatmap. Default is 18.
+#' @return Updated `HCoCenaExperiment`.
+#' @export
+hc_network_comparison_1 <- function(hc, gtc1_path, gtc2_path, sep = "\t",
+                                    header = TRUE, cellsize = 18) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_network_comparison_1_driver,
+    gtc1_path = gtc1_path, gtc2_path = gtc2_path, sep = sep,
+    header = header, cellsize = cellsize
+  )
+}
+
+#' Compare the edges of two networks for a set of genes
+#'
+#' Contrasts the neighbourhoods of `gene_vec` between two networks and reports
+#' which edges are shared and which are unique to either network.
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param net1 First network as an `igraph` object.
+#' @param net2 Second network as an `igraph` object.
+#' @param as Object type of `net1`/`net2`. Default is `"igraph"`.
+#' @param gene_vec Character vector of genes to restrict the comparison to.
+#' @return Updated `HCoCenaExperiment`.
+#' @export
+hc_network_comparison_2 <- function(hc, net1, net2, as = "igraph", gene_vec) {
+  .hc_run_driver(
+    hc = hc, fun = .hc_network_comparison_2_driver,
+    net1 = net1, net2 = net2, as = as, gene_vec = gene_vec
+  )
 }

@@ -53,19 +53,6 @@ hcobject <- NULL
   invisible(NULL)
 }
 
-.hc_alias_warning <- function(fun) {
-  if (isTRUE(getOption("hcocena.suppress_legacy_warning", FALSE))) {
-    return(invisible(NULL))
-  }
-
-  fun_label <- base::paste0("`", fun, "()`")
-  warning(
-    fun_label, " uses the legacy global `hcobject` API. ",
-    "Prefer the S4 workflow (`hc_*()` functions) for new analyses.",
-    call. = FALSE
-  )
-}
-
 .hc_has_usable_bridge_hcobject <- function(envo = .hc_bridge_state_env()) {
   if (!base::exists("hcobject", envir = envo, inherits = FALSE)) {
     return(FALSE)
@@ -229,11 +216,6 @@ hcobject <- NULL
   )
 
   invisible(NULL)
-}
-
-.hc_run_alias_via_modern <- function(legacy_name, modern_fun, ...) {
-  .hc_alias_warning(legacy_name)
-  invisible(.hc_run_modern_bridge(modern_fun, ...))
 }
 
 .hc_run_driver_capture <- function(hc, fun, ..., envo = .hc_bridge_state_env()) {

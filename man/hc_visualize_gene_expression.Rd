@@ -4,34 +4,35 @@
 \alias{hc_visualize_gene_expression}
 \title{Visualize gene expression (S4 API)}
 \usage{
-hc_visualize_gene_expression(hc, ...)
+hc_visualize_gene_expression(
+  hc,
+  genes,
+  name = NULL,
+  width = 15,
+  height = 10,
+  save = TRUE
+)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{visualize_gene_expression()}.}
+\item{genes}{Character vector of gene symbols to plot.}
+
+\item{name}{Optional name used for the plot title and output file. If \code{NULL}
+(default), a name is derived automatically.}
+
+\item{width}{Plot width in inches. Default is 15.}
+
+\item{height}{Plot height in inches. Default is 10.}
+
+\item{save}{Logical. Write the heatmap to PDF. Default is \code{TRUE}.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Visualize gene expression (S4 API)
+Plots the mean expression per condition for a set of genes as a heatmap.
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-hco <- hcocena:::as_hcobject(hc)
-genes <- trimws(strsplit(as.character(hco[["integrated_output"]][["cluster_calc"]][["cluster_information"]][["gene_n"]][[1]]), ",", fixed = TRUE)[[1]])
-genes <- genes[genes != ""]
-if (length(genes) > 0) try(hc <- hc_visualize_gene_expression(hc, genes = genes[seq_len(min(3, length(genes)))], save = FALSE), silent = TRUE)
+hc <- hc_visualize_gene_expression(hc, genes = "G1")
 }
-}
-

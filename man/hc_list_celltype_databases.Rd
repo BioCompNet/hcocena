@@ -24,7 +24,3 @@ A data frame with Enrichr library metadata.
 \description{
 Lists Enrichr libraries and optionally filters for cell/tissue related names.
 }
-
-\examples{
-hc <- hc_init()
-}

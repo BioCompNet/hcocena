@@ -250,11 +250,14 @@ hc <- hc_plot_gfc_network(hc)
 
   This function calculates and visualizes the Jaccard-Index of all pairs of clusters from two networks.
 This allows the comparison of the two networks with respect to the clusters they form and how those clusters relate to each other.
-For details on parameters, please refer to the function documentation with ?hcocena::network_comparison_1
+For details on parameters, please refer to the function documentation with ?hcocena::hc_network_comparison_1
 
 ```{r , fig.width=5, fig.height=7, eval = FALSE}
-network_comparison_1(gtc1_path = "PATH_TO_FIRST_GENE_TO_CLUSTER_FILE",
-                     gtc2_path = "PATH_TO_SECOND_GENE_TO_CLUSTER_FILE")
+hc <- hc_network_comparison_1(
+  hc,
+  gtc1_path = "PATH_TO_FIRST_GENE_TO_CLUSTER_FILE",
+  gtc2_path = "PATH_TO_SECOND_GENE_TO_CLUSTER_FILE"
+)
 ```
 
 
@@ -262,13 +265,16 @@ network_comparison_1(gtc1_path = "PATH_TO_FIRST_GENE_TO_CLUSTER_FILE",
 
   This function accepts two networks and a set of genes. It then calculates the degree-distribution of each gene in both networks and also the Jaccard-Index of each gene's neighbourhoods in the two networks. The results are visualized in a 2D dot plot.
 This allows the comparison of the two networks with respect to the connectivity of selected genes.
-For details on parameters, please refer to the function documentation with ?hcocena::network_comparison_2
+For details on parameters, please refer to the function documentation with ?hcocena::hc_network_comparison_2
 
 ```{r eval = FALSE}
 merged_net <- hc_integration(hc)@graph
-network_comparison_2(net1 = OTHER_NETWORK_OBJECT, 
-                     net2 = merged_net, 
-                     gene_vec = c( "YME1L1", "SLC2A5", "SIAH2", "GPI", "IL10RB"))
+hc <- hc_network_comparison_2(
+  hc,
+  net1 = OTHER_NETWORK_OBJECT,
+  net2 = merged_net,
+  gene_vec = c("YME1L1", "SLC2A5", "SIAH2", "GPI", "IL10RB")
+)
 ```
 
 
@@ -284,6 +290,57 @@ hc <- hc_tf_overrep_network(hc)
 ```{r, fig.width = 10, fig.height = 7, echo = F}
 
 hc <- hc_check_tf(hc, TF = "IRF7")
+
+```
+
+
+## Upstream regulator and pathway inference
+
+  Infers, per module, **how active** upstream regulators are rather than only which ones are over-represented. `hc_upstream_inference()` runs `decoupleR` with DoRothEA (transcription factor regulons) and PROGENy (pathway footprints) on the module Group-Fold-Changes, so every result carries a direction (activated vs. repressed).
+
+  This complements `hc_tf_overrep_module()`: that function asks ChEA3 which transcription factors are over-represented among a module's genes (a set-overlap question), while this one scores regulator activity from the expression changes themselves.
+
+  Instead of the GFCs you can score specific contrasts (`activity_input = "fc"` together with `fc_comparisons = c("groupA_vs_groupB")`) or layer-wise mean expression (`activity_input = "expression"`). Custom pathway collections can be added via `custom_pathway_gmt`.
+  Requires the suggested packages `decoupleR`, `dorothea` and `progeny`.
+  For parameter details, refer to `?hcocena::hc_upstream_inference`.
+
+```{r upstream inference, eval = FALSE, fig.width = 13, fig.height = 10, out.width = "100%"}
+
+hc <- hc_upstream_inference(
+  hc,
+  resources = c("TF", "Pathway"),
+  activity_input = "gfc",
+  top = 5,
+  qval = 0.05,
+  tf_confidence = c("A", "B", "C"),
+  clusters = "all",
+  save_pdf = TRUE
+)
+
+# hc@satellite$upstream_inference holds the result tables
+
+```
+
+
+## Module knowledge network
+
+  Combines modules, their enriched terms and the inferred upstream regulators into a single graph, so you can see which regulators and which functional terms converge on the same module. Run `hc_functional_enrichment()` and `hc_upstream_inference()` first.
+  Use `max_enrichment_per_module` and `max_upstream_per_module` to keep the network readable.
+  For parameter details, refer to `?hcocena::hc_plot_enrichment_upstream_network`.
+
+```{r knowledge network, eval = FALSE, fig.width = 14, fig.height = 11, out.width = "100%"}
+
+hc <- hc_plot_enrichment_upstream_network(
+  hc,
+  enrichment_mode = "selected",
+  upstream_mode = "selected",
+  clusters = "all",
+  max_enrichment_per_module = 3,
+  max_upstream_per_module = 3,
+  label_mode = "both",
+  save_pdf = TRUE,
+  pdf_name = "Module_Knowledge_Network.pdf"
+)
 
 ```
 

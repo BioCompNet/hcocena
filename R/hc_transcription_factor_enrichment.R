@@ -10,11 +10,10 @@
 #' @param topTF Integer. The number of top ranking TFs to return per cluster. Default is 5.
 #' @param topTarget Integer. The number of top ranking targets to return per TF. Default is 5.
 #' @param clusters Either "all" (default) or a vector of clusters as strings. Defines for which clusters to perform the analysis.
-#' @export
 
-TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5) {
+.hc_TF_overrep_module_driver <- function(clusters = "all", topTF = 5, topTarget = 5) {
   output <- list()
-  gtc <- GeneToCluster()
+  gtc <- .hc_gene_to_cluster_impl()
   base::colnames(gtc) <- base::c("gene", "cluster")
 
   all_clusters <- base::unique(hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]][["color"]])
@@ -170,8 +169,9 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5) {
 
   TFs <- base::unique(base::as.character(TFs))
   edgelist <- hcobject[["integrated_output"]][["combined_edgelist"]]
-  edgelist$merged <- base::paste0(base::as.character(edgelist$V1), base::as.character(edgelist$V2))
-  edgelist$merged2 <- base::paste0(base::as.character(edgelist$V2), base::as.character(edgelist$V1))
+  # separator prevents ("MT","CO1") / ("M","TCO1") style key collisions
+  edgelist$merged <- base::paste0(base::as.character(edgelist$V1), "\r", base::as.character(edgelist$V2))
+  edgelist$merged2 <- base::paste0(base::as.character(edgelist$V2), "\r", base::as.character(edgelist$V1))
 
   module_keys <- base::names(tt_list)
   if (base::is.null(module_keys)) {
@@ -229,7 +229,7 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5) {
     })
 
     for (i in base::seq_len(base::nrow(fromto))) {
-      merged <- base::paste0(base::as.character(fromto[i, 1]), base::as.character(fromto[i, 2]))
+      merged <- base::paste0(base::as.character(fromto[i, 1]), "\r", base::as.character(fromto[i, 2]))
       if (merged %in% edgelist$merged | merged %in% edgelist$merged2) {
         circlize::circos.link(
           sector.index1 = base::as.character(fromto[i, 1]), c(0.5),
@@ -274,7 +274,7 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5) {
       if ((page_idx %% 2L) == 1L) {
         draw_tf_module_panel(module_idx)
       } else {
-        visualize_gene_expression(
+        .hc_visualize_gene_expression_driver(
           genes = exp_plot_list[[module_idx]] %>% base::unlist(use.names = FALSE),
           name = module_titles[[module_idx]],
           save = FALSE
@@ -290,20 +290,22 @@ TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5) {
 #' Returns the transcription factors that have the most enriched targets network-wide, including their targets.
 #' @param topTF The number of transcription factors with the highest number of enriched targets in the network. Default is 100.
 #' @param topTarget Per transcription factor the number of top most enriched targets to return. Default is 30.
-#' @export
 
 
-TF_overrep_network <- function(topTF = 100, topTarget = 30) {
-  gtc <- GeneToCluster()
+.hc_TF_overrep_network_driver <- function(topTF = 100, topTarget = 30) {
+  gtc <- .hc_gene_to_cluster_impl()
   base::colnames(gtc) <- base::c("gene", "cluster")
   genes <- gtc$gene
 
-  url <- "https://amp.pharm.mssm.edu/chea3/api/enrich/"
+  # The amp.pharm.mssm.edu host was retired; ChEA3 lives at maayanlab.cloud
+  # (the same endpoint .hc_TF_overrep_module_driver() already uses).
+  url <- "https://maayanlab.cloud/chea3/api/enrich/"
   encode <- "json"
   payload <- list(query_name = "myQuery", gene_set = genes)
 
   # POST to ChEA3 server
   response <- httr::POST(url = url, body = payload, encode = encode)
+  httr::stop_for_status(response, task = "query the ChEA3 API")
   json <- httr::content(response, as = "text")
 
   # results as list of R dataframes
@@ -326,7 +328,9 @@ TF_overrep_network <- function(topTF = 100, topTarget = 30) {
     # genes to which this TF has an edge:
     edgelist <- dplyr::filter(hcobject[["integrated_output"]][["combined_edgelist"]], V1 == tf | V2 == tf)
     edgelist <- base::c(edgelist[, 1] %>% base::as.character(), edgelist[, 2] %>% base::as.character())
-    edgelist <- edgelist[!edgelist == base::as.character(i)]
+    # drop the TF itself from its own neighbour list; this used to compare
+    # against the loop counter `i` instead of the TF name.
+    edgelist <- edgelist[!edgelist == base::as.character(tf)]
 
     message("the transcription factor ", tf, " has ", length(overlapping_genes), " targets. It has a co-expression above the cutoff with ", length(overlapping_genes[overlapping_genes %in% edgelist]), " of these targets. The others will be discarded.")
     overlapping_genes <- overlapping_genes[overlapping_genes %in% edgelist]
@@ -343,24 +347,5 @@ TF_overrep_network <- function(topTF = 100, topTarget = 30) {
   .hc_set_bridge_hcobject_slot(c("integrated_output", "enrichall"), resultlist)
 }
 
-.hc_TF_overrep_module_driver <- TF_overrep_module
-.hc_TF_overrep_network_driver <- TF_overrep_network
 
-TF_overrep_module <- function(clusters = "all", topTF = 5, topTarget = 5) {
-  .hc_run_alias_via_modern(
-    "TF_overrep_module",
-    hc_tf_overrep_module,
-    clusters = clusters,
-    topTF = topTF,
-    topTarget = topTarget
-  )
-}
 
-TF_overrep_network <- function(topTF = 100, topTarget = 30) {
-  .hc_run_alias_via_modern(
-    "TF_overrep_network",
-    hc_tf_overrep_network,
-    topTF = topTF,
-    topTarget = topTarget
-  )
-}

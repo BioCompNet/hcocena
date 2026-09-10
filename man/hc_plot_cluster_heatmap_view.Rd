@@ -73,4 +73,5 @@ hc <- hc_plot_cluster_heatmap_view(
   file_name = FALSE
 )
 }
+
 }

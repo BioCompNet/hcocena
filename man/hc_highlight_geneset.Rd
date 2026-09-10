@@ -4,34 +4,37 @@
 \alias{hc_highlight_geneset}
 \title{Highlight gene set in network (S4 API)}
 \usage{
-hc_highlight_geneset(hc, ...)
+hc_highlight_geneset(
+  hc,
+  gene_set,
+  name = NULL,
+  col = "black",
+  label_offset = 3,
+  plot = TRUE,
+  save = TRUE
+)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{highlight_geneset()}.}
+\item{gene_set}{Character vector of gene symbols to highlight.}
+
+\item{name}{Optional name used for the plot title and output file.}
+
+\item{col}{Colour used for the highlighted genes. Default is \code{"black"}.}
+
+\item{label_offset}{Distance between a node and its label. Default is 3.}
+
+\item{plot}{Logical. Draw the network. Default is \code{TRUE}.}
+
+\item{save}{Logical. Write the network to PDF. Default is \code{TRUE}.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
 }
 \description{
-Highlight gene set in network (S4 API)
+Re-plots the integrated network with a gene set of interest highlighted.
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-hco <- hcocena:::as_hcobject(hc)
-genes <- trimws(strsplit(as.character(hco[["integrated_output"]][["cluster_calc"]][["cluster_information"]][["gene_n"]][[1]]), ",", fixed = TRUE)[[1]])
-genes <- genes[genes != ""]
-if (length(genes) > 0) try(hc <- hc_highlight_geneset(hc, gene_set = genes[seq_len(min(3, length(genes)))], plot = FALSE, save = FALSE), silent = TRUE)
+hc <- hc_highlight_geneset(hc, gene_set = c("G1", "G2"))
 }
-}
-

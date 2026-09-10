@@ -17,7 +17,3 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Check TF targets (S4 API)
 }
-
-\examples{
-hc <- hc_init()
-}

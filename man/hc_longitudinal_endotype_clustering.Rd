@@ -68,7 +68,3 @@ Clusters donors based on module-time features produced by
 \code{\link[=hc_longitudinal_module_means]{hc_longitudinal_module_means()}}. Candidate cluster numbers are scored via the
 Calinski-Harabasz index.
 }
-
-\examples{
-hc <- hc_init()
-}

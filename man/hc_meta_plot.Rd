@@ -2,14 +2,31 @@
 % Please edit documentation in R/hc_api.R
 \name{hc_meta_plot}
 \alias{hc_meta_plot}
-\title{Meta-data plotting (S4 API)}
+\title{meta plot}
 \usage{
-hc_meta_plot(hc, ...)
+hc_meta_plot(
+  hc,
+  set,
+  group_col = NULL,
+  meta_col = NULL,
+  type = "cat",
+  cols = NULL
+)
 }
 \arguments{
 \item{hc}{A \code{HCoCenaExperiment}.}
 
-\item{...}{Passed to \code{meta_plot()}.}
+\item{set}{An integer. Number of the dataset/layer to inspect.}
+
+\item{group_col}{Annotation column used to group the samples, e.g. the
+timepoint or condition.}
+
+\item{meta_col}{Annotation column whose distribution is plotted.}
+
+\item{type}{Either "cat" (default) for categorical \code{meta_col} or "num" for
+continuous ones.}
+
+\item{cols}{Optional named vector of colours for the groups.}
 }
 \value{
 Updated \code{HCoCenaExperiment}.
@@ -17,18 +34,6 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Meta-data plotting (S4 API)
 }
-
 \examples{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-is(hc, "HCoCenaExperiment")
-
-\donttest{
-hc <- readRDS(system.file("extdata", "hc_prepared.rds", package = "hcocena"))
-hco <- hcocena:::as_hcobject(hc)
-hco[["working_directory"]][["dir_output"]] <- paste0(normalizePath(tempdir(), winslash = "/", mustWork = FALSE), "/")
-hco[["global_settings"]][["save_folder"]] <- ""
-hc <- hcocena:::as_hcocena(hco)
-try(hc <- hc_meta_plot(hc, set = 1, type = "cat"), silent = TRUE)
+hc <- hc_meta_plot(hc, set = 1)
 }
-}
-

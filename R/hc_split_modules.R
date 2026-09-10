@@ -15,6 +15,11 @@
 #' The function stores an undo snapshot in
 #' `hcobject$satellite_outputs$module_split_history`.
 #'
+#' Outputs derived from the previous module set are invalidated, among them
+#' `module_gfc_means` (mean GFC per module). `module_gene_list` is rebuilt
+#' directly, but `module_gfc_means` comes from the heatmap matrix and is
+#' therefore dropped -- re-run [hc_plot_cluster_heatmap()] to recreate it.
+#'
 #' @param modules Character/numeric vector of modules to split.
 #' @param cluster_algo Clustering algorithm for within-module splitting.
 #'  One of `"cluster_leiden"` (default), `"cluster_louvain"`,
@@ -40,7 +45,6 @@
 #' @param min_module_size Optional alias for `min_submodule_size`. If set, it
 #'  takes precedence.
 #' @param verbose Logical; print progress messages.
-#' @export
 .hc_split_modules_driver <- function(modules,
                                      cluster_algo = "cluster_leiden",
                                      no_of_iterations = 2,
@@ -53,7 +57,6 @@
                                      min_submodule_size = NULL,
                                      min_module_size = NULL,
                                      verbose = TRUE) {
-  .hc_alias_warning("split_modules")
 
   if (missing(modules) || is.null(modules) || length(modules) == 0) {
     stop("`modules` must contain at least one module identifier.")
@@ -103,13 +106,13 @@
 
   merged_net <- hcobject[["integrated_output"]][["merged_net"]]
   if (is.null(merged_net) || !inherits(merged_net, "igraph")) {
-    stop("Integrated graph missing. Run `build_integrated_network()` first.")
+    stop("Integrated graph missing. Run `hc_build_integrated_network()` first.")
   }
 
   cluster_calc <- hcobject[["integrated_output"]][["cluster_calc"]]
   cluster_info <- cluster_calc[["cluster_information"]]
   if (is.null(cluster_info) || !is.data.frame(cluster_info) || nrow(cluster_info) == 0) {
-    stop("No cluster information found. Run `cluster_calculation()` first.")
+    stop("No cluster information found. Run `hc_cluster_calculation()` first.")
   }
   required_cols <- c("color", "gene_n")
   if (!all(required_cols %in% colnames(cluster_info))) {
@@ -213,7 +216,7 @@
 
   if (isTRUE(verbose)) {
     message(
-      "split_modules(): splitting ",
+      "hc_split_modules(): splitting ",
       paste(resolved$resolved_labels, collapse = ", "),
       " (", length(target_colors), " module(s))."
     )
@@ -267,7 +270,7 @@
 
     if (isTRUE(verbose)) {
       message(
-        "split_modules(): tested ", length(resolution_grid),
+        "hc_split_modules(): tested ", length(resolution_grid),
         " resolution value(s); summary stored in ",
         "`hcobject$satellite_outputs$module_split_resolution_test_last`."
       )
@@ -276,7 +279,7 @@
 
     if (isTRUE(resolution_test_only)) {
       if (isTRUE(verbose)) {
-        message("split_modules(): `resolution_test_only = TRUE`; no split applied.")
+        message("hc_split_modules(): `resolution_test_only = TRUE`; no split applied.")
       }
       return(invisible(NULL))
     }
@@ -551,7 +554,31 @@
   hist[[length(hist) + 1L]] <- history_entry
   sat[["module_split_history"]] <- hist
   sat[["module_split_last"]] <- history_entry
+  module_gene_list_tbl <- .hc_module_gene_list_from_cluster_info(
+    cluster_info = new_cluster_info,
+    module_label_map = module_label_map
+  )
+  sat[["module_gene_list"]] <- module_gene_list_tbl
   .hc_set_bridge_hcobject_slot("satellite_outputs", sat)
+
+  module_gene_list_name <- .hc_module_gene_list_filename(
+    module_label_map = module_label_map,
+    split_history = hist
+  )
+  tryCatch(
+    .hc_write_xlsx_atomic(
+      x = list(module_gene_list = module_gene_list_tbl),
+      file = .hc_output_file(module_gene_list_name),
+      overwrite = TRUE
+    ),
+    error = function(e) {
+      warning(
+        "Could not write ", module_gene_list_name, ": ",
+        base::conditionMessage(e),
+        call. = FALSE
+      )
+    }
+  )
 
   if (isTRUE(verbose)) {
     split_ok <- if (nrow(split_summary) > 0) {
@@ -565,7 +592,7 @@
       nrow(new_cluster_info)
     }
     message(
-      "split_modules(): completed. ",
+      "hc_split_modules(): completed. ",
       split_ok, " parent module(s) split; ",
       total_created_submodules, " submodule(s) created; ",
       total_removed_small_submodules, " submodule(s) removed (< ", min_submodule_size, " genes); ",
@@ -577,35 +604,6 @@
   }
 }
 
-split_modules <- function(modules,
-                          cluster_algo = "cluster_leiden",
-                          no_of_iterations = 2,
-                          resolution = 0.1,
-                          resolution_grid = NULL,
-                          resolution_test_only = FALSE,
-                          partition_type = "RBConfigurationVertexPartition",
-                          seed = 168575,
-                          drop_small_submodules = TRUE,
-                          min_submodule_size = NULL,
-                          min_module_size = NULL,
-                          verbose = TRUE) {
-  .hc_alias_warning("split_modules")
-  invisible(.hc_run_modern_bridge(
-    hc_split_modules,
-    modules = modules,
-    cluster_algo = cluster_algo,
-    no_of_iterations = no_of_iterations,
-    resolution = resolution,
-    resolution_grid = resolution_grid,
-    resolution_test_only = resolution_test_only,
-    partition_type = partition_type,
-    seed = seed,
-    drop_small_submodules = drop_small_submodules,
-    min_submodule_size = min_submodule_size,
-    min_module_size = min_module_size,
-    verbose = verbose
-  ))
-}
 
 .hc_preview_split_resolutions <- function(merged_net,
                                           cluster_info,
@@ -753,9 +751,7 @@ split_modules <- function(modules,
 #' @param which Either `"last"` (undo one split step) or `"all"` (restore the
 #'  original pre-split cluster state).
 #' @param verbose Logical; print progress messages.
-#' @export
 .hc_unsplit_modules_driver <- function(which = c("last", "all"), verbose = TRUE) {
-  .hc_alias_warning("unsplit_modules")
   which <- base::match.arg(which)
 
   sat <- hcobject[["satellite_outputs"]]
@@ -809,20 +805,12 @@ split_modules <- function(modules,
 
   if (isTRUE(verbose)) {
     message(
-      "unsplit_modules(): restored `", which, "` split state; ",
+      "hc_unsplit_modules(): restored `", which, "` split state; ",
       "history depth = ", length(hist), "."
     )
   }
 }
 
-unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
-  .hc_alias_warning("unsplit_modules")
-  invisible(.hc_run_modern_bridge(
-    hc_unsplit_modules,
-    which = which,
-    verbose = verbose
-  ))
-}
 
 .hc_normalize_module_label_map_for_split <- function(module_label_map,
                                                      available_colors,
@@ -1393,6 +1381,12 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
   sat[["knowledge_network"]] <- NULL
   sat[["labelled_network"]] <- NULL
   sat[["network_col_by_module"]] <- NULL
+  # Mean GFC per module is derived from the heatmap matrix, which the module
+  # change just invalidated. Unlike `module_gene_list` it cannot be rebuilt from
+  # `cluster_information` alone, so drop it rather than leave stale rows behind
+  # (they would still name modules that no longer exist). Re-running
+  # `hc_plot_cluster_heatmap()` recreates it.
+  sat[["module_gfc_means"]] <- NULL
 
   sat_names <- names(sat)
   if (!is.null(sat_names) && length(sat_names) > 0) {
@@ -1405,4 +1399,58 @@ unsplit_modules <- function(which = c("last", "all"), verbose = TRUE) {
   }
 
   .hc_set_bridge_hcobject_slot("satellite_outputs", sat)
+}
+
+.hc_module_gene_list_from_cluster_info <- function(cluster_info,
+                                                   module_label_map) {
+  if (base::is.null(cluster_info) ||
+    !base::is.data.frame(cluster_info) ||
+    base::nrow(cluster_info) == 0 ||
+    !base::all(base::c("color", "gene_n") %in% base::colnames(cluster_info))) {
+    return(base::data.frame(
+      genes = base::character(0),
+      module = base::character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  keep <- base::rep(TRUE, base::nrow(cluster_info))
+  if ("cluster_included" %in% base::colnames(cluster_info)) {
+    keep <- base::as.character(cluster_info$cluster_included) == "yes"
+    keep[base::is.na(keep)] <- FALSE
+  }
+  cluster_info <- cluster_info[keep, , drop = FALSE]
+
+  rows <- base::lapply(base::seq_len(base::nrow(cluster_info)), function(i) {
+    color <- base::as.character(cluster_info$color[[i]])
+    genes <- .hc_parse_genes_from_gene_n(cluster_info$gene_n[[i]])
+    if (base::length(genes) == 0) {
+      return(NULL)
+    }
+    label <- base::as.character(module_label_map[color])
+    if (base::length(label) == 0 ||
+      base::is.na(label[[1]]) ||
+      !base::nzchar(label[[1]])) {
+      label <- color
+    } else {
+      label <- label[[1]]
+    }
+    base::data.frame(
+      genes = genes,
+      module = base::rep(label, base::length(genes)),
+      stringsAsFactors = FALSE
+    )
+  })
+  rows <- rows[!base::vapply(rows, base::is.null, FUN.VALUE = base::logical(1))]
+  if (base::length(rows) == 0) {
+    return(base::data.frame(
+      genes = base::character(0),
+      module = base::character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  out <- base::do.call(base::rbind, rows)
+  base::rownames(out) <- NULL
+  out
 }

@@ -1,10 +1,8 @@
 #' Export Integrated Network to local R session
 #' Due to a lacking possibility of communication with Cytoscape from within Docker container, you need to export all necessary information for import into a local R session.
 #' @param file Path to the folder where the network information should be saved. Default path is set to the save folder defined in the global settings.
-#' @export
 
-export_to_local_folder <- function(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]])) {
-  .hc_alias_warning("export_to_local_folder")
+.hc_export_to_local_folder_driver <- function(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]])) {
 
   network_df <- igraph::as_data_frame(network_filt())
   network_df$weight <- NULL
@@ -23,12 +21,10 @@ export_to_local_folder <- function(file = base::paste0(hcobject[["working_direct
 #' Due to difficulties in the communication between R/RCy3 and Cytoscape, you need to manually stop the function in R as soon as the table of nodes and edges appears in Cytoscape.(by pressing the little stop sign above the console).
 #' @param name A string. The name given to the graph in Cytoscape. Default is "my igraph".
 #' @param docker_container Deprecated legacy flag kept for backward compatibility.
-#' @export
 
-export_to_cytoscape <- function(name = "my igraph", docker_container = FALSE) {
-  .hc_alias_warning("export_to_cytoscape")
+.hc_export_to_cytoscape_driver <- function(name = "my igraph", docker_container = FALSE) {
   if (!requireNamespace("RCy3", quietly = TRUE)) {
-    stop("Package `RCy3` is required for `export_to_cytoscape()`. Install it first.")
+    stop("Package `RCy3` is required for `.hc_export_to_cytoscape_driver()`. Install it first.")
   }
 
   RCy3::createNetworkFromIgraph(network_filt(), name)
@@ -38,12 +34,10 @@ export_to_cytoscape <- function(name = "my igraph", docker_container = FALSE) {
 #' Import Layout From Cytoscape
 #'
 #' Imports the layout of a network currently open in Cytoscape.
-#' @export
 
-import_layout_from_cytoscape <- function() {
-  .hc_alias_warning("import_layout_from_cytoscape")
+.hc_import_layout_from_cytoscape_driver <- function() {
   if (!requireNamespace("RCy3", quietly = TRUE)) {
-    stop("Package `RCy3` is required for `import_layout_from_cytoscape()`. Install it first.")
+    stop("Package `RCy3` is required for `.hc_import_layout_from_cytoscape_driver()`. Install it first.")
   }
 
   l <- RCy3::getNodePosition() %>% as.matrix()
@@ -58,10 +52,8 @@ import_layout_from_cytoscape <- function() {
 #' Import network layout from file to your Docker container
 #' Imports the layout generated within a local R session and Cytoscape back into the Docker container
 #' @param file Exact path and file name containing the Cytoscape layout. Default path is set to the save folder defined in the global settings.
-#' @export
 
-import_layout_from_local_folder <- function(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/network_layout.csv")) {
-  .hc_alias_warning("import_layout_from_local_folder")
+.hc_import_layout_from_local_folder_driver <- function(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/network_layout.csv")) {
 
   l <- utils::read.csv(
     file = file,
@@ -75,39 +67,7 @@ import_layout_from_local_folder <- function(file = base::paste0(hcobject[["worki
   .hc_set_bridge_hcobject_slot(c("integrated_output", "cluster_calc", "layout"), l)
 }
 
-.hc_export_to_local_folder_driver <- export_to_local_folder
-.hc_export_to_cytoscape_driver <- export_to_cytoscape
-.hc_import_layout_from_cytoscape_driver <- import_layout_from_cytoscape
-.hc_import_layout_from_local_folder_driver <- import_layout_from_local_folder
 
-export_to_local_folder <- function(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]])) {
-  .hc_run_alias_via_modern(
-    "export_to_local_folder",
-    hc_export_to_local_folder,
-    file = file
-  )
-}
 
-export_to_cytoscape <- function(name = "my igraph", docker_container = FALSE) {
-  .hc_run_alias_via_modern(
-    "export_to_cytoscape",
-    hc_export_to_cytoscape,
-    name = name,
-    docker_container = docker_container
-  )
-}
 
-import_layout_from_cytoscape <- function() {
-  .hc_run_alias_via_modern(
-    "import_layout_from_cytoscape",
-    hc_import_layout_from_cytoscape
-  )
-}
 
-import_layout_from_local_folder <- function(file = base::paste0(hcobject[["working_directory"]][["dir_output"]], hcobject[["global_settings"]][["save_folder"]], "/network_layout.csv")) {
-  .hc_run_alias_via_modern(
-    "import_layout_from_local_folder",
-    hc_import_layout_from_local_folder,
-    file = file
-  )
-}

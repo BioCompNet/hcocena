@@ -3,6 +3,7 @@
 #' The clustering can be updated to another algortihm (one of "cluster_louvain", "cluster_fast_greedy", "cluster_infomap", "cluster_walktrap", "cluster_label_prop", "cluster_leiden") or to a user defined clsutering using the 'gtc' parameter.
 #' @param new_algo A string (name of the new algorithm), or NULL (if gtc is provided)
 #' @param gtc A user defined clsutering can be provided as long as it has the same format as the output of .hc_gene_to_cluster_impl(): A data frame with two columns, the first containing gene names as strings, the second containing cluster colours as strings.
+#' @noRd
 
 .hc_update_clustering_algorithm_driver <- function(new_algo = NULL, gtc = NULL) {
   # recycle clustering of all algos from alluvial function, if it exists, otherwise conduct clustering now:

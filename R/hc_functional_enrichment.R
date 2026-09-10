@@ -162,6 +162,7 @@
 #'  Controls whether heavy heatmap/panel objects are stored inside `hc` for later
 #'  redraw with `hc_plot_enrichment_panels()`. `"auto"` stores them only for a
 #'  single selected database; multi-database runs keep only tables to save memory.
+#' @noRd
 
 .hc_functional_enrichment_driver <- function(gene_sets = "Hallmark",
                                   custom_gmt_files = NULL,

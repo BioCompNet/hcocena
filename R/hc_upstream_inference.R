@@ -74,6 +74,7 @@
 #'
 #' @return A named list with selected/significant summaries, per-resource
 #'   summaries and plot objects.
+#' @noRd
 .hc_upstream_inference_driver <- function(resources = c("TF", "Pathway"),
                                top = 5,
                                clusters = c("all"),

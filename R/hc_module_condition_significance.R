@@ -33,6 +33,7 @@
 #' @param excel_file File name for the Excel export.
 #' @param slot_name Satellite slot name for storing results.
 #' @return Invisibly returns the stored result list.
+#' @noRd
 .hc_module_condition_significance_driver <- function(set = "all",
                                           condition_col = NULL,
                                           donor_col = NULL,

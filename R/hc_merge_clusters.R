@@ -14,6 +14,7 @@
 #' @param auto_parsimony_penalty Small penalty used in auto mode to prefer
 #'   simpler solutions when silhouette scores are very similar.
 #' @param verbose Boolean. Print selected `k` and selection diagnostics.
+#' @noRd
 
 .hc_merge_clusters_driver <- function(k = 1,
                                       save = FALSE,

@@ -1,6 +1,7 @@
 #' Plot Degree Distribution
 #'
 #' A function that plot the degree distribution of each network after being cut with the set cutoff values.
+#' @noRd
 
 .hc_plot_deg_dist_driver <- function() {
   for (x in base::seq_along(hcobject[["layers"]])) {

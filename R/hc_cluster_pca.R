@@ -8,6 +8,7 @@
 #' 	Otherwise, one of "cluster_louvain", "cluster_fast_greedy", "cluster_infomap", "cluster_walktrap", "cluster_label_prop", "cluster_leiden", then only the PCA for that algorithm is shown.
 #' @param gtc A user defined clsutering can be provided as long as it has the same format as the output of .hc_gene_to_cluster_impl(): A data frame with two columns, the first containing gene names as strings, the second containing cluster colours as strings.
 #' @param cols A user-defined color vector.
+#' @noRd
 
 .hc_PCA_algo_compare_driver <- function(gtc = NULL, algo = NULL, cols = NULL) {
   # recycle clustering of all algos from alluvial function, if it exists, otherwise conduct clustering now:

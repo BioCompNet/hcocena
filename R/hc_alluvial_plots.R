@@ -2,6 +2,7 @@
 #'
 #' Alluvial plots will be generated demonstrating how the genes change clusters if the current clustering algorithm (always shown on the left) was changed to any of the other clustering options (always shown on the right).
 #' 	The produced plot is interactive, hover over it to get more details.
+#' @noRd
 
 .hc_algo_alluvial_driver <- function() {
   if (!requireNamespace("networkD3", quietly = TRUE)) {

@@ -14,6 +14,7 @@
 #'   in `satellite_outputs`. Default is FALSE to avoid storing large plot caches
 #'   unless explicitly requested.
 #' @param label_offset The offset of provided gene labels to the network center. Default is 50, depends on network size.
+#' @noRd
 
 .hc_plot_integrated_network_driver <- function(layout = NULL,
                                     layout_algorithm = NULL,

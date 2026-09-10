@@ -450,6 +450,7 @@ hc_preview_celltype_database <- function(database,
 #'
 #' @return Invisibly returns a list with selected/significant results and a
 #'   `annotation_slot_map` (database -> slot).
+#' @noRd
 .hc_celltype_annotation_driver <- function(
   databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
   custom_gmt_files = NULL,

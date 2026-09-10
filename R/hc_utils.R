@@ -159,15 +159,6 @@ get_cluster_colours <- function() {
 }
 
 
-#' Leiden Clustering
-#'
-#' Applies the Leiden community detection to the network.
-#' @param g The network, an igraph object.
-#' @param num_it The number of iteration the algorithm is supposed to run.
-#' @param resolution The resolution of the leiden clustering, higher values result in more clusters and vice versa (Default: 0.1).
-#' @param partition_type Name of the partition type. Select from 'CPMVertexPartition', 'ModularityVertexPartition', 'RBConfigurationVertexPartition' and 'RBERVertexPartition' (Default: 'RBConfigurationVertexPartition').
-#' @noRd
-
 #' Community detection algorithms that return the same partition on every run
 #'
 #' For these, repeating the clustering `no_of_iterations` times only costs time:
@@ -266,6 +257,19 @@ get_cluster_colours <- function() {
 }
 
 
+#' Leiden Clustering
+#'
+#' Applies the Leiden community detection to the network and returns the
+#' finished module table.
+#' @param g The network, an igraph object.
+#' @param num_it The number of iterations the algorithm is supposed to run.
+#' @param resolution The resolution of the leiden clustering, higher values
+#'   result in more clusters and vice versa (Default: 0.1).
+#' @param partition_type Name of the partition type. Select from
+#'   'CPMVertexPartition', 'ModularityVertexPartition',
+#'   'RBConfigurationVertexPartition' and 'RBERVertexPartition'
+#'   (Default: 'RBConfigurationVertexPartition').
+#' @noRd
 leiden_clustering <- function(g, num_it, resolution, partition_type) {
   color.cluster <- get_cluster_colours()
 
@@ -1431,7 +1435,7 @@ calc_pval <- function(x, mu, sigma, n) {
 #' @param layer_set The layer specific settings for this layer.
 #' @param layer An Integer indicating the currently processed dataset.
 #' @param corr_backend Correlation backend: "auto" (fast cross-product path via
-#'   [.hc_fast_rcorr()], with automatic `Hmisc::rcorr` fallback on `NA`s) or
+#'   `.hc_fast_rcorr()`, with automatic `Hmisc::rcorr` fallback on `NA`s) or
 #'   "rcorr" (always use `Hmisc::rcorr`). Default "auto".
 #' @noRd
 
@@ -4388,7 +4392,7 @@ centrality_colours <- function(rank_df, network) {
 #' nodes sized and coloured by their combined centrality, and only the hubs are
 #' labelled (directly at the node, with a white halo and short repelled
 #' connectors via ggrepel). `coord_equal()` keeps the network undistorted.
-#' Falls back to [network_with_labels()] is handled by the caller.
+#' Falls back to `network_with_labels()` is handled by the caller.
 #' @noRd
 
 .hc_hub_network_modern_plot <- function(network,

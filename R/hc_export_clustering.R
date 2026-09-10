@@ -2,6 +2,7 @@
 #'
 #' Exports your clustering to a text file that can be imported into other hCoCena runs.
 #'  Format: Two columns, the first one named gene (containing the gene names) and the second one named color (containing the corresponding cluster color to which the gene belonged).
+#' @noRd
 
 .hc_export_clusters_driver <- function() {
   gtc <- .hc_gene_to_cluster_impl()

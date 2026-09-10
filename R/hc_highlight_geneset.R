@@ -7,6 +7,7 @@
 #' @param label_offset A numeric specifying the distance between the labeled genes and the network. Default is 3.
 #' @param save A Boolean. Whether or not a labelled hub-network per cluster and the expression heatmap are to be save to PDF. Default is FALSE.
 #' @param plot A Boolean. Wheather or not to plot the network (per cluster) with highlighted hub nodes. Default is FALSE.
+#' @noRd
 
 .hc_highlight_geneset_driver <- function(gene_set, name = NULL, col = "black", label_offset = 3, plot = TRUE, save = TRUE) {
   g <- hcobject[["integrated_output"]][["merged_net"]]

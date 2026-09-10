@@ -15,6 +15,7 @@
 #'  more stable/readable than Fruchterman-Reingold for medium/large graphs.
 #'  `"cytoscape"` uses an externally calculated Cytoscape layout.
 #' @param data_in_log Boolean. Whether or not the provided gene expression data is logged to the base of 2.
+#' @noRd
 
 
 

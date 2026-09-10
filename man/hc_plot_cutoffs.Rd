@@ -20,6 +20,10 @@ statistics as an interactive plotly widget; if \code{FALSE}, as a static plot.}
 entries \code{R.squared}, \code{no_edges}, \code{no_nodes} and \code{no_networks}. \code{NULL}
 entries (the default) draw no line for that panel.}
 }
+\value{
+Updated \code{HCoCenaExperiment}, invisibly; called for the cut-off
+diagnostic plot it draws.
+}
 \description{
 plot cutoffs
 }

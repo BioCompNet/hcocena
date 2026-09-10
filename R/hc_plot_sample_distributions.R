@@ -5,6 +5,7 @@
 #' @param log_2 A Boolean. Whether or not the counts should be logged before plotting.
 #' @param plot A Boolean. Whether or not to to print the plots into the markdown in addition to saving them to the save folder.
 #'  If the total number of samples is very large, setting this parameter to FALSE is advised in order to prevent the knitted R Markdown from becoming too long.
+#' @noRd
 
 .hc_plot_sample_distributions_driver <- function(plot_type = "boxplot",
                                       log_2 = TRUE,

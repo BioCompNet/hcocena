@@ -9,6 +9,7 @@
 #'  or any gene category listed in the last column of the provided transcriptionfactor supplementary file (only that subgroup condired for hub genes).
 #' @param plot A Boolean. Wheather or not to plot the network (per cluster) with highlighted hub nodes. Default is FALSE.
 #' @param clusters Either "all" (default) or a vector of cluster colours for which the hub detection should be performed.
+#' @noRd
 
 .hc_find_hubs_driver <- function(clusters = c("all"),
                       top = 10,

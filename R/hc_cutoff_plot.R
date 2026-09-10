@@ -3,6 +3,7 @@
 #' Plots the R-squared value, number of edges, number of genes and number of networks for different cut-offs.
 #' @param interactive Boolean. If TRUE (default) plot is created using plotly including and interactive cutoff slider. If FALSE, plot is created as a static ggplot.
 #' @param hline A list with four slots ("R.squared", "no_edges", "no_nodes", "no_networks") each of which can be set either to NULL (default) or a number to introduce a horizontal line for orientation at that value in the respective plot. Only used in the non-interactive plot.
+#' @noRd
 
 .hc_plot_cutoffs_driver <- function(interactive = TRUE,
                          hline = list(

@@ -10,6 +10,7 @@
 #' @param topTF Integer. The number of top ranking TFs to return per cluster. Default is 5.
 #' @param topTarget Integer. The number of top ranking targets to return per TF. Default is 5.
 #' @param clusters Either "all" (default) or a vector of clusters as strings. Defines for which clusters to perform the analysis.
+#' @noRd
 
 .hc_TF_overrep_module_driver <- function(clusters = "all", topTF = 5, topTarget = 5) {
   output <- list()
@@ -290,6 +291,7 @@
 #' Returns the transcription factors that have the most enriched targets network-wide, including their targets.
 #' @param topTF The number of transcription factors with the highest number of enriched targets in the network. Default is 100.
 #' @param topTarget Per transcription factor the number of top most enriched targets to return. Default is 30.
+#' @noRd
 
 
 .hc_TF_overrep_network_driver <- function(topTF = 100, topTarget = 30) {

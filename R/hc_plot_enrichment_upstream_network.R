@@ -45,6 +45,7 @@
 #' @param overall_plot_scale Numeric scaling factor for text and line sizes.
 #'
 #' @return A list with overview/focus plots, nodes, edges, and output file.
+#' @noRd
 .hc_plot_enrichment_upstream_network_driver <- function(enrichment_mode = "selected",
                                              upstream_mode = "selected",
                                              clusters = c("all"),

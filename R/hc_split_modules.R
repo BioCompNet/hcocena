@@ -45,6 +45,7 @@
 #' @param min_module_size Optional alias for `min_submodule_size`. If set, it
 #'  takes precedence.
 #' @param verbose Logical; print progress messages.
+#' @noRd
 .hc_split_modules_driver <- function(modules,
                                      cluster_algo = "cluster_leiden",
                                      no_of_iterations = 2,
@@ -751,6 +752,7 @@
 #' @param which Either `"last"` (undo one split step) or `"all"` (restore the
 #'  original pre-split cluster state).
 #' @param verbose Logical; print progress messages.
+#' @noRd
 .hc_unsplit_modules_driver <- function(which = c("last", "all"), verbose = TRUE) {
   which <- base::match.arg(which)
 

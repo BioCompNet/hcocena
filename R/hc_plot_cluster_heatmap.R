@@ -116,6 +116,7 @@
 #'  labels (`***`, `**`, `*`).
 #' @param module_significance_annotation_name Column name displayed above the
 #'  significance annotation.
+#' @noRd
 
 
 .hc_plot_cluster_heatmap_driver <- function(col_order = NULL,

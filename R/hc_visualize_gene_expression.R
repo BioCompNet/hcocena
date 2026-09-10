@@ -9,6 +9,7 @@
 #' @param label_map Optional named character vector mapping cluster colours to
 #'  module labels (`M1`, `M2.1`, ...). When supplied, row labels show the module
 #'  label instead of the raw colour. Defaults to NULL (colour, as before).
+#' @noRd
 
 .hc_visualize_gene_expression_driver <- function(genes, name = NULL, width = 15, height = 10, save = TRUE,
                                                  label_map = NULL) {

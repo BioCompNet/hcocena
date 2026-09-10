@@ -30,6 +30,7 @@
 #' @param heatmap_file_name Heatmap filename when `plot_heatmap = TRUE`.
 #' @param ... Passed to `hc_plot_cluster_heatmap()`.
 #' @return Invisibly returns a list with activity tables and slot mapping.
+#' @noRd
 .hc_celltype_activity_decoupler_driver <- function(
   databases = c("Descartes_Cell_Types_and_Tissue_2021", "Human_Gene_Atlas"),
   custom_gmt_files = NULL,

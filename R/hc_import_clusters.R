@@ -5,6 +5,7 @@
 #' @param file File path.
 #' @param sep The separator of the file. Default is tab-separated.
 #' @param header A Boolean. Whether or not the file has headers (column names).
+#' @noRd
 
 .hc_import_clusters_driver <- function(file, sep = "\t", header = TRUE) {
   gtc <- readr::read_delim(file = file, delim = sep, col_names = header)

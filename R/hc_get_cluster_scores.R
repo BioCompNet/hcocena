@@ -3,6 +3,7 @@
 #' For every gene, the ratio of its edges to genes in the same cluster to its total number of edges is determined.
 #' 	The corresponding values are returned as a data frame and a box plot is generated showing the scores for each of the clusters.
 #' @param save A Boolean. Whether or not to save the plot to PDF (default is TRUE).
+#' @noRd
 
 .hc_get_module_scores_driver <- function(save = TRUE) {
   gtc <- .hc_gene_to_cluster_impl()

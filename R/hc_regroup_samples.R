@@ -22,6 +22,7 @@
 #' 	The file will be saved in the same directory as the original annotation, bearing the name of the annotation file with the '_regrouped' suffix.
 #' 	THEN RE-RUN CoCena FROM THE 'run_expression_analysis_2' FUNCTION ONWARD (including that function).
 #' 	NOTE: New annotation files are always exported without rownames.
+#' @noRd
 
 
 .hc_cut_hclust_impl <- function(by = "all", set = "all", method = "complete", k = base::rep(1, base::length(hcobject[["layers"]])), save = FALSE) {

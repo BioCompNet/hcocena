@@ -3,6 +3,7 @@
 #' For visualization of the GFC for every gene under the different observed groups, the network can be additionally replotted once for every group,
 #' 	with nodes being coloured according to their GFC value.
 #' 	This provides a more detailed resolution of the information acquired from the module heatmap.
+#' @noRd
 
 
 .hc_plot_GFC_network_driver <- function() {

@@ -10,6 +10,7 @@
 #' @param header A Boolean. Whether or not the file has headers (column names).
 #' @param cellsize The size of the cells/tiles in the plotted heatmap. Default is 18, may be adjusted for aestetics reasons.
 #' @return The heatmap object for replotting/re-sizing etc. and the result matrix. Output can be found under hcobject$satellite_outputs$network_comparison_1
+#' @noRd
 
 .hc_network_comparison_1_driver <- function(gtc1_path, gtc2_path, sep = "\t", header = TRUE, cellsize = 18) {
   gtc1 <- readr::read_delim(file = gtc1_path, delim = sep, col_names = header)
@@ -94,6 +95,7 @@ calc_jaccard <- function(set1, set2) {
 #' @param as In the future we plan to provide either an igraph object or an edge list. For now, only the igraph option is available.
 #' @param gene_vec A vector of gene symbols you wish to investigate. Gene symbols must be provided as strings, e.g., c( "YME1L1", "SLC2A5", "SIAH2", "GPI", "IL10RB").
 #' @return The ggplot object for replotting/re-sizing/modification etc. and the data used to plot the ggplot. Output can be found under hcobject$satellite_outputs$network_comparison_2
+#' @noRd
 
 .hc_network_comparison_2_driver <- function(net1, net2, as = "igraph", gene_vec) {
   nodes1 <- igraph::V(net1)$name

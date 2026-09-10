@@ -9,6 +9,7 @@
 #'  containing the groups by which you want to color.
 #' @param ellipses A Boolean. Whether or not to add ellipses to the PCA plot. For details see documentation on factoextra::fviz_pca_ind. Default is FALSE.
 #' @param cols Optional color palette passed to `factoextra::fviz_pca_ind()`.
+#' @noRd
 
 
 .hc_pca_prepare_expression <- function(x,

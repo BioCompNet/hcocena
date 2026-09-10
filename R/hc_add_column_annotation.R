@@ -11,6 +11,7 @@
 #' @param variable_label A string that describes the meta information used. This string will be used to label the annotation in the heatmap.
 #'  If none is provided, the first non-NA string from 'variables' is used as the label.
 #' @param type A string defining whether meta variables should be converted into percentages ("percent") or absolute ("abs"; default) values
+#' @noRd
 
 .hc_col_anno_categorical_driver <- function(variables, variable_label = NULL, type = "abs") {
   if (base::is.null(variables) || base::length(variables) == 0) {
@@ -73,6 +74,7 @@
 #'  If the information only exists in some but not all datasets, then set the vector slots of those that don"t have it to NA, e.g., c(NA, "Age").
 #' @param variable_label A string that describes the meta information used. This string will be used to label the annotation in the heatmap.
 #'  If none is provided, the first non-NA string from 'variables' is used as the label.
+#' @noRd
 
 .hc_col_anno_numerical_driver <- function(variables, variable_label) {
   if (base::is.null(variables) || base::length(variables) == 0) {

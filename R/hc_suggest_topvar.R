@@ -55,6 +55,7 @@ plot_inflections <- function(var.df, i, setname = "my data") {
 #'
 #' For each dataset, calculate the inflection points of the logged variance of gene expression values.
 #'  Returned values may be used for "topvar" in set_layer_settings().
+#' @noRd
 
 
 .hc_suggest_topvar_driver <- function() {

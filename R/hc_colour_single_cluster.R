@@ -2,6 +2,7 @@
 #'
 #' Replots the integrated network, highlighting a given cluster.
 #' @param cluster A string, giving the colour of the cluster to be highlighted.
+#' @noRd
 
 .hc_colour_single_cluster_driver <- function(cluster) {
   gtc <- .hc_gene_to_cluster_impl() %>% dplyr::filter(., !color == "white")

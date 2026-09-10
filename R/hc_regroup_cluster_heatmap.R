@@ -15,6 +15,7 @@
 #' @param cluster_columns A Boolean, whether or not to cluster the columns of
 #'  the heatmap. Default is FALSE so the main hCoCena column order is preserved.
 #' @param cluster_rows Like cluster_columns but for rows.
+#' @noRd
 
 
 .hc_change_grouping_parameter_driver <- function(group_by, col_order = NULL, cluster_columns = FALSE, row_order = NULL, cluster_rows = TRUE) {

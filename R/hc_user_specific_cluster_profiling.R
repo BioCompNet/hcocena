@@ -18,6 +18,7 @@
 #' @param db "Go" to use Gene Ontology database, "Kegg" to use KEGG database, "Hallmark" to use Hallmark genesets or custom database. Will be ignored when 'from_file' is TRUE.
 #' @param padj Method to use for multiple testing correction. Can be one of "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none".  Default is "BH" (Benjamini-Hochberg).
 #' @param qval q-value cutoff to define terms to consider after pathway enrichment.
+#' @noRd
 
 .hc_user_specific_cluster_profiling_driver <- function(from_file = FALSE,
                                             path = NULL,

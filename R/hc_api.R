@@ -385,6 +385,7 @@ hc_define_layers <- function(hc, data_sets = list()) {
 
 #' Read expression and annotation data (S4 API)
 #'
+#' @noRd
 # Internal helpers shared by modern and bridged legacy import code.
 .hc_has_output_dir <- function(hc) {
   paths_cfg <- hc@config@paths
@@ -754,6 +755,7 @@ hc_read_data <- function(hc,
 
 #' Set global settings (S4 API)
 #'
+#' @noRd
 # Internal implementation shared by S4 and legacy entry points.
 .hc_set_global_settings_impl <- function(hc,
                                          organism = "human",
@@ -876,6 +878,7 @@ hc_set_global_settings <- function(hc,
 
 #' Set layer settings (S4 API)
 #'
+#' @noRd
 # Internal implementation shared by S4 and legacy entry points.
 .hc_recycle_layer_arg <- function(x, n_layers, arg_name) {
   if (base::length(x) == 1 && n_layers > 1) {
@@ -999,6 +1002,7 @@ hc_set_layer_settings <- function(hc,
 
 #' Register supplementary references (S4 API)
 #'
+#' @noRd
 # Internal implementation shared by S4 and legacy entry points.
 .hc_set_supp_files_impl <- function(hc,
                                     Tf = NULL,
@@ -1053,6 +1057,7 @@ hc_set_supp_files <- function(hc, Tf = NULL, Hallmark = NULL, Go = NULL, Kegg = 
 
 #' Load supplementary references (S4 API)
 #'
+#' @noRd
 # Internal implementation shared by S4 and legacy entry points.
 .hc_read_supplementary_target_name <- function(name) {
   if (base::identical(name, "Tf")) {
@@ -1149,6 +1154,7 @@ hc_read_supplementary <- function(hc) {
 
 #' Run expression analysis part I (S4 API)
 #'
+#' @noRd
 # Internal implementation shared by S4 and legacy entry points.
 .hc_run_expression_analysis_1_driver <- function(padj,
                                                  export,
@@ -1467,6 +1473,7 @@ hc_set_cutoff <- function(hc,
 
 #' Run expression analysis part II (S4 API)
 #'
+#' @noRd
 # Internal implementation shared by S4 and legacy entry points.
 .hc_run_expression_analysis_2_driver <- function(grouping_v,
                                                  plot_HM,
@@ -1546,6 +1553,7 @@ hc_run_expression_analysis_2 <- function(hc,
 
 #' Build integrated network (S4 API)
 #'
+#' @noRd
 # Internal implementation shared by S4 and legacy entry points.
 .hc_build_integrated_network_driver <- function(mode,
                                                 with,
@@ -1637,6 +1645,7 @@ hc_build_integrated_network <- function(hc,
 
 #' Cluster integrated network (S4 API)
 #'
+#' @noRd
 # Internal implementation shared by S4 and legacy entry points.
 .hc_cluster_calculation_driver <- function(cluster_algo,
                                            no_of_iterations,
@@ -1920,6 +1929,7 @@ hc_cluster_calculation <- function(hc,
 
 #' Merge modules based on module-heatmap similarity (S4 API)
 #'
+#' @noRd
 .hc_merge_clusters_impl <- function(hc,
                                     k = "auto",
                                     save = TRUE,
@@ -3236,6 +3246,7 @@ hc_plot_enrichment_upstream_network <- function(hc,
 
 #' Run `check_dirs()` with S4 state synchronization
 #'
+#' @noRd
 # Internal implementation shared by S4 and legacy entry points.
 .hc_check_dirs_impl <- function(hc, create_output_dir = TRUE) {
   if (!inherits(hc, "HCoCenaExperiment")) {
@@ -3277,6 +3288,7 @@ hc_check_dirs <- function(hc, create_output_dir = TRUE) {
 
 #' Run `init_save_folder()` with S4 state synchronization
 #'
+#' @noRd
 # Internal implementation shared by S4 and legacy entry points.
 .hc_init_save_folder_impl <- function(hc, name, use_output_dir = FALSE) {
   if (!inherits(hc, "HCoCenaExperiment")) {
@@ -3359,6 +3371,8 @@ hc_init_save_folder <- function(hc, name, use_output_dir = FALSE) {
 #' @param hline Named list of horizontal reference lines to draw, with the
 #'   entries `R.squared`, `no_edges`, `no_nodes` and `no_networks`. `NULL`
 #'   entries (the default) draw no line for that panel.
+#' @return Updated `HCoCenaExperiment`, invisibly; called for the cut-off
+#'   diagnostic plot it draws.
 #' @export
 hc_plot_cutoffs <- function(hc,
                             interactive = TRUE,

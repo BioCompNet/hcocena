@@ -7,6 +7,7 @@
 #' @param meta_col A string. The name of the column in the annotation of datset 'set' that contains the information that is to be inspected (e.g. outcome or age).
 #' @param type Either "cat", if "meta_col" is categorical, or "num", if "meta_col" is numerical.
 #' @param cols User-defined color vector.
+#' @noRd
 
 
 .hc_meta_plot_driver <- function(set, group_col = NULL, meta_col = NULL, type = "cat", cols = NULL) {

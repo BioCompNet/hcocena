@@ -315,7 +315,6 @@ hc_auto_set_paths <- function(
 
 #' Define layers in an `HCoCenaExperiment`
 #'
-#' @rdname define_layers
 #' @param hc A `HCoCenaExperiment`.
 #' @param data_sets Named list of layers, each value a pair (count, annotation).
 #' @examples
@@ -3403,7 +3402,6 @@ hc_plot_deg_dist <- function(hc) {
 
 #' Plot module heatmap (S4 API)
 #'
-#' @rdname plot_cluster_heatmap
 #' @param hc A `HCoCenaExperiment`.
 #' @param file_name Optional export file name for the module heatmap.
 #'   Defaults to `"Heatmap_modules.pdf"`. Use `FALSE` to skip file export.

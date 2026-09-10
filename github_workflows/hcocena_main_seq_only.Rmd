@@ -497,7 +497,7 @@ hc <- hc_functional_enrichment(
 
   This optional step adds a **module-wise cell-type composition barplot** to the
   right side of the hCoCena heatmap (same annotation system as
-  `user_specific_cluster_profiling()`).
+  `hc_user_specific_cluster_profiling()`).
 
   The workflow is:
   1. choose Enrichr cell/tissue databases,

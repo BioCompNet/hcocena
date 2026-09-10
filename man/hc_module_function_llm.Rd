@@ -37,6 +37,11 @@ hc_module_function_llm(
   rag_min_relevance = NULL,
   rag_max_context_chars = 12000,
   rag_continue_on_error = FALSE,
+  use_enrichment = FALSE,
+  enrichment_top = 10,
+  enrichment_qval = 0.05,
+  enrichment_terms = NULL,
+  enrichment_max_context_chars = 4000,
   continue_on_error = FALSE,
   save_to_hc = !base::is.null(hc),
   slot_name = "llm_module_function",
@@ -152,6 +157,33 @@ limit. Default is \code{12000}.}
 \item{rag_continue_on_error}{Logical. If \code{TRUE}, a failed DoRAG request is
 stored in the result and the LLM interpretation continues without RAG
 passages. Default is \code{FALSE}.}
+
+\item{use_enrichment}{Logical. If \code{TRUE}, a further interpretation is run in
+which the module's statistically significant functional-enrichment terms
+are put into the prompt alongside the genes, the biological context and -
+when \code{use_rag = TRUE} - the retrieved literature. This is the most
+grounded of the levels: the enrichment terms are a hypergeometric test on
+exactly the gene list being interpreted, whereas the RAG passages are
+background retrieved by similarity and need not concern this module. The
+prompt states that ranking explicitly. Requires \code{hc} with results from
+\code{\link[=hc_functional_enrichment]{hc_functional_enrichment()}}, and is stored in \code{enrichment_response}
+next to \code{response} (genes only) and \code{rag_response} (genes + literature),
+so the three can be compared. Default is \code{FALSE}.}
+
+\item{enrichment_top}{Maximum number of enrichment terms per module put into
+the prompt, best q-value first. Default is \code{10}.}
+
+\item{enrichment_qval}{Significance cutoff applied to the stored enrichment
+terms before they are used. Default is \code{0.05}.}
+
+\item{enrichment_terms}{Optional terms supplied directly, bypassing the
+lookup in \code{hc}. Accepts a character vector, a data frame with \code{term} and
+\code{qvalue} columns, or a list of either named by module. This is the only
+way to combine enrichment grounding with \verb{genes =}, where there is no
+module to look up.}
+
+\item{enrichment_max_context_chars}{Maximum number of characters of
+formatted enrichment terms injected into the prompt. Default is \code{4000}.}
 
 \item{continue_on_error}{Logical. If \code{TRUE}, continue with the next module
 when one request fails and store the error in the result summary.}

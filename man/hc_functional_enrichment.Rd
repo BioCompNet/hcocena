@@ -15,6 +15,7 @@ hc_functional_enrichment(
   clusters = c("all"),
   padj = "BH",
   qval = 0.05,
+  universe = c("all_genes", "network"),
   consistent_terms = TRUE,
   heatmap_side = "left",
   heatmap_cluster_rows = FALSE,
@@ -69,6 +70,15 @@ of \code{padj}, so this argument did not affect which terms were called
 significant. Result tables from earlier versions can therefore differ.)}
 
 \item{qval}{Upper threshold for the adjusted p-value. Default is 0.05.}
+
+\item{universe}{Background gene set for the hypergeometric test. \code{"all_genes"}
+(default) uses every gene measured in any layer, asking whether a module is
+enriched relative to the transcriptome. \code{"network"} uses only the genes that
+entered the integrated network -- the genes that could have landed in a
+module at all -- asking whether a module is enriched relative to the other
+modules. \code{"network"} removes the bias that the top-variance selection and
+the correlation cutoff introduce, and typically returns fewer but more
+module-specific terms.}
 
 \item{consistent_terms}{Logical. If \code{TRUE} (default), use the union of the
 top \code{top} enriched terms across the selected modules for each database and

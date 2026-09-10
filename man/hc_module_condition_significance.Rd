@@ -16,6 +16,7 @@ hc_module_condition_significance(
   lmm_include_time = TRUE,
   limma_reference = NULL,
   limma_trend = TRUE,
+  standardize_modules = FALSE,
   padj = "BH",
   export_excel = TRUE,
   excel_file = "Module_condition_significance.xlsx",
@@ -49,6 +50,23 @@ when available.}
 limma contrasts. If \code{NULL}, all pairwise contrasts are tested.}
 
 \item{limma_trend}{Logical; passed to \code{limma::eBayes(trend = ...)}.}
+
+\item{standardize_modules}{Logical; z-score each module across the samples
+of a layer before testing. Raw module means carry the module's absolute
+expression level, so limma's variance moderation - which borrows
+information across modules - is dominated by the highly expressed ones,
+and the reported effect sizes are not comparable between modules.
+
+The standardization is applied per layer, so with several layers pooled
+(\code{set = "all"}) it also removes the between-layer offset. With a single
+layer the rank-based Wilcoxon/Kruskal p-values are unchanged, because
+z-scoring is monotone within a row; pooled across layers they do change,
+because the layers are brought onto a common scale first. That is usually
+what you want when the layers are different tissues or assays, since
+neither the limma design (\code{~ 0 + condition}) nor the LMM
+(\code{value ~ condition}, random \code{~ 1 | donor}) carries a layer term.
+
+Default \code{FALSE} keeps the previous behaviour.}
 
 \item{padj}{Multiple-testing correction method (passed to \code{p.adjust}/limma).}
 

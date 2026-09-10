@@ -1,5 +1,30 @@
 # hcocena 0.99.7
 
+## Methodological options
+
+- `hc_functional_enrichment(universe = )` chooses the background of the
+  hypergeometric test. `"all_genes"` (default, unchanged) tests against every
+  measured gene; `"network"` tests against the genes that entered the
+  integrated network - the genes that could have landed in a module at all -
+  which removes the bias introduced by the top-variance selection and the
+  correlation cutoff.
+- `hc_module_condition_significance(standardize_modules = TRUE)` z-scores each
+  module across the samples of a layer before testing, so modules are compared
+  on a common scale rather than on their absolute expression. Because it is
+  applied per layer it also removes the between-layer offset when layers are
+  pooled - neither the limma design nor the LMM carries a layer term. Default
+  `FALSE`.
+- `hc_module_function_llm(use_enrichment = TRUE)` adds a further module
+  interpretation grounded in the module's significant enrichment terms,
+  alongside the existing gene-only and RAG interpretations. The enrichment
+  terms are a test on exactly the gene list being interpreted, whereas RAG
+  passages are retrieved by similarity, so the prompt states that ranking
+  explicitly. Results are stored in `enrichment_response` and are available to
+  `hc_plot_module_function_llm()` as `enrichment_general_processes`,
+  `enrichment_contextual_state` and `enrichment_key_regulators`. Terms can also
+  be supplied directly via `enrichment_terms`, which is the only way to combine
+  this with `genes =`.
+
 ## Examples and fixtures
 
 - Rebuilt the bundled example fixtures with a 16-donor, two-timepoint

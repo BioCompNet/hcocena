@@ -2717,6 +2717,14 @@ hc_plot_enrichment_panels <- function(hc,
 }
 #
 #' @rdname hc_functional_enrichment
+#' @param universe Background gene set for the hypergeometric test. `"all_genes"`
+#'  (default) uses every gene measured in any layer, asking whether a module is
+#'  enriched relative to the transcriptome. `"network"` uses only the genes that
+#'  entered the integrated network -- the genes that could have landed in a
+#'  module at all -- asking whether a module is enriched relative to the other
+#'  modules. `"network"` removes the bias that the top-variance selection and
+#'  the correlation cutoff introduce, and typically returns fewer but more
+#'  module-specific terms.
 #' @param gene_sets A vector. The names of databases enrichment should be performed for. Choose one or multiple of "Go", "Kegg", "Hallmark", and/or "Reactome".
 #'  Available databases depend on supplement files previously set
 #'  Default is "Hallmark".
@@ -2817,6 +2825,7 @@ hc_functional_enrichment <- function(hc,
                                      clusters = c("all"),
                                      padj = "BH",
                                      qval = 0.05,
+                                     universe = c("all_genes", "network"),
                                      consistent_terms = TRUE,
                                      heatmap_side = "left",
                                      heatmap_cluster_rows = FALSE,
@@ -2850,6 +2859,7 @@ hc_functional_enrichment <- function(hc,
     clusters = clusters,
     padj = padj,
     qval = qval,
+    universe = universe,
     consistent_terms = consistent_terms,
     heatmap_side = heatmap_side,
     heatmap_cluster_rows = heatmap_cluster_rows,
@@ -4098,6 +4108,22 @@ hc_meta_correlation_cat <- function(hc, meta, set, p_val = 0.05,
 #' @param limma_reference Optional reference condition for one-vs-reference
 #'   limma contrasts. If `NULL`, all pairwise contrasts are tested.
 #' @param limma_trend Logical; passed to `limma::eBayes(trend = ...)`.
+#' @param standardize_modules Logical; z-score each module across the samples
+#'   of a layer before testing. Raw module means carry the module's absolute
+#'   expression level, so limma's variance moderation - which borrows
+#'   information across modules - is dominated by the highly expressed ones,
+#'   and the reported effect sizes are not comparable between modules.
+#'
+#'   The standardization is applied per layer, so with several layers pooled
+#'   (`set = "all"`) it also removes the between-layer offset. With a single
+#'   layer the rank-based Wilcoxon/Kruskal p-values are unchanged, because
+#'   z-scoring is monotone within a row; pooled across layers they do change,
+#'   because the layers are brought onto a common scale first. That is usually
+#'   what you want when the layers are different tissues or assays, since
+#'   neither the limma design (`~ 0 + condition`) nor the LMM
+#'   (`value ~ condition`, random `~ 1 | donor`) carries a layer term.
+#'
+#'   Default `FALSE` keeps the previous behaviour.
 #' @param padj Multiple-testing correction method (passed to `p.adjust`/limma).
 #' @param export_excel Logical; write result tables to Excel in save folder.
 #' @param excel_file File name for the Excel export.
@@ -4122,6 +4148,7 @@ hc_module_condition_significance <- function(hc,
                                              lmm_include_time = TRUE,
                                              limma_reference = NULL,
                                              limma_trend = TRUE,
+                                             standardize_modules = FALSE,
                                              padj = "BH",
                                              export_excel = TRUE,
                                              excel_file = "Module_condition_significance.xlsx",
@@ -4132,6 +4159,7 @@ hc_module_condition_significance <- function(hc,
     time_col = time_col, run_wilcox = run_wilcox, run_limma = run_limma,
     run_lmm = run_lmm, lmm_include_time = lmm_include_time,
     limma_reference = limma_reference, limma_trend = limma_trend,
+    standardize_modules = standardize_modules,
     padj = padj, export_excel = export_excel, excel_file = excel_file,
     slot_name = slot_name
   )

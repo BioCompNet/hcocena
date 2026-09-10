@@ -346,7 +346,13 @@ hc_plot_module_function_gemini <- function(...) {
     rag_key_regulators = "rag_key_regulators",
     general_processes_rag = "rag_general_processes",
     contextual_state_rag = "rag_contextual_state",
-    key_regulators_rag = "rag_key_regulators"
+    key_regulators_rag = "rag_key_regulators",
+    enrichment_general_processes = "enrichment_general_processes",
+    enrichment_contextual_state = "enrichment_contextual_state",
+    enrichment_key_regulators = "enrichment_key_regulators",
+    general_processes_enrichment = "enrichment_general_processes",
+    contextual_state_enrichment = "enrichment_contextual_state",
+    key_regulators_enrichment = "enrichment_key_regulators"
   )
   title <- c(
     general_processes = "General processes",
@@ -357,7 +363,13 @@ hc_plot_module_function_gemini <- function(...) {
     rag_key_regulators = "Key regulators with RAG",
     general_processes_rag = "General processes with RAG",
     contextual_state_rag = "Contextual state with RAG",
-    key_regulators_rag = "Key regulators with RAG"
+    key_regulators_rag = "Key regulators with RAG",
+    enrichment_general_processes = "General processes with enrichment",
+    enrichment_contextual_state = "Contextual state with enrichment",
+    enrichment_key_regulators = "Key regulators with enrichment",
+    general_processes_enrichment = "General processes with enrichment",
+    contextual_state_enrichment = "Contextual state with enrichment",
+    key_regulators_enrichment = "Key regulators with enrichment"
   )
   list(source = source, title = title)
 }

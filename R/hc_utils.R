@@ -3833,9 +3833,12 @@ network_filt <- function() {
 
 #' For each sample calculates the mean expression per cluster
 #' @param set An integer. Number of the dataset, for which samples the means should be calculated.
+#' @param standardize A Boolean. If `TRUE`, each module row is z-scored across
+#'   samples, so modules are compared on a common scale instead of on their
+#'   absolute expression level. Default `FALSE` keeps the raw means.
 #' @noRd
 
-sample_wise_cluster_expression <- function(set) {
+sample_wise_cluster_expression <- function(set, standardize = FALSE) {
   gtc <- .hc_gene_to_cluster_impl()
   counts <- hcobject[["data"]][[base::paste0("set", set, "_counts")]]
   modules <- base::unique(gtc$color[!gtc$color == "white"])
@@ -3868,6 +3871,22 @@ sample_wise_cluster_expression <- function(set) {
 
   base::rownames(cluster_means) <- modules
   base::colnames(cluster_means) <- base::colnames(counts)
+
+  if (isTRUE(standardize)) {
+    # Row-wise z-score. Raw module means carry each module's absolute
+    # expression level, so a highly expressed module dominates any comparison
+    # made across modules. Rows with no variance (or a single sample) are left
+    # centred at zero rather than turned into NaN.
+    m <- base::as.matrix(cluster_means)
+    centre <- base::rowMeans(m, na.rm = TRUE)
+    m <- m - centre
+    spread <- base::apply(m, 1, stats::sd, na.rm = TRUE)
+    spread[!base::is.finite(spread) | spread == 0] <- 1
+    m <- m / spread
+    cluster_means <- base::as.data.frame(m)
+    base::rownames(cluster_means) <- modules
+    base::colnames(cluster_means) <- base::colnames(counts)
+  }
 
   return(cluster_means)
 }

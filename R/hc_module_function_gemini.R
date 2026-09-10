@@ -94,6 +94,28 @@
 #'   when one request fails and store the error in the result summary.
 #' @param save_to_hc Logical. If `TRUE`, store the result in `hc@satellite` and
 #'   return updated `hc`. Default is `TRUE` when `hc` is provided.
+#' @param use_enrichment Logical. If `TRUE`, a further interpretation is run in
+#'   which the module's statistically significant functional-enrichment terms
+#'   are put into the prompt alongside the genes, the biological context and -
+#'   when `use_rag = TRUE` - the retrieved literature. This is the most
+#'   grounded of the levels: the enrichment terms are a hypergeometric test on
+#'   exactly the gene list being interpreted, whereas the RAG passages are
+#'   background retrieved by similarity and need not concern this module. The
+#'   prompt states that ranking explicitly. Requires `hc` with results from
+#'   [hc_functional_enrichment()], and is stored in `enrichment_response`
+#'   next to `response` (genes only) and `rag_response` (genes + literature),
+#'   so the three can be compared. Default is `FALSE`.
+#' @param enrichment_top Maximum number of enrichment terms per module put into
+#'   the prompt, best q-value first. Default is `10`.
+#' @param enrichment_qval Significance cutoff applied to the stored enrichment
+#'   terms before they are used. Default is `0.05`.
+#' @param enrichment_terms Optional terms supplied directly, bypassing the
+#'   lookup in `hc`. Accepts a character vector, a data frame with `term` and
+#'   `qvalue` columns, or a list of either named by module. This is the only
+#'   way to combine enrichment grounding with `genes =`, where there is no
+#'   module to look up.
+#' @param enrichment_max_context_chars Maximum number of characters of
+#'   formatted enrichment terms injected into the prompt. Default is `4000`.
 #' @param slot_name Satellite slot name used for storage. Default is
 #'   `"llm_module_function"`.
 #' @param system_instruction Optional custom system instruction for the model.
@@ -148,6 +170,11 @@ hc_module_function_llm <- function(hc = NULL,
                                    rag_min_relevance = NULL,
                                    rag_max_context_chars = 12000,
                                    rag_continue_on_error = FALSE,
+                                   use_enrichment = FALSE,
+                                   enrichment_top = 10,
+                                   enrichment_qval = 0.05,
+                                   enrichment_terms = NULL,
+                                   enrichment_max_context_chars = 4000,
                                    continue_on_error = FALSE,
                                    save_to_hc = !base::is.null(hc),
                                    slot_name = "llm_module_function",
@@ -235,6 +262,48 @@ hc_module_function_llm <- function(hc = NULL,
   if (!base::is.logical(verbose) || base::length(verbose) != 1 || base::is.na(verbose)) {
     stop("`verbose` must be TRUE or FALSE.")
   }
+  # Fourth interpretation level: significant enrichment terms for the module.
+  # `enrichment_terms` lets a caller supply them directly, which is the only
+  # way this works together with `genes =` (there is no module to look up).
+  enrichment_lookup <- NULL
+  if (!base::is.null(enrichment_terms)) {
+    enrichment_lookup <- if (base::is.character(enrichment_terms)) {
+      base::paste(enrichment_terms, collapse = "
+")
+    } else if (base::is.data.frame(enrichment_terms)) {
+      .hc_llm_format_enrichment_context(
+        terms = enrichment_terms,
+        max_chars = enrichment_max_context_chars
+      )
+    } else {
+      base::lapply(enrichment_terms, function(x) {
+        if (base::is.character(x)) {
+          base::paste(x, collapse = "
+")
+        } else {
+          .hc_llm_format_enrichment_context(
+            terms = x, max_chars = enrichment_max_context_chars
+          )
+        }
+      })
+    }
+  } else if (isTRUE(use_enrichment)) {
+    per_module <- .hc_llm_collect_enrichment_terms(
+      hc = hc, top = enrichment_top, qval = enrichment_qval
+    )
+    enrichment_lookup <- base::lapply(per_module, function(df) {
+      .hc_llm_format_enrichment_context(
+        terms = df, max_chars = enrichment_max_context_chars
+      )
+    })
+    if (isTRUE(verbose)) {
+      message(
+        "Enrichment grounding: ", base::length(per_module),
+        " module keys with significant terms (q <= ", enrichment_qval, ")."
+      )
+    }
+  }
+
   rag_options <- .hc_llm_resolve_rag_options(
     use_rag = use_rag,
     rag_query = rag_query,
@@ -352,6 +421,7 @@ hc_module_function_llm <- function(hc = NULL,
     system_instruction = system_instruction,
     response_schema = .hc_llm_response_schema(),
     rag_options = rag_options,
+    enrichment_lookup = enrichment_lookup,
     verbose = verbose
   )
 
@@ -398,6 +468,26 @@ hc_module_function_vllm <- function(...) {
   hc_module_function_llm(llm = "vllm", ...)
 }
 
+#' Pick the enrichment prompt block belonging to one module
+#' @noRd
+.hc_llm_enrichment_text_for <- function(lookup, gene_info, label) {
+  if (base::is.null(lookup) || base::length(lookup) == 0) {
+    return(NULL)
+  }
+  if (base::is.character(lookup) && base::length(lookup) == 1) {
+    return(lookup)
+  }
+  keys <- base::c(gene_info$module, gene_info$label, label)
+  keys <- base::as.character(keys)
+  keys <- keys[!base::is.na(keys) & base::nzchar(keys)]
+  for (k in keys) {
+    if (!base::is.null(lookup[[k]])) {
+      return(lookup[[k]])
+    }
+  }
+  NULL
+}
+
 .hc_llm_run_sequential <- function(gene_infos,
                                    label,
                                    context_text,
@@ -413,6 +503,7 @@ hc_module_function_vllm <- function(...) {
                                    system_instruction,
                                    response_schema,
                                    rag_options,
+                                   enrichment_lookup = NULL,
                                    verbose) {
   results <- vector("list", length = base::length(gene_infos))
   for (i in base::seq_along(gene_infos)) {
@@ -437,6 +528,11 @@ hc_module_function_vllm <- function(...) {
         system_instruction = system_instruction,
         response_schema = response_schema,
         rag_options = rag_options,
+        enrichment_text = .hc_llm_enrichment_text_for(
+          lookup = enrichment_lookup,
+          gene_info = gene_info,
+          label = this_label
+        ),
         index = i,
         n_inputs = base::length(gene_infos),
         verbose = verbose
@@ -618,6 +714,7 @@ hc_module_function_vllm <- function(...) {
                                   system_instruction,
                                   response_schema,
                                   rag_options = NULL,
+                                  enrichment_text = NULL,
                                   index = 1L,
                                   n_inputs = 1L,
                                   verbose) {
@@ -725,7 +822,8 @@ hc_module_function_vllm <- function(...) {
     }
   }
 
-  run_interpretation <- function(level, interpretation_rag_context = NULL) {
+  run_interpretation <- function(level, interpretation_rag_context = NULL,
+                                 interpretation_enrichment = NULL) {
     .hc_llm_interpretation_level(
       level = level,
       label = label,
@@ -734,6 +832,7 @@ hc_module_function_vllm <- function(...) {
       context_text = context_text,
       truncated = truncated,
       rag_context_text = interpretation_rag_context,
+      enrichment_text = interpretation_enrichment,
       llm = llm,
       api_key = api_key,
       model = model,
@@ -757,6 +856,26 @@ hc_module_function_vllm <- function(...) {
     rag_interpretation <- run_interpretation(
       level = "rag",
       interpretation_rag_context = rag_context_text
+    )
+  }
+
+  # Fourth level: genes + context + retrieved literature + the statistically
+  # significant enrichment terms for this module. RAG is optional here - when
+  # it was not requested this level is genes + context + enrichment.
+  has_enrichment_text <- !base::is.null(enrichment_text) &&
+    base::nzchar(base::as.character(enrichment_text[[1]]))
+  enrichment_interpretation <- NULL
+  if (has_enrichment_text) {
+    if (isTRUE(verbose)) {
+      message(
+        "LLM module summary: running the enrichment-grounded interpretation for `",
+        label, "`", if (has_rag_context) " (with RAG passages)." else ".", ""
+      )
+    }
+    enrichment_interpretation <- run_interpretation(
+      level = "enrichment",
+      interpretation_rag_context = if (has_rag_context) rag_context_text else NULL,
+      interpretation_enrichment = enrichment_text
     )
   }
 
@@ -785,6 +904,12 @@ hc_module_function_vllm <- function(...) {
     rag_query = rag_query_used,
     rag_error_message = rag_error_message,
     rag_context_text = if (!base::is.null(rag_context_text) && base::nzchar(rag_context_text)) rag_context_text else NULL,
+    enrichment_prompt = if (!base::is.null(enrichment_interpretation)) enrichment_interpretation$prompt else NULL,
+    enrichment_response = if (!base::is.null(enrichment_interpretation)) enrichment_interpretation$response else NULL,
+    enrichment_response_text = if (!base::is.null(enrichment_interpretation)) enrichment_interpretation$response_text else NULL,
+    enrichment_raw_response_text = if (!base::is.null(enrichment_interpretation)) enrichment_interpretation$raw_response_text else NULL,
+    enrichment_context_text = if (has_enrichment_text) base::as.character(enrichment_text[[1]]) else NULL,
+    enrichment_used_rag = has_enrichment_text && has_rag_context,
     timestamp = base::as.character(Sys.time())
   )
   out
@@ -797,6 +922,7 @@ hc_module_function_vllm <- function(...) {
                                          context_text,
                                          truncated,
                                          rag_context_text,
+                                         enrichment_text = NULL,
                                          llm,
                                          api_key,
                                          model,
@@ -812,6 +938,7 @@ hc_module_function_vllm <- function(...) {
     context_text = context_text,
     truncated = truncated,
     rag_context_text = rag_context_text,
+    enrichment_text = enrichment_text,
     llm = llm
   )
 
@@ -839,6 +966,8 @@ hc_module_function_vllm <- function(...) {
     } else {
       NULL
     },
+    enrichment_used = !base::is.null(enrichment_text) &&
+      base::nzchar(base::as.character(enrichment_text[[1]])),
     prompt = prompt,
     response = .hc_llm_parse_module_response(result_text),
     response_text = result_text,
@@ -1127,6 +1256,89 @@ hc_module_function_vllm <- function(...) {
     stop(context, " must resolve to a non-empty character scalar.", call. = FALSE)
   }
   query
+}
+
+#' Pull the significant enrichment terms per module out of an hc object
+#'
+#' Returns a named list keyed by both module label ("M3") and module colour, so
+#' the caller can look a module up either way. Each entry is a data frame of the
+#' terms that passed `qval`, best first.
+#' @noRd
+.hc_llm_collect_enrichment_terms <- function(hc, top = 10, qval = 0.05) {
+  if (base::is.null(hc)) {
+    stop(
+      "`use_enrichment = TRUE` needs an `hc` object. Pass `hc` together with ",
+      "`module`, or supply the terms yourself via `enrichment_terms`.",
+      call. = FALSE
+    )
+  }
+  sat <- tryCatch(base::as.list(hc@satellite), error = function(e) list())
+  enr <- sat[["enrichments"]]
+  tbl <- if (base::is.list(enr)) enr[["significant_enrichments_all_dbs"]] else NULL
+  if (base::is.null(tbl) || base::nrow(base::as.data.frame(tbl)) == 0) {
+    stop(
+      "No significant functional enrichment found in `hc@satellite$enrichments`. ",
+      "Run `hc_functional_enrichment()` first, or lower `qval`.",
+      call. = FALSE
+    )
+  }
+  tbl <- base::as.data.frame(tbl, stringsAsFactors = FALSE)
+
+  if ("qvalue" %in% base::colnames(tbl)) {
+    keep <- .hc_as_numeric_safely(tbl$qvalue)
+    tbl <- tbl[!base::is.na(keep) & keep <= qval, , drop = FALSE]
+    tbl <- tbl[base::order(.hc_as_numeric_safely(tbl$qvalue)), , drop = FALSE]
+  }
+  if (base::nrow(tbl) == 0) {
+    stop("No enrichment term passed `enrichment_qval = ", qval, "`.", call. = FALSE)
+  }
+
+  out <- list()
+  add <- function(key, df) {
+    key <- base::as.character(key)
+    key <- key[!base::is.na(key) & base::nzchar(key)]
+    for (k in base::unique(key)) out[[k]] <<- df
+  }
+  for (col in base::intersect(base::c("module_label", "cluster"), base::colnames(tbl))) {
+    for (m in base::unique(base::as.character(tbl[[col]]))) {
+      df <- tbl[base::as.character(tbl[[col]]) %in% m, , drop = FALSE]
+      if (base::nrow(df) > top) df <- df[base::seq_len(top), , drop = FALSE]
+      add(m, df)
+    }
+  }
+  out
+}
+
+#' Render enrichment terms as a prompt block
+#' @noRd
+.hc_llm_format_enrichment_context <- function(terms, max_chars = 4000) {
+  if (base::is.null(terms) || base::nrow(base::as.data.frame(terms)) == 0) {
+    return(NULL)
+  }
+  df <- base::as.data.frame(terms, stringsAsFactors = FALSE)
+  get <- function(nm) if (nm %in% base::colnames(df)) base::as.character(df[[nm]]) else base::rep("", base::nrow(df))
+  lines <- base::vapply(base::seq_len(base::nrow(df)), function(i) {
+    q <- .hc_as_numeric_safely(get("qvalue")[[i]])
+    base::paste0(
+      "- ", get("term")[[i]],
+      if (base::nzchar(get("database")[[i]])) base::paste0(" [", get("database")[[i]], "]") else "",
+      if (base::is.finite(q)) base::paste0("  q=", base::format(q, digits = 2, scientific = TRUE)) else "",
+      if (base::nzchar(get("GeneRatio")[[i]])) base::paste0("  genes=", get("GeneRatio")[[i]]) else ""
+    )
+  }, character(1))
+
+  txt <- base::paste(
+    base::paste0(
+      "Statistically significant over-representation for exactly this gene list ",
+      "(hypergeometric test, q-value cutoff applied), best first:"
+    ),
+    base::paste(lines, collapse = "\n"),
+    sep = "\n"
+  )
+  if (base::nchar(txt) > max_chars) {
+    txt <- base::paste0(base::substr(txt, 1, max_chars), "\n[truncated]")
+  }
+  txt
 }
 
 .hc_llm_request_rag <- function(query,
@@ -1903,6 +2115,7 @@ hc_module_function_vllm <- function(...) {
                                     context_text,
                                     truncated,
                                     rag_context_text = NULL,
+                                    enrichment_text = NULL,
                                     llm = "gemini") {
   trunc_note <- if (isTRUE(truncated)) {
     base::paste0(
@@ -1917,6 +2130,22 @@ hc_module_function_vllm <- function(...) {
   biological_context <- if (base::nzchar(context_text)) context_text else "none provided"
   has_rag_context <- !base::is.null(rag_context_text) &&
     base::nzchar(base::as.character(rag_context_text[[1]]))
+  has_enrichment <- !base::is.null(enrichment_text) &&
+    base::nzchar(base::as.character(enrichment_text[[1]]))
+  # The three evidence sources carry very different weight, so say so: the
+  # genes are the measurement, the enrichment terms are a statistical test on
+  # exactly those genes, and the retrieved passages are background found by
+  # similarity that may not concern this module at all.
+  enrichment_instruction <- if (has_enrichment) {
+    base::paste(
+      "Statistical over-representation results for this exact gene list are supplied.",
+      "Rank the evidence: the gene list first, the enrichment terms second, the retrieved literature last.",
+      "Name enriched terms only where they sharpen the answer; do not list them back.",
+      "Where the enrichment terms and the retrieved passages disagree, follow the enrichment terms."
+    )
+  } else {
+    NULL
+  }
 
   prompt_instructions <- if (llm == "vllm") {
     base::paste(
@@ -1936,6 +2165,7 @@ hc_module_function_vllm <- function(...) {
       "For `key_regulators`, list 2 to 5 likely transcription factors or signaling regulators separated by ' / '.",
       "If regulator evidence is weak, provide the most plausible regulators briefly rather than repeating the process.",
       if (has_rag_context) "Use the retrieved DoRAG passages as optional literature support, but prioritize the supplied genes and biological context. Do not claim that RAG is statistical enrichment." else NULL,
+      enrichment_instruction,
       "Example style only:",
       '{"general_processes":"interferon signaling / antiviral innate immunity / antigen presentation","contextual_state":"activated interferon-high inflammatory monocyte state","key_regulators":"STAT1 / IRF7 / IRF9 / NFKB1"}'
     )
@@ -1954,7 +2184,8 @@ hc_module_function_vllm <- function(...) {
       "Provide `contextual_state` as a short phrase describing the specific monocyte or transcriptional state in this study context.",
       "Provide `key_regulators` as a short phrase naming likely driving transcription factors or signaling regulators.",
       "If regulator evidence is weak, state the most plausible regulators briefly rather than repeating the biological process.",
-      if (has_rag_context) "Use the retrieved DoRAG passages as optional literature support, but prioritize the supplied genes and biological context. Do not claim that RAG is statistical enrichment." else NULL
+      if (has_rag_context) "Use the retrieved DoRAG passages as optional literature support, but prioritize the supplied genes and biological context. Do not claim that RAG is statistical enrichment." else NULL,
+      enrichment_instruction
     )
   }
 
@@ -1964,6 +2195,7 @@ hc_module_function_vllm <- function(...) {
     base::paste0("Label: ", label),
     base::paste0("Gene-count note: ", trunc_note),
     base::paste0("Genes:\n", base::paste(genes, collapse = ", ")),
+    if (has_enrichment) base::as.character(enrichment_text[[1]]) else NULL,
     if (has_rag_context) {
       base::paste0(
         "Retrieved DoRAG literature context:\n",
@@ -2169,6 +2401,10 @@ hc_module_function_vllm <- function(...) {
       rag_general_processes = base::character(0),
       rag_contextual_state = base::character(0),
       rag_key_regulators = base::character(0),
+      enrichment_used = base::logical(0),
+      enrichment_general_processes = base::character(0),
+      enrichment_contextual_state = base::character(0),
+      enrichment_key_regulators = base::character(0),
       status = base::character(0),
       error_message = base::character(0),
       timestamp = base::character(0),
@@ -2202,6 +2438,10 @@ hc_module_function_vllm <- function(...) {
       rag_general_processes = base::character(0),
       rag_contextual_state = base::character(0),
       rag_key_regulators = base::character(0),
+      enrichment_used = base::logical(0),
+      enrichment_general_processes = base::character(0),
+      enrichment_contextual_state = base::character(0),
+      enrichment_key_regulators = base::character(0),
       status = base::character(0),
       error_message = base::character(0),
       timestamp = base::character(0),
@@ -2234,6 +2474,10 @@ hc_module_function_vllm <- function(...) {
       rag_general_processes = .hc_llm_result_rag_scalar(res, "general_processes"),
       rag_contextual_state = .hc_llm_result_rag_scalar(res, "contextual_state"),
       rag_key_regulators = .hc_llm_result_rag_scalar(res, "key_regulators"),
+      enrichment_used = !base::is.null(.hc_llm_result_field(res, c("enrichment_response"))),
+      enrichment_general_processes = .hc_llm_result_enrichment_scalar(res, "general_processes"),
+      enrichment_contextual_state = .hc_llm_result_enrichment_scalar(res, "contextual_state"),
+      enrichment_key_regulators = .hc_llm_result_enrichment_scalar(res, "key_regulators"),
       status = .hc_llm_result_scalar(res, c("status")),
       error_message = .hc_llm_result_scalar(res, c("error_message")),
       timestamp = .hc_llm_result_scalar(res, c("timestamp")),
@@ -2352,6 +2596,19 @@ hc_module_function_vllm <- function(...) {
   val <- base::as.logical(val[[1]])
   if (base::length(val) == 0 || base::is.na(val)) {
     return(base::as.logical(default[[1]]))
+  }
+  val
+}
+
+.hc_llm_result_enrichment_scalar <- function(res, field, default = NA_character_) {
+  val <- .hc_llm_result_field(res, c("enrichment_response", field))
+  val <- .hc_llm_clean_text(val)
+  if (base::is.null(val) || base::length(val) == 0) {
+    return(default)
+  }
+  val <- base::as.character(val[[1]])
+  if (base::length(val) == 0 || base::is.na(val) || !base::nzchar(val)) {
+    return(default)
   }
   val
 }
@@ -2501,10 +2758,15 @@ hc_module_function_vllm <- function(...) {
         rag_general_processes = .hc_llm_result_rag_scalar(res, "general_processes"),
         rag_contextual_state = .hc_llm_result_rag_scalar(res, "contextual_state"),
         rag_key_regulators = .hc_llm_result_rag_scalar(res, "key_regulators"),
+        enrichment_general_processes = .hc_llm_result_enrichment_scalar(res, "general_processes"),
+        enrichment_contextual_state = .hc_llm_result_enrichment_scalar(res, "contextual_state"),
+        enrichment_key_regulators = .hc_llm_result_enrichment_scalar(res, "key_regulators"),
         status = .hc_llm_result_scalar(res, c("status")),
         error_message = .hc_llm_result_scalar(res, c("error_message")),
         prompt = .hc_llm_result_scalar(res, c("prompt")),
         rag_prompt = .hc_llm_result_scalar(res, c("rag_prompt")),
+        enrichment_prompt = .hc_llm_result_scalar(res, c("enrichment_prompt")),
+        enrichment_context_text = .hc_llm_result_scalar(res, c("enrichment_context_text")),
         timestamp = .hc_llm_result_scalar(res, c("timestamp")),
         stringsAsFactors = FALSE
       )

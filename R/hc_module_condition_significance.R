@@ -28,6 +28,23 @@
 #' @param limma_reference Optional reference condition for one-vs-reference
 #'   limma contrasts. If `NULL`, all pairwise contrasts are tested.
 #' @param limma_trend Logical; passed to `limma::eBayes(trend = ...)`.
+#' @param standardize_modules Logical; z-score each module across the samples
+#'   of a layer before testing. Raw module means carry the module's absolute
+#'   expression level, so limma's variance moderation - which borrows
+#'   information across modules - is dominated by the highly expressed ones,
+#'   and the reported effect sizes are not comparable between modules.
+#'
+#'   The standardization is applied per layer, which has a second consequence
+#'   when several layers are pooled (`set = "all"`): it also removes the
+#'   between-layer offset. With a single layer the rank-based
+#'   Wilcoxon/Kruskal p-values are unchanged, because z-scoring is monotone
+#'   within a row; pooled across layers they do change, because the layers are
+#'   brought onto a common scale before being concatenated. That is usually
+#'   what you want when the layers are different tissues or assays, since
+#'   neither the limma design (`~ 0 + condition`) nor the LMM
+#'   (`value ~ condition`, random `~ 1 | donor`) carries a layer term.
+#'
+#'   Default `FALSE` keeps the previous behaviour.
 #' @param padj Multiple-testing correction method (passed to `p.adjust`/limma).
 #' @param export_excel Logical; write result tables to Excel in save folder.
 #' @param excel_file File name for the Excel export.
@@ -44,6 +61,7 @@
                                           lmm_include_time = TRUE,
                                           limma_reference = NULL,
                                           limma_trend = TRUE,
+                                          standardize_modules = FALSE,
                                           padj = "BH",
                                           export_excel = TRUE,
                                           excel_file = "Module_condition_significance.xlsx",
@@ -88,7 +106,8 @@
     set_indices = set_indices,
     condition_col = condition_col,
     donor_col = donor_col,
-    time_col = time_col
+    time_col = time_col,
+    standardize_modules = standardize_modules
   )
   module_mat <- prep$module_mat
   sample_meta <- prep$sample_meta
@@ -277,7 +296,8 @@
 .hc_mc_collect_module_scores <- function(set_indices,
                                          condition_col,
                                          donor_col = NULL,
-                                         time_col = NULL) {
+                                         time_col = NULL,
+                                         standardize_modules = FALSE) {
   cluster_info <- hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]]
   if (base::is.null(cluster_info) || base::nrow(cluster_info) == 0) {
     stop("Missing `integrated_output$cluster_calc$cluster_information`.")
@@ -316,7 +336,7 @@
       stop("`time_col` = '", time_col, "' is missing in `", anno_name, "`.")
     }
 
-    m <- sample_wise_cluster_expression(set = si)
+    m <- sample_wise_cluster_expression(set = si, standardize = standardize_modules)
     if (base::is.null(m) || base::length(m) == 0) {
       next
     }

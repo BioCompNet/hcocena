@@ -170,6 +170,7 @@
                                   clusters = c("all"),
                                   padj = "BH",
                                   qval = 0.05,
+                                  universe = c("all_genes", "network"),
                                   consistent_terms = TRUE,
                                   heatmap_side = "left",
                                   heatmap_cluster_rows = FALSE,
@@ -720,17 +721,34 @@
     ordered_terms
   }
 
-  # Define general stats
-  universe <- base::lapply(
-    base::seq_along(hcobject[["layers"]]),
-    function(x) {
-      return(base::rownames(hcobject[["data"]][[base::paste0("set", x, "_counts")]]))
-    }
-  ) %>%
-    base::unlist() %>%
-    base::unique()
-
   cluster_info <- hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]]
+
+  # Background gene set the hypergeometric test is taken against.
+  #
+  #   "all_genes" - every gene measured in any layer. Answers "is this module
+  #     enriched relative to the transcriptome?", but the modules can only ever
+  #     contain network genes, so any bias already present in the top-variance
+  #     selection and the correlation cutoff is attributed to the module.
+  #
+  #   "network" - only the genes that made it into the integrated network, i.e.
+  #     the genes that could have landed in a module. Answers "is this module
+  #     enriched relative to the other modules?" and removes that shared bias.
+  #     Fewer, usually more specific terms.
+  universe_mode <- base::match.arg(universe)
+  universe <- if (base::identical(universe_mode, "network")) {
+    base::unique(base::unlist(base::strsplit(
+      base::as.character(cluster_info$gene_n), split = ","
+    )))
+  } else {
+    base::unique(base::unlist(base::lapply(
+      base::seq_along(hcobject[["layers"]]),
+      function(x) base::rownames(hcobject[["data"]][[base::paste0("set", x, "_counts")]])
+    )))
+  }
+  universe <- universe[!base::is.na(universe) & base::nzchar(universe)]
+  if (base::length(universe) == 0) {
+    stop("The `", universe_mode, "` universe is empty.")
+  }
 
   all_clusters <- base::unique(cluster_info$color)
   all_clusters <- all_clusters[all_clusters != "white"]

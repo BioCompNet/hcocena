@@ -1,62 +1,99 @@
 ---
-title: "hcocena: S4 Workflow Overview"
+title: "hcocena: a complete worked analysis"
 package: hcocena
 output:
   BiocStyle::html_document:
     toc: true
+    toc_depth: 2
 vignette: >
-  %\VignetteIndexEntry{hcocena: S4 Workflow Overview}
+  %\VignetteIndexEntry{hcocena: a complete worked analysis}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6, fig.height = 4)
+# BiocStyle trims figure margins with ImageMagick; several plots here are drawn
+# by functions that manage their own graphics devices, which can leave the hook
+# a figure it cannot compute a bounding box for.
+knitr::opts_chunk$set(crop = NULL)
 ```
 
-## Overview
+# What hcocena does
 
-`hcocena` provides a network-centric workflow for single-layer and multi-layer
-transcriptomics analyses. The object-oriented API stores assays in
-`MultiAssayExperiment` / `SummarizedExperiment` containers via the
-`HCoCenaExperiment` class.
+`hcocena` builds **co-expression networks** and reads biology off their
+structure. The idea is that genes which vary together across samples tend to
+belong to the same programme, so a gene-gene correlation network, cut into
+communities, gives you a handful of *modules* instead of thousands of
+individual genes. Each module can then be characterised -- which conditions
+drive it, which functions it is enriched for, which genes sit at its centre.
 
-## Installation
+What makes it *h*CoCena ("horizontal CoCena") is that several datasets can be
+analysed **as one network**. Different tissues, platforms or cohorts each
+contribute their own correlation network; those are merged, and the modules
+are found on the merged graph. A module is therefore a programme that exists
+across layers, and its behaviour can be compared between them.
 
-```{r install, eval = FALSE}
-if (!requireNamespace("BiocManager", quietly = TRUE)) {
-  install.packages("BiocManager")
-}
+This vignette runs the whole analysis end to end on a small simulated dataset,
+so every number and figure below is produced when the vignette is built. The
+steps that need an external service -- ChEA3, Enrichr, DoRothEA, Cytoscape, an
+LLM endpoint -- cannot run here; see [Beyond this vignette](#beyond) for the
+full templates that cover them.
 
-BiocManager::install("hcocena")
-```
-
-## Reproducible toy workflow
-
-```{r libraries}
+```{r libraries, message = FALSE}
 library(hcocena)
 library(MultiAssayExperiment)
 library(SummarizedExperiment)
 ```
 
-The example below uses the toy files shipped with the package.
+# The example data
 
-```{r toy-workflow}
+Two layers of 40 genes and 32 samples each. The genes are real marker symbols
+for four blood cell types, and the simulation makes each set co-vary as a
+block, so the analysis should recover four modules that correspond to the four
+cell types. That is the point of using a simulation here: we know the answer
+in advance and can check that the pipeline finds it.
+
+The samples are 16 donors measured at two timepoints, split across three
+conditions, with a batch label and an age covariate -- enough structure for
+the statistics later on. `inst/scripts/make-fixtures.R` in the installed
+package contains the generating code.
+
+```{r peek-data}
 extdir <- normalizePath(system.file("extdata", package = "hcocena"), winslash = "/")
-extdir <- paste0(extdir, "/")
+counts_preview <- read.delim(file.path(extdir, "toy_layer1_counts.tsv"), nrows = 3)
+counts_preview[, 1:5]
+
+anno_preview <- read.delim(file.path(extdir, "toy_layer1_anno.tsv"))
+head(anno_preview, 3)
+```
+
+# Setting up the analysis
+
+Every analysis starts from an empty `HCoCenaExperiment` and is configured by
+passing it through a series of functions. The object carries the data, the
+settings and every intermediate result, so there is no hidden state to keep
+track of.
+
+```{r init}
 outdir <- file.path(tempdir(), "hcocena-vignette-output")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 hc <- hc_init()
-
 hc <- hc_set_paths(
   hc,
-  dir_count_data = extdir,
-  dir_annotation = extdir,
-  dir_reference_files = extdir,
+  dir_count_data = paste0(extdir, "/"),
+  dir_annotation = paste0(extdir, "/"),
+  dir_reference_files = paste0(extdir, "/"),
   dir_output = outdir
 )
+hc <- hc_init_save_folder(hc, name = "")
+```
 
+`hc_define_layers()` names the layers and says which files belong to them. The
+names are used in file names and plot labels from here on.
+
+```{r layers}
 hc <- hc_define_layers(
   hc,
   data_sets = list(
@@ -72,53 +109,343 @@ hc <- hc_read_data(
   gene_symbol_col = "SYMBOL",
   sample_col = "SampleID",
   count_has_rn = FALSE,
-  anno_has_rn = FALSE
+  anno_has_rn = FALSE,
+  auto_setup_output = FALSE
 )
+```
 
+## Global settings
+
+`variable_of_interest` is the annotation column that defines the groups
+everything is later compared across; `control_keyword` names the reference
+level. `range_GFC` caps the group-fold-change scale introduced below.
+
+```{r global-settings}
 hc <- hc_set_global_settings(
   hc,
   organism = "human",
   control_keyword = "control",
   variable_of_interest = "group",
-  data_in_log = TRUE
+  min_nodes_number_for_network = 1,
+  min_nodes_number_for_cluster = 1,
+  range_GFC = 2,
+  layout_algorithm = "layout_with_stress",
+  data_in_log = FALSE
 )
 ```
 
-The imported assays are available through `MultiAssayExperiment`.
+## Layer settings
 
-```{r container-inspection}
+`top_var` is the number of most variable genes per layer that enter the
+correlation. Genes that barely move across samples carry no co-expression
+signal but do add noise and computation, so the network is built on the
+variable ones. In a real analysis this is typically a few thousand; here the
+dataset only has 40 genes, so we take all of them.
+
+`min_corr` and `range_cutoff_length` define the grid of correlation cutoffs
+that the next step scans.
+
+```{r layer-settings}
+hc <- hc_set_layer_settings(
+  hc,
+  top_var = c(40, 40),
+  min_corr = c(0.5, 0.5),
+  range_cutoff_length = c(50, 50),
+  print_distribution_plots = c(FALSE, FALSE)
+)
+```
+
+# Part I: correlation and choosing a cutoff
+
+`hc_run_expression_analysis_1()` computes all pairwise gene-gene correlations
+per layer and then, for every candidate cutoff on the grid, records what the
+resulting network would look like.
+
+```{r part1, results = "hide", message = FALSE}
+hc <- hc_run_expression_analysis_1(hc, corr_method = "pearson")
+```
+
+**Why a cutoff has to be chosen at all.** A correlation matrix is a complete
+graph -- every gene is connected to every other one, just with different
+weights. To get a network with structure you keep only edges above some
+correlation. Set it too low and everything is connected to everything, so
+there are no modules to find; set it too high and the network falls apart into
+fragments and you lose most of your genes.
+
+`hcocena` picks the cutoff by two criteria at once:
+
+- **Scale-free topology (R²).** Biological networks tend to have few
+  highly connected hubs and many sparsely connected genes, a degree
+  distribution that follows a power law. R² measures how well the network at a
+  given cutoff fits that expectation. Higher is more biologically plausible.
+- **How much network is left.** The number of remaining nodes and the mean
+  degree. A cutoff with a beautiful R² over eleven surviving genes is useless.
+
+```{r cutoff, results = "hide", message = FALSE}
+hc <- hc_set_cutoff(hc, auto = TRUE)
+```
+
+The statistics behind the choice can be inspected per layer -- R², node count
+and mean degree along the cutoff grid:
+
+```{r cutoff-plot, fig.height = 3.5}
+hc_plot_cutoffs(hc, interactive = FALSE)
+```
+
+# Part II: group fold changes
+
+`hc_run_expression_analysis_2()` filters each layer's network to the chosen
+cutoff and computes **group fold changes** (GFCs).
+
+A GFC summarises, for one gene and one group of samples, how far that group
+sits from the overall mean of the gene, on a scale capped at `range_GFC`. It
+is what makes modules comparable across layers: absolute expression differs
+between platforms and tissues, but "up in severe relative to this gene's own
+average" is the same quantity everywhere.
+
+```{r part2, results = "hide", message = FALSE}
+hc <- hc_run_expression_analysis_2(hc, plot_HM = FALSE)
+```
+
+# Integration
+
+Each layer now has its own filtered network. `hc_build_integrated_network()`
+merges them into one graph.
+
+- `mode = "u"` (union) keeps an edge present in *any* layer -- the inclusive
+  choice, and the usual one.
+- `mode = "i"` (intersection) keeps only edges present in *every* layer, which
+  is stricter and needs the layers to measure largely the same genes.
+- `multi_edges` says what to do when an edge exists in several layers with
+  different weights: `"min"` is conservative, `"mean"` and `"max"` are the
+  alternatives.
+
+```{r integrate, results = "hide", message = FALSE}
+hc <- hc_build_integrated_network(hc, mode = "u", multi_edges = "min")
+```
+
+```{r network-size}
+g <- hc_integration(hc)@graph
+c(nodes = igraph::vcount(g), edges = igraph::ecount(g))
+```
+
+# Module detection
+
+Communities are found with the Leiden algorithm. `resolution` controls
+granularity: higher values give more, smaller modules.
+
+Leiden is stochastic, so `hcocena` runs it `no_of_iterations` times and keeps
+the consensus. A gene ends up in the module it was assigned to most often, and
+genes that never settle are dropped -- which is why a module assignment from
+this package is more stable than a single Leiden run.
+
+```{r cluster, results = "hide", message = FALSE}
+hc <- hc_cluster_calculation(
+  hc,
+  cluster_algo = "cluster_leiden",
+  no_of_iterations = 5,
+  resolution = 1
+)
+```
+
+```{r cluster-sizes}
+gtc <- hc_gene_to_cluster(hc)
+table(gtc$color)
+```
+
+Four modules of ten genes, as the simulation intended. At this point the
+modules are identified by colour; the readable `M1`-style labels are assigned
+when the module heatmap is drawn, which also shows their GFC profile across
+the groups of both layers:
+
+```{r heatmap, fig.height = 4.5, results = "hide", message = FALSE}
+hc <- hc_plot_cluster_heatmap(hc, file_name = FALSE)
+```
+
+Module membership per gene is the table most downstream steps work from:
+
+```{r module-genes}
+module_genes <- as.data.frame(hc@satellite$module_gene_list)
+split(module_genes$genes, module_genes$module)[["M1"]]
+```
+
+# Functional enrichment
+
+Modules are tested for over-representation of gene sets. In a normal analysis
+these come from GO, KEGG, Hallmark or Reactome via `gene_sets =`; here we
+write a small GMT of the four marker panels instead, so that the vignette
+stays offline and self-contained.
+
+**The background matters.** `universe = "all_genes"` (the default) tests each
+module against every measured gene, answering "is this module enriched
+relative to the transcriptome?". `universe = "network"` tests against the
+genes that entered the network -- the genes that could have landed in a module
+at all -- answering "is this module enriched relative to the other modules?".
+The second removes the bias that top-variance selection and the correlation
+cutoff introduce, and is the stricter question.
+
+```{r enrichment, results = "hide", message = FALSE}
+gmt <- file.path(tempdir(), "celltype_markers.gmt")
+writeLines(c(
+  paste(c("T cells", "-", "CD3D", "CD3E", "CD3G", "CD2", "CD28",
+          "LCK", "ZAP70", "IL7R", "CD7", "TRAC"), collapse = "\t"),
+  paste(c("B cells", "-", "CD19", "MS4A1", "CD79A", "CD79B", "BLNK",
+          "PAX5", "CR2", "FCRL1", "TNFRSF13B", "VPREB3"), collapse = "\t"),
+  paste(c("Monocytes", "-", "CD14", "LYZ", "FCN1", "VCAN", "S100A8",
+          "S100A9", "CSF1R", "ITGAM", "CD68", "FCGR3A"), collapse = "\t"),
+  paste(c("NK cells", "-", "NKG7", "GNLY", "KLRD1", "KLRF1", "PRF1",
+          "GZMB", "NCR1", "KLRC1", "FGFBP2", "SPON2"), collapse = "\t")
+), gmt)
+
+hc <- hc_functional_enrichment(
+  hc,
+  gene_sets = character(0),
+  custom_gmt_files = c(CellTypes = gmt),
+  universe = "network"
+)
+```
+
+```{r enrichment-result}
+enr <- hc@satellite$enrichments$significant_enrichments_all_dbs
+as.data.frame(enr)[, c("module_label", "term", "GeneRatio", "qvalue")]
+```
+
+Each module recovers exactly one cell type with all ten of its markers, which
+is the answer the simulation was built to have.
+
+# Characterising the modules
+
+## Which conditions drive a module
+
+`hc_module_condition_significance()` reduces each module to one value per
+sample -- the mean expression of its genes -- and tests that against the
+conditions. Wilcoxon (or Kruskal-Wallis for more than two groups) is
+rank-based, `limma` fits a linear model with pairwise contrasts, and an
+optional mixed model handles repeated measures via a donor random intercept.
+
+`standardize_modules = TRUE` z-scores each module within a layer first. Raw
+means carry the module's absolute expression level, which distorts limma's
+variance moderation and makes effect sizes incomparable between modules.
+Applied per layer it also removes the offset between layers, which matters
+because the model formula itself carries no layer term.
+
+```{r module-significance, results = "hide", message = FALSE}
+hc <- hc_module_condition_significance(
+  hc,
+  condition_col = "group",
+  run_limma = FALSE,
+  standardize_modules = TRUE,
+  export_excel = FALSE
+)
+```
+
+```{r module-significance-result}
+sig <- hc@satellite$module_condition_significance$wilcox
+as.data.frame(sig)[, c("cluster", "test", "p", "p_adj")]
+```
+
+Nothing is significant here, and that is the correct answer: the simulation
+assigned the condition labels at random, so there is no group effect to find.
+
+## Correlating modules with metadata
+
+Numeric covariates are correlated with module expression directly; categorical
+ones are correlated across the groups of the variable of interest, which needs
+at least three of them.
+
+```{r meta-correlation, fig.height = 3.5, results = "hide", message = FALSE}
+hc_meta_correlation_num(hc, set = 1, meta = "age")
+```
+
+## Module GFC tables
+
+The numbers behind the module heatmap, per group and per sample:
+
+```{r gfc-tables, results = "hide", message = FALSE}
+hc <- hc_module_gfc_tables(hc, export_xlsx = FALSE)
+```
+
+```{r gfc-tables-result}
+head(as.data.frame(hc@satellite$module_gfc_tables$by_group), 4)
+```
+
+## Hub genes
+
+Hubs are the genes most central to their own module, by weighted degree,
+closeness and betweenness. They are the natural candidates when a module has
+to be reduced to a few representatives.
+
+```{r hubs, results = "hide", message = FALSE, fig.show = "hide"}
+hc <- hc_find_hubs(hc, top = 5)
+```
+
+```{r hubs-result}
+vapply(hc@satellite$hub_out, function(x) paste(x[[1]], collapse = ", "),
+       character(1))
+```
+
+The hubs of each module are exactly the markers of the corresponding cell
+type, which is another way of seeing that the modules are clean.
+
+## Module scores
+
+A module score is the fraction of a gene's neighbours that lie inside its own
+module -- a measure of how cleanly the community was separated. Scores near 1
+mean the module is well isolated in the graph.
+
+```{r module-scores, fig.height = 3.5, results = "hide", message = FALSE}
+hc <- hc_get_module_scores(hc)
+```
+
+# The object that carries all of this
+
+Everything above is stored in the same `HCoCenaExperiment`. The assays live in
+a `MultiAssayExperiment`:
+
+```{r container}
 names(experiments(hc_mae(hc)))
-lapply(experiments(hc_mae(hc)), dim)
-as.data.frame(SummarizedExperiment::colData(experiments(hc_mae(hc))[[1L]]))
+vapply(experiments(hc_mae(hc)), function(x) dim(x)[[1]], integer(1))
 ```
 
-Configuration metadata remains attached to the container.
+Settings stay attached, so an analysis can be reconstructed from the object
+alone:
 
-```{r config-inspection}
-as.data.frame(methods::slot(hc_config(hc), "global"))
-as.data.frame(methods::slot(hc_config(hc), "layer"))[, c("layer_id", "count_source", "annotation_source")]
+```{r config}
+as.data.frame(methods::slot(hc_config(hc), "global"))[, c("organism", "voi", "range_GFC")]
 ```
 
-## Next steps
+Downstream results are collected in the satellite slot:
 
-The same object can then be passed through the downstream wrappers such as
-`hc_run_expression_analysis_1()`, `hc_set_cutoff()`,
-`hc_build_integrated_network()`, and `hc_cluster_calculation()`.
+```{r satellite}
+names(as.list(hc@satellite))
+```
 
-## Full analysis templates
+# Beyond this vignette {#beyond}
 
-This vignette stays small so that it can be rebuilt quickly. The complete
-walkthroughs that the package is normally driven from ship with it as R
-Markdown templates:
+Several parts of `hcocena` need services that cannot be reached while a
+vignette is being built, and are therefore not shown above:
+
+- transcription-factor enrichment through **ChEA3**
+  (`hc_tf_overrep_module()`, `hc_check_tf()`),
+- cell-type annotation from **Enrichr** libraries
+  (`hc_celltype_annotation()`, `hc_celltype_activity_decoupler()`),
+- upstream regulator and pathway inference via **DoRothEA/PROGENy**
+  (`hc_upstream_inference()`),
+- network layout round-trips with **Cytoscape**
+  (`hc_export_to_cytoscape()`),
+- LLM-based module interpretation (`hc_module_function_llm()`), optionally
+  grounded in retrieved literature and in the enrichment terms computed above.
+
+The complete walkthroughs are installed with the package as R Markdown
+templates:
 
 ```{r templates}
 dir(system.file("scripts", "workflows", package = "hcocena"), pattern = "[.]Rmd$")
 ```
 
-`hcocena_main.Rmd` covers the full analysis from data import through cutoff
-selection, network integration, clustering and enrichment;
-and `hcocena_satellite.Rmd` collects the optional downstream analyses. Copy
-one next to your data and edit the paths at the top:
+`hcocena_main.Rmd` is the full analysis; `hcocena_satellite.Rmd` collects the
+optional downstream steps. Copy one next to your data and edit the paths at
+the top:
 
 ```{r copy-template, eval = FALSE}
 file.copy(
@@ -128,11 +455,9 @@ file.copy(
 ```
 
 They are templates rather than reproducible documents: they point at your own
-count and annotation files, and several steps contact external services
-(ChEA3, Enrichr, DoRothEA, Cytoscape, LLM providers). That is why they are not
-built as vignettes.
+count and annotation files and contact the services listed above.
 
-## Session information
+# Session information
 
 ```{r session-info}
 sessionInfo()

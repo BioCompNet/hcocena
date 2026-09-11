@@ -100,6 +100,20 @@ l2 <- make_layer("L2", 2)
 set1_counts <- l1$counts; set1_anno <- l1$anno
 set2_counts <- l2$counts; set2_anno <- l2$anno
 
+# The same two layers as tab-separated files. The vignette reads these rather
+# than the serialized objects, so that it demonstrates the import path a user
+# actually takes - and so that vignette and fixtures show one dataset, not two.
+write_tsv_layer <- function(counts, anno, idx) {
+  cnt <- data.frame(SYMBOL = rownames(counts), counts,
+                    check.names = FALSE, stringsAsFactors = FALSE)
+  utils::write.table(cnt, file.path(extdata, sprintf("toy_layer%d_counts.tsv", idx)),
+                     sep = "	", quote = FALSE, row.names = FALSE)
+  utils::write.table(anno, file.path(extdata, sprintf("toy_layer%d_anno.tsv", idx)),
+                     sep = "	", quote = FALSE, row.names = FALSE)
+}
+write_tsv_layer(round(set1_counts, 3), set1_anno, 1)
+write_tsv_layer(round(set2_counts, 3), set2_anno, 2)
+
 # ---- drop the unread ggplot before writing -------------------------------
 strip_plots <- function(hc) {
   for (nm in names(hc@layer_results)) {
@@ -164,6 +178,10 @@ hc <- hc_cluster_calculation(hc, cluster_algo = "cluster_leiden",
                              no_of_iterations = 2, resolution = 1)
 write_fixture(hc, "hc_clustered.rds")
 
+for (f in c("toy_layer1_counts.tsv", "toy_layer1_anno.tsv",
+            "toy_layer2_counts.tsv", "toy_layer2_anno.tsv")) {
+  message(sprintf("%-22s %5.0f KB", f, file.size(file.path(extdata, f)) / 1024))
+}
 for (f in c("hc_prepared.rds", "hc_after_part1.rds",
             "hc_after_part2.rds", "hc_clustered.rds")) {
   p <- file.path(extdata, f)

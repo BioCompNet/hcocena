@@ -1,4 +1,33 @@
-SampleID	group	batch
-s4	A	L2
-s5	B	L2
-s6	B	L2
+SampleID	group	batch	donor	timepoint	age
+L2_D01_T1	control	B1	D01	T1	42
+L2_D01_T2	mild	B1	D01	T2	42
+L2_D02_T1	severe	B2	D02	T1	50
+L2_D02_T2	control	B2	D02	T2	50
+L2_D03_T1	mild	B1	D03	T1	44
+L2_D03_T2	severe	B1	D03	T2	44
+L2_D04_T1	control	B2	D04	T1	33
+L2_D04_T2	mild	B2	D04	T2	33
+L2_D05_T1	severe	B1	D05	T1	42
+L2_D05_T2	control	B1	D05	T2	42
+L2_D06_T1	mild	B2	D06	T1	67
+L2_D06_T2	severe	B2	D06	T2	67
+L2_D07_T1	control	B1	D07	T1	63
+L2_D07_T2	mild	B1	D07	T2	63
+L2_D08_T1	severe	B2	D08	T1	54
+L2_D08_T2	control	B2	D08	T2	54
+L2_D09_T1	mild	B1	D09	T1	34
+L2_D09_T2	severe	B1	D09	T2	34
+L2_D10_T1	control	B2	D10	T1	52
+L2_D10_T2	mild	B2	D10	T2	52
+L2_D11_T1	severe	B1	D11	T1	57
+L2_D11_T2	control	B1	D11	T2	57
+L2_D12_T1	mild	B2	D12	T1	45
+L2_D12_T2	severe	B2	D12	T2	45
+L2_D13_T1	control	B1	D13	T1	45
+L2_D13_T2	mild	B1	D13	T2	45
+L2_D14_T1	severe	B2	D14	T1	49
+L2_D14_T2	control	B2	D14	T2	49
+L2_D15_T1	mild	B1	D15	T1	52
+L2_D15_T2	severe	B1	D15	T2	52
+L2_D16_T1	control	B2	D16	T1	45
+L2_D16_T2	mild	B2	D16	T2	45

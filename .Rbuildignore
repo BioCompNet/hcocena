@@ -15,8 +15,6 @@
 ^Rplots\.pdf$
 ^\.tmp_llm_visual$
 ^\.tmp_llm_visual/
-^github_workflows$
-^github_workflows/
 ^\.agents$
 ^\.agents/
 ^\.claude$

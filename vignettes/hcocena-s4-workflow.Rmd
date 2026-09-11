@@ -105,6 +105,34 @@ The same object can then be passed through the downstream wrappers such as
 `hc_run_expression_analysis_1()`, `hc_set_cutoff()`,
 `hc_build_integrated_network()`, and `hc_cluster_calculation()`.
 
+## Full analysis templates
+
+This vignette stays small so that it can be rebuilt quickly. The complete
+walkthroughs that the package is normally driven from ship with it as R
+Markdown templates:
+
+```{r templates}
+dir(system.file("scripts", "workflows", package = "hcocena"), pattern = "[.]Rmd$")
+```
+
+`hcocena_main.Rmd` covers the full analysis from data import through cutoff
+selection, network integration, clustering and enrichment;
+`hcocena_satellite.Rmd` collects the optional downstream analyses; and
+`hcocena_main_seq_only.Rmd` is the sequencing-only variant. Copy one next to
+your data and edit the paths at the top:
+
+```{r copy-template, eval = FALSE}
+file.copy(
+  system.file("scripts", "workflows", "hcocena_main.Rmd", package = "hcocena"),
+  "hcocena_main.Rmd"
+)
+```
+
+They are templates rather than reproducible documents: they point at your own
+count and annotation files, and several steps contact external services
+(ChEA3, Enrichr, DoRothEA, Cytoscape, LLM providers). That is why they are not
+built as vignettes.
+
 ## Session information
 
 ```{r session-info}

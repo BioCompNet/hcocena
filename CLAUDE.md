@@ -8,7 +8,7 @@ Guidance for Claude Code / other agents working in this repository.
 downstream analysis of transcriptomics datasets. Modern S4 workflow around
 `HCoCenaExperiment` (built on `MultiAssayExperiment`/`SummarizedExperiment`).
 Package source lives at the repository root. Docker setup is in `docker/`,
-GitHub walkthrough notebooks in `github_workflows/`.
+GitHub walkthrough notebooks in `inst/scripts/workflows/`.
 
 ## Running R (important — read before running anything)
 

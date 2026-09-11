@@ -34,7 +34,7 @@ LLM-assisted module interpretation.
   layout
 - Docker support lives in [`docker/`](docker), including bundled
   `reference_files`
-- GitHub-only workflow notebooks are kept in [`github_workflows/`](github_workflows/)
+- GitHub-only workflow notebooks are kept in [`inst/scripts/workflows/`](inst/scripts/workflows/)
 - CI for package checks is defined in
   [`.github/workflows/bioc-check.yaml`](.github/workflows/bioc-check.yaml)
 
@@ -73,7 +73,7 @@ The container prepares a workspace at `/home/rstudio/hcocena` and includes:
 
 - the local `hcocena` installation
 - bundled `reference_files/` with pathway, GO, hallmark, TF, and immune helper references
-- visible workflow notebooks under `/home/rstudio/hcocena/github_workflows/`
+- visible workflow notebooks under `/home/rstudio/hcocena/inst/scripts/workflows/`
   including `hcocena_main.Rmd` and `hcocena_satellite.Rmd`
 - preinstalled optional packages for common workflows, including
   `DESeq2`, `limma`, `sva`, `edgeR`, `tximport`, `apeglm`, `ashr`,
@@ -160,13 +160,28 @@ the generated plot variants, non-default plot parameters, and image pages for
 manual inspection, including the pre-split heatmap, post-split heatmap, and
 combined enrichment plot.
 
-## GitHub workflows
+## Analysis templates
 
-This repository also ships longer GitHub-oriented walkthroughs:
+The longer walkthroughs the package is normally driven from are installed with
+it, so they are available from an installed copy and not only from a clone:
 
-- `github_workflows/hcocena_main.Rmd`
-- `github_workflows/hcocena_satellite.Rmd`
-- `github_workflows/hcocena_main_seq_only.Rmd`
+- `inst/scripts/workflows/hcocena_main.Rmd` -- full analysis, import to enrichment
+- `inst/scripts/workflows/hcocena_satellite.Rmd` -- optional downstream analyses
+- `inst/scripts/workflows/hcocena_main_seq_only.Rmd` -- sequencing-only variant
+
+```r
+dir(system.file("scripts", "workflows", package = "hcocena"))
+
+file.copy(
+  system.file("scripts", "workflows", "hcocena_main.Rmd", package = "hcocena"),
+  "hcocena_main.Rmd"
+)
+```
+
+They are templates, not reproducible documents: they point at your own count
+and annotation files, and several steps contact external services (ChEA3,
+Enrichr, DoRothEA, Cytoscape, LLM providers). The built vignette
+(`vignette("hcocena-s4-workflow")`) is the runnable short version.
 
 One practical note: when using longitudinal imputation with
 `impute_method = "rfcont"`, attach `CALIBERrfimpute` in the session first:

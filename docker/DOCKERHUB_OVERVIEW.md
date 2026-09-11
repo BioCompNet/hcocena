@@ -11,7 +11,6 @@ integration and downstream analysis of transcriptomics datasets.
 - visible workflow notebooks:
   - `01_hcocena_main.Rmd`
   - `02_hcocena_satellite.Rmd`
-  - `03_hcocena_main_seq_only.Rmd`
 - additional notebooks under `/home/rstudio/hcocena/inst/scripts/workflows/`
 - RNA-seq and differential-expression packages including `DESeq2`, `limma`,
   `sva`, `edgeR`, `tximport`, `apeglm`, `ashr`, `EnhancedVolcano`,

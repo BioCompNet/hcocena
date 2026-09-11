@@ -167,7 +167,6 @@ it, so they are available from an installed copy and not only from a clone:
 
 - `inst/scripts/workflows/hcocena_main.Rmd` -- full analysis, import to enrichment
 - `inst/scripts/workflows/hcocena_satellite.Rmd` -- optional downstream analyses
-- `inst/scripts/workflows/hcocena_main_seq_only.Rmd` -- sequencing-only variant
 
 ```r
 dir(system.file("scripts", "workflows", package = "hcocena"))

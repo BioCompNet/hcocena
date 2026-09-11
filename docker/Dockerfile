@@ -54,7 +54,6 @@ RUN mkdir -p /home/rstudio/count_data && \
     cp /opt/hcocena/docker/README.md /home/rstudio/README_docker.md && \
     cp /opt/hcocena/docker/project_workflows/hcocena_main.Rmd /home/rstudio/01_hcocena_main.Rmd && \
     cp /opt/hcocena/docker/project_workflows/hcocena_satellite.Rmd /home/rstudio/02_hcocena_satellite.Rmd && \
-    cp /opt/hcocena/inst/scripts/workflows/hcocena_main_seq_only.Rmd /home/rstudio/03_hcocena_main_seq_only.Rmd && \
     cp -r /opt/hcocena/docker/reference_files/. /home/rstudio/reference_files/ && \
     cp /opt/hcocena/docker/project_data/README.md /home/rstudio/project_data/README.md && \
     chown -R rstudio:rstudio /home/rstudio

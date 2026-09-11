@@ -312,7 +312,7 @@ hc <- hc_plot_integrated_network(hc)
 
   Enrichment analysis of the found modules using the GO, KEGG, Hallmark and Reactome databases or based on a user-defined enrichment file. For detailed information on parameter settings, please run `?hcocena::hc_functional_enrichment`.
   Results are written to the output folder and stored in the `hc` object.
-  If you later run `hc_upstream_inference()` (see `hcocena_main_seq_only.Rmd`),
+  If you later run `hc_upstream_inference()` (see `hcocena_satellite.Rmd`),
   per-condition comparison now defaults to `consistent_terms = TRUE` to keep
   one fixed term axis across conditions; set `consistent_terms = FALSE` for
   condition-specific discovery pages.

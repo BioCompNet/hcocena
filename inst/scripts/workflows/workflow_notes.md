@@ -7,7 +7,6 @@ workflow templates. They are not package vignettes.
 
 - `hcocena_main.Rmd`: closest to the current object-passing workflow
 - `hcocena_satellite.Rmd`: useful for optional analysis ideas
-- `hcocena_main_seq_only.Rmd`: useful if a single-modality example is needed
 
 ### Other files in git history
 

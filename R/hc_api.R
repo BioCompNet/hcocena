@@ -2699,14 +2699,8 @@ hc_plot_enrichment_panels <- function(hc,
   invisible(hc)
 }
 
-#' Functional enrichment (S4 API)
-#'
-#' @param hc A `HCoCenaExperiment`.
-#' @param ... Additional plotting arguments forwarded to the legacy
-#'   `.hc_functional_enrichment_driver()` implementation.
-#' @return Updated `HCoCenaExperiment`.
-#' @rdname hc_functional_enrichment
-# Internal implementation shared by S4 and legacy entry points.
+#' @noRd
+# Internal implementation shared by the S4 entry point and the driver.
 .hc_functional_enrichment_impl <- function(hc, ...) {
   out <- .hc_run_driver_capture(
     hc = hc,
@@ -2716,6 +2710,13 @@ hc_plot_enrichment_panels <- function(hc,
   list(hc = out$hc, result = out$result)
 }
 #
+#' Functional enrichment (S4 API)
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param ... Further arguments passed through to the underlying
+#'   implementation. Every supported argument is documented on this page;
+#'   `...` only carries the tail of the argument list.
+#' @return Updated `HCoCenaExperiment`.
 #' @rdname hc_functional_enrichment
 #' @param universe Background gene set for the hypergeometric test. `"all_genes"`
 #'  (default) uses every gene measured in any layer, asking whether a module is
@@ -2888,14 +2889,8 @@ hc_functional_enrichment <- function(hc,
   )[["hc"]]
 }
 
-#' Upstream regulator/pathway inference (S4 API)
-#'
-#' @param hc A `HCoCenaExperiment`.
-#' @param ... Arguments forwarded to `.hc_upstream_inference_driver()`; see the
-#'   parameters of [hc_upstream_inference()].
-#' @return Updated `HCoCenaExperiment`.
-#' @rdname hc_upstream_inference
-# Internal implementation shared by S4 and legacy entry points.
+#' @noRd
+# Internal implementation shared by the S4 entry point and the driver.
 .hc_upstream_inference_impl <- function(hc, ...) {
   out <- .hc_run_driver_capture(
     hc = hc,
@@ -2905,6 +2900,10 @@ hc_functional_enrichment <- function(hc,
   list(hc = out$hc, result = out$result)
 }
 #
+#' Upstream regulator/pathway inference (S4 API)
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @return Updated `HCoCenaExperiment`.
 #' @rdname hc_upstream_inference
 #' @param resources Character vector of upstream resources to use.
 #'   Allowed values are `"TF"` and `"Pathway"`. Default is both.
@@ -3030,14 +3029,8 @@ hc_upstream_inference <- function(hc,
   )[["hc"]]
 }
 
-#' Module cell-type annotation from Enrichr (S4 API)
-#'
-#' @param hc A `HCoCenaExperiment`.
-#' @param ... Arguments forwarded to `.hc_celltype_annotation_driver()`; see the
-#'   parameters of [hc_celltype_annotation()].
-#' @return Updated `HCoCenaExperiment`.
-#' @rdname hc_celltype_annotation
-# Internal implementation shared by S4 and legacy entry points.
+#' @noRd
+# Internal implementation shared by the S4 entry point and the driver.
 .hc_celltype_annotation_impl <- function(hc, ...) {
   out <- .hc_run_driver_capture(
     hc = hc,
@@ -3047,6 +3040,13 @@ hc_upstream_inference <- function(hc,
   list(hc = out$hc, result = out$result)
 }
 #
+#' Module cell-type annotation from Enrichr (S4 API)
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param ... Further arguments passed through to the underlying
+#'   implementation. Every supported argument is documented on this page;
+#'   `...` only carries the tail of the argument list.
+#' @return Updated `HCoCenaExperiment`.
 #' @rdname hc_celltype_annotation
 #' @param databases Character vector of Enrichr library names.
 #' @param custom_gmt_files Optional custom GMT file(s) to include in the
@@ -3132,14 +3132,8 @@ hc_celltype_annotation <- function(hc,
   )[["hc"]]
 }
 
-#' Module cell-type activity from Enrichr markers via decoupleR (S4 API)
-#'
-#' @param hc A `HCoCenaExperiment`.
-#' @param ... Arguments forwarded to `.hc_celltype_activity_decoupler_driver()`; see the
-#'   parameters of [hc_celltype_activity_decoupler()].
-#' @return Updated `HCoCenaExperiment`.
-#' @rdname hc_celltype_activity_decoupler
-# Internal implementation shared by S4 and legacy entry points.
+#' @noRd
+# Internal implementation shared by the S4 entry point and the driver.
 .hc_celltype_activity_decoupler_impl <- function(hc, ...) {
   out <- .hc_run_driver_capture(
     hc = hc,
@@ -3149,6 +3143,13 @@ hc_celltype_annotation <- function(hc,
   list(hc = out$hc, result = out$result)
 }
 #
+#' Module cell-type activity from Enrichr markers via decoupleR (S4 API)
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @param ... Further arguments passed through to the underlying
+#'   implementation. Every supported argument is documented on this page;
+#'   `...` only carries the tail of the argument list.
+#' @return Updated `HCoCenaExperiment`.
 #' @rdname hc_celltype_activity_decoupler
 #' @param databases Character vector of Enrichr library names.
 #' @param custom_gmt_files Optional custom GMT file(s) to include as additional
@@ -3226,14 +3227,8 @@ hc_celltype_activity_decoupler <- function(hc,
   )[["hc"]]
 }
 
-#' Plot module knowledge network from enrichment + upstream inference (S4 API)
-#'
-#' @param hc A `HCoCenaExperiment`.
-#' @param ... Arguments forwarded to `.hc_plot_enrichment_upstream_network_driver()`; see the
-#'   parameters of [hc_plot_enrichment_upstream_network()].
-#' @return Updated `HCoCenaExperiment`.
-#' @rdname hc_plot_enrichment_upstream_network
-# Internal implementation shared by S4 and legacy entry points.
+#' @noRd
+# Internal implementation shared by the S4 entry point and the driver.
 .hc_plot_enrichment_upstream_network_impl <- function(hc, ...) {
   out <- .hc_run_driver_capture(
     hc = hc,
@@ -3243,6 +3238,10 @@ hc_celltype_activity_decoupler <- function(hc,
   list(hc = out$hc, result = out$result)
 }
 #
+#' Plot module knowledge network from enrichment + upstream inference (S4 API)
+#'
+#' @param hc A `HCoCenaExperiment`.
+#' @return Updated `HCoCenaExperiment`.
 #' @rdname hc_plot_enrichment_upstream_network
 #' @param enrichment_mode Character scalar. One of `"selected"` (default) or
 #'   `"significant"`.

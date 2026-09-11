@@ -16,7 +16,7 @@ The image includes:
 - an empty `/home/rstudio/project_data` folder with instructions for
   adding the project-specific `.rds` inputs yourself
 - workflow notebooks directly in the workspace root:
-  `01_hcocena_main.Rmd`, `02_hcocena_satellite.Rmd`, `03_hcocena_main_seq_only.Rmd`
+  `01_hcocena_main.Rmd`, `02_hcocena_satellite.Rmd`
 - preinstalled optional packages for common workflows, including
   `graphlayouts`, `ellmer`, `DESeq2`, `limma`, `sva`, `edgeR`, `tximport`,
   `apeglm`, `ashr`, `EnhancedVolcano`, `pheatmap`, `org.Hs.eg.db`,

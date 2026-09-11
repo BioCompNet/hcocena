@@ -9,7 +9,6 @@ API:
 
 - `hcocena_main.Rmd`
 - `hcocena_satellite.Rmd`
-- `hcocena_main_seq_only.Rmd`
 
 These documents are useful as:
 

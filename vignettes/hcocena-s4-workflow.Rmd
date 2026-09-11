@@ -117,9 +117,8 @@ dir(system.file("scripts", "workflows", package = "hcocena"), pattern = "[.]Rmd$
 
 `hcocena_main.Rmd` covers the full analysis from data import through cutoff
 selection, network integration, clustering and enrichment;
-`hcocena_satellite.Rmd` collects the optional downstream analyses; and
-`hcocena_main_seq_only.Rmd` is the sequencing-only variant. Copy one next to
-your data and edit the paths at the top:
+and `hcocena_satellite.Rmd` collects the optional downstream analyses. Copy
+one next to your data and edit the paths at the top:
 
 ```{r copy-template, eval = FALSE}
 file.copy(

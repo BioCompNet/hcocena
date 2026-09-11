@@ -40,6 +40,13 @@
 
 ## Fixes
 
+- The Cytoscape helpers now say what is wrong. With Cytoscape closed, RCy3
+  receives an empty CyREST response and dies inside its own parsing with
+  "$ operator is invalid for atomic vectors", which gave the user nothing to
+  act on. `hc_export_to_cytoscape()` and `hc_import_layout_from_cytoscape()`
+  ping Cytoscape first and explain how to make it reachable, and
+  `hc_import_layout_from_local_folder()` names the file it expected instead of
+  failing with a bare connection error.
 - `hc_longitudinal_workflow_direct()` failed immediately with `'arg' must be of
   length 1`. It forwards `cap_na_impute` explicitly, but the receiving formal
   defaults to the already-matched `na_impute`, so `match.arg()` saw a single

@@ -7,6 +7,20 @@
 #' @noRd
 
 .hc_gene_to_cluster_impl <- function(cluster_information = hcobject[["integrated_output"]][["cluster_calc"]][["cluster_information"]]) {
+  # Nearly every downstream analysis starts here, so this is the right place to
+  # notice that there are no modules - after an input or parameter change
+  # discarded them, or before clustering has been run at all.
+  if (base::is.null(cluster_information) ||
+    base::length(base::dim(cluster_information)) != 2L ||
+    base::nrow(cluster_information) == 0) {
+    stop(
+      "No module assignment available. Run `hc_cluster_calculation()` first ",
+      "(and `hc_build_integrated_network()` before it). If you changed the ",
+      "data, the layer settings or the cutoff, the previous modules were ",
+      "discarded because they no longer matched.",
+      call. = FALSE
+    )
+  }
   gtc <- base::do.call(rbind, base::apply(cluster_information, 1, function(x) {
     tmp <- x["gene_n"] %>%
       base::strsplit(., split = ",") %>%

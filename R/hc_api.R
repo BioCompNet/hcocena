@@ -665,8 +665,14 @@ hc_define_layers <- function(hc, data_sets = list()) {
     data[[base::paste0(lid, "_anno")]] <- anno
   }
 
+  previous <- tryCatch(.hc_assay_fingerprint(hc), error = function(e) NULL)
   hc@mae <- .hc_build_mae(list(data = data), layer_cfg)
   methods::validObject(hc)
+  # Same gene ids with different values still passes validation, so compare the
+  # contents rather than the shape.
+  if (!identical(previous, tryCatch(.hc_assay_fingerprint(hc), error = function(e) NULL))) {
+    hc <- .hc_invalidate_from(hc, from = "data")
+  }
   hc
 }
 #
@@ -925,8 +931,24 @@ hc_set_global_settings <- function(hc,
     rows[[i]] <- row
   }
 
+  # Compare as numbers: these are stored with whatever type they were supplied
+  # with, so identical() would call integer 40 and double 40 a change and throw
+  # away a correct analysis.
+  relevant <- c("top_var", "min_corr", "range_cutoff_length")
+  settings_digest <- function(cfg) {
+    keys <- base::intersect(relevant, base::colnames(cfg))
+    if (base::length(keys) == 0) {
+      return(NULL)
+    }
+    base::unlist(base::lapply(keys, function(k) base::as.numeric(cfg[[k]])))
+  }
+  before <- tryCatch(settings_digest(hc@config@layer), error = function(e) NULL)
   hc@config@layer <- .hc_rows_to_data_frame(rows)
   methods::validObject(hc)
+  after <- tryCatch(settings_digest(hc@config@layer), error = function(e) NULL)
+  if (!isTRUE(base::all.equal(before, after))) {
+    hc <- .hc_invalidate_from(hc, from = "data")
+  }
   hc
 }
 #
@@ -1354,28 +1376,112 @@ hc_set_cutoff <- function(hc,
     stop("No layers found to set cutoffs for.")
   }
 
-  align_vec <- function(x) {
-    xv <- .hc_as_numeric_safely(x)
+  # Layers can be addressed by the name the user gave them in
+  # hc_define_layers() or by the internal id. Both are accepted; a name that is
+  # ambiguous between the two namespaces is an error rather than a guess.
+  display_names <- tryCatch(
+    as.character(hc@config@layer$layer_name),
+    error = function(e) character(0)
+  )
+  if (length(display_names) != n_layers || anyNA(display_names)) {
+    display_names <- character(0)
+  }
+
+  resolve_layer_name <- function(nm) {
+    hits <- unique(c(which(layer_ids == nm),
+                     if (length(display_names)) which(display_names == nm) else integer(0)))
+    if (length(hits) == 0) {
+      stop(
+        "`cutoff_vector` names a layer that does not exist: `", nm, "`. ",
+        "Known layers: ", paste(unique(c(display_names, layer_ids)), collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+    if (length(hits) > 1) {
+      stop(
+        "`cutoff_vector` name `", nm, "` is ambiguous between layers.",
+        call. = FALSE
+      )
+    }
+    hits[[1]]
+  }
+
+  check_range <- function(v, where) {
+    bad <- v[is.finite(v) & (v < -1 | v > 1)]
+    if (length(bad) > 0) {
+      stop(
+        "Correlation cutoffs must lie in [-1, 1]; ", where, " contains ",
+        paste(unique(bad), collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+    invisible(NULL)
+  }
+
+  align_vec <- function(x, strict = FALSE) {
     out <- rep(NA_real_, n_layers)
-    if (length(xv) == 0) {
+    if (length(x) == 0) {
       return(out)
+    }
+    xv <- .hc_as_numeric_safely(x)
+    if (isTRUE(strict)) {
+      check_range(xv, "`cutoff_vector`")
     }
 
     nms <- names(x)
-    if (!is.null(nms) && length(nms) == length(x) && any(nzchar(nms))) {
-      idx <- match(layer_ids, nms)
-      ok <- is.finite(idx)
-      if (any(ok)) {
-        out[ok] <- .hc_as_numeric_safely(x[idx[ok]])
+    has_names <- !is.null(nms) && any(nzchar(nms))
+
+    if (has_names) {
+      if (!all(nzchar(nms))) {
+        if (isTRUE(strict)) {
+          stop(
+            "`cutoff_vector` mixes named and unnamed entries. Name every ",
+            "element or none.",
+            call. = FALSE
+          )
+        }
+        return(out)
       }
+      if (anyDuplicated(nms) > 0) {
+        if (isTRUE(strict)) {
+          stop(
+            "`cutoff_vector` names a layer more than once: ",
+            paste(unique(nms[duplicated(nms)]), collapse = ", "), ".",
+            call. = FALSE
+          )
+        }
+        return(out)
+      }
+      for (i in seq_along(nms)) {
+        pos <- if (isTRUE(strict)) {
+          resolve_layer_name(nms[[i]])
+        } else {
+          hits <- unique(c(which(layer_ids == nms[[i]]),
+                           if (length(display_names)) which(display_names == nms[[i]]) else integer(0)))
+          if (length(hits) == 1) hits[[1]] else NA_integer_
+        }
+        if (!is.na(pos)) {
+          out[[pos]] <- xv[[i]]
+        }
+      }
+      # Named input addresses exactly the layers it names. Positions left over
+      # stay NA and are filled from the next source in the precedence list.
+      return(out)
     }
 
-    miss <- which(!is.finite(out))
-    seq_vals <- xv[is.finite(xv)]
-    if (length(miss) > 0 && length(seq_vals) > 0) {
-      n_copy <- min(length(miss), length(seq_vals))
-      out[miss[seq_len(n_copy)]] <- seq_vals[seq_len(n_copy)]
+    if (isTRUE(strict) && length(xv) != 1L && length(xv) != n_layers) {
+      stop(
+        "`cutoff_vector` has ", length(xv), " values for ", n_layers,
+        " layers. Supply one value, one per layer, or a named vector.",
+        call. = FALSE
+      )
     }
+    if (length(xv) == 1L) {
+      out[] <- xv[[1]]
+      return(out)
+    }
+    n_copy <- min(n_layers, length(xv))
+    out[seq_len(n_copy)] <- xv[seq_len(n_copy)]
     out
   }
 
@@ -1383,8 +1489,8 @@ hc_set_cutoff <- function(hc,
   cutoff_state$chosen <- rep(NA_real_, n_layers)
   cutoff_state$source_per_layer <- rep(NA_character_, n_layers)
 
-  fill_missing <- function(vec, source_name) {
-    aligned <- align_vec(vec)
+  fill_missing <- function(vec, source_name, strict = FALSE) {
+    aligned <- align_vec(vec, strict = strict)
     idx <- which(!is.finite(cutoff_state$chosen) & is.finite(aligned))
     if (length(idx) > 0) {
       cutoff_state$chosen[idx] <- aligned[idx]
@@ -1421,9 +1527,9 @@ hc_set_cutoff <- function(hc,
       fill_missing(hc@config@layer$cutoff, "config.layer.cutoff")
     }
 
-    fill_missing(cutoff_vector, "user.cutoff_vector")
+    fill_missing(cutoff_vector, "user.cutoff_vector", strict = TRUE)
   } else {
-    fill_missing(cutoff_vector, "user.cutoff_vector")
+    fill_missing(cutoff_vector, "user.cutoff_vector", strict = TRUE)
     if (base::nrow(hc@config@layer) > 0 && "cutoff" %in% base::colnames(hc@config@layer)) {
       fill_missing(hc@config@layer$cutoff, "config.layer.cutoff")
     }
@@ -1453,11 +1559,19 @@ hc_set_cutoff <- function(hc,
     )
   }
 
+  previous_cutoffs <- tryCatch(as.numeric(hc@config@layer$cutoff), error = function(e) NULL)
+
   hc <- .hc_run_driver(
     hc = hc,
     fun = .hc_set_cutoff_driver,
     cutoff_vector = chosen
   )
+
+  # A different cutoff means a different filtered network, so part2 onwards is
+  # obsolete. The correlations in part1 do not depend on the cutoff and stay.
+  if (!isTRUE(all.equal(previous_cutoffs, as.numeric(chosen)))) {
+    hc <- .hc_invalidate_from(hc, from = "cutoff")
+  }
 
   sat2 <- as.list(hc@satellite)
   sat2[["cutoff_selection"]] <- list(

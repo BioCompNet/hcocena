@@ -475,7 +475,7 @@ Purpose: cluster donor trajectories within each module and compute CAP.
 Key parameters:
 - `donor_col`, `time_col`, `time_levels`: longitudinal design definition.
 - `k`: candidate cluster counts per module.
-- `rerolls`: stability repetitions.
+- `nstart`, `cap_runs`: restarts of the clustering and of the CAP step.
 - `impute_method`, `ntree`: imputation setup.
 
 ```{r eval=FALSE, message=TRUE, warning=FALSE}
@@ -486,12 +486,13 @@ long_step1 <- hc_longitudinal_step1_module_donor(
   time_col = "Timepoint_rough_num",
   time_levels = c("1", "2", "3"),
   k = 2:6,
-  rerolls = 1,
+  nstart = 1,
+  cap_runs = 1,
   impute = TRUE,
   impute_method = "rfcont",
   ntree = 10,
   min_cluster_fraction = 0.1,
-  score_method = "median",
+  score_method = "calinski_harabasz",
   seed = 42
 )
 

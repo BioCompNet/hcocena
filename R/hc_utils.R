@@ -1439,6 +1439,93 @@ calc_pval <- function(x, mu, sigma, n) {
 #'   "rcorr" (always use `Hmisc::rcorr`). Default "auto".
 #' @noRd
 
+#' Read and validate an imported correlation / p-value matrix pair
+#'
+#' The two files are written independently and may be sorted differently, so
+#' the p-value matrix is aligned to the correlation matrix by gene name rather
+#' than trusting that row `i` means the same gene in both. Without that,
+#' p-values are silently attached to the wrong gene pairs.
+#' @noRd
+.hc_read_correlation_import <- function(paths, layer) {
+  where <- base::paste0("`import` entry for layer ", layer)
+  if (base::length(paths) != 2L || base::anyNA(paths) || !base::all(base::nzchar(paths))) {
+    stop(
+      where, " must be either NA or exactly two file paths: the correlation ",
+      "matrix and the matching p-value matrix.",
+      call. = FALSE
+    )
+  }
+  missing_files <- paths[!base::file.exists(paths)]
+  if (base::length(missing_files) > 0) {
+    stop(where, ": file not found: ", base::paste(missing_files, collapse = ", "), call. = FALSE)
+  }
+
+  read_one <- function(path, what) {
+    m <- base::as.matrix(utils::read.table(path, header = TRUE, check.names = FALSE))
+    if (base::nrow(m) != base::ncol(m)) {
+      stop(
+        where, ": the ", what, " matrix in `", path, "` is ", base::nrow(m),
+        " x ", base::ncol(m), " and must be square.",
+        call. = FALSE
+      )
+    }
+    if (!base::is.numeric(m)) {
+      stop(where, ": the ", what, " matrix in `", path, "` is not numeric.", call. = FALSE)
+    }
+    genes <- base::colnames(m)
+    if (base::is.null(genes) || base::anyNA(genes) || !base::all(base::nzchar(genes))) {
+      stop(
+        where, ": the first line of `", path, "` must hold the gene names, ",
+        "which are used as both column and row names.",
+        call. = FALSE
+      )
+    }
+    if (base::anyDuplicated(genes) > 0) {
+      stop(
+        where, ": `", path, "` repeats gene name(s): ",
+        base::paste(base::unique(genes[base::duplicated(genes)]), collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+    base::rownames(m) <- genes
+    m
+  }
+
+  r <- read_one(paths[[1]], "correlation")
+  pv <- read_one(paths[[2]], "p-value")
+
+  if (!base::setequal(base::colnames(r), base::colnames(pv))) {
+    only_r <- base::setdiff(base::colnames(r), base::colnames(pv))
+    only_p <- base::setdiff(base::colnames(pv), base::colnames(r))
+    stop(
+      where, ": the correlation and p-value matrices describe different genes",
+      if (base::length(only_r)) base::paste0(
+        "; only in the correlation matrix: ",
+        base::paste(utils::head(only_r, 5), collapse = ", ")
+      ) else "",
+      if (base::length(only_p)) base::paste0(
+        "; only in the p-value matrix: ",
+        base::paste(utils::head(only_p, 5), collapse = ", ")
+      ) else "",
+      ".",
+      call. = FALSE
+    )
+  }
+  # Align rather than assume: the files may be sorted differently.
+  pv <- pv[base::colnames(r), base::colnames(r), drop = FALSE]
+
+  finite_r <- r[base::is.finite(r)]
+  if (base::length(finite_r) > 0 && (base::min(finite_r) < -1 || base::max(finite_r) > 1)) {
+    stop(where, ": correlation values must lie in [-1, 1].", call. = FALSE)
+  }
+  finite_p <- pv[base::is.finite(pv)]
+  if (base::length(finite_p) > 0 && (base::min(finite_p) < 0 || base::max(finite_p) > 1)) {
+    stop(where, ": p-values must lie in [0, 1].", call. = FALSE)
+  }
+
+  list(r = r, P = pv)
+}
+
 pwcorr <- function(
   dd2,
   layer_set,
@@ -1461,27 +1548,27 @@ pwcorr <- function(
 
   output <- list()
 
-  # import of pre-calculated correlation values and their p-values:
-  if (base::length(import) > 1) {
-    if (!base::is.na(import[layer])) {
-      # import matrix
-      message("...importing correlation matrix from file...")
-      correlation_matrix <- list()
-      correlation_matrix[["r"]] <- utils::read.table(import[[layer]][1], header = TRUE, check.names = FALSE) %>% base::as.matrix()
-      correlation_matrix[["P"]] <- utils::read.table(import[[layer]][2], header = TRUE, check.names = FALSE) %>% base::as.matrix()
-      base::rownames(correlation_matrix[["r"]]) <- base::colnames(correlation_matrix[["r"]])
-      base::rownames(correlation_matrix[["P"]]) <- base::colnames(correlation_matrix[["P"]])
-    } else {
-      correlation_matrix <- .hc_fast_rcorr(base::as.matrix(dd2), type = corr_method, backend = corr_backend)
+  # Import of pre-calculated correlation values and their p-values. One layer is
+  # treated exactly like several: the entry for this layer is either NA, which
+  # the documentation defines as "do not import", or the two file paths.
+  import_spec <- NULL
+  if (!base::is.null(import) && base::length(import) > 0) {
+    if (layer > base::length(import)) {
+      stop(
+        "`import` has ", base::length(import), " entries but layer ", layer,
+        " was requested. Provide one entry per layer.",
+        call. = FALSE
+      )
     }
-  } else if (base::length(import) == 1 & !base::is.null(import)) {
-    # import matrix
+    entry <- import[[layer]]
+    if (!(base::length(entry) == 1 && base::all(base::is.na(entry)))) {
+      import_spec <- base::as.character(entry)
+    }
+  }
+
+  if (!base::is.null(import_spec)) {
     message("...importing correlation matrix from file...")
-    correlation_matrix <- list()
-    correlation_matrix[["r"]] <- utils::read.table(import[[layer]][1], header = TRUE, check.names = FALSE) %>% base::as.matrix()
-    correlation_matrix[["P"]] <- utils::read.table(import[[layer]][2], header = TRUE, check.names = FALSE) %>% base::as.matrix()
-    base::rownames(correlation_matrix[["r"]]) <- base::colnames(correlation_matrix[["r"]])
-    base::rownames(correlation_matrix[["P"]]) <- base::colnames(correlation_matrix[["P"]])
+    correlation_matrix <- .hc_read_correlation_import(import_spec, layer = layer)
   } else {
     correlation_matrix <- .hc_fast_rcorr(base::as.matrix(dd2), type = corr_method, backend = corr_backend)
   }

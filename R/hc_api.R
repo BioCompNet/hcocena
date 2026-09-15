@@ -2832,6 +2832,13 @@ hc_plot_enrichment_panels <- function(hc,
 #'   `...` only carries the tail of the argument list.
 #' @return Updated `HCoCenaExperiment`.
 #' @rdname hc_functional_enrichment
+#' @section Significance columns:
+#' The result tables carry `pvalue` (raw), `p_adjusted` (corrected with the
+#' method given in `padj`, and what the `qval` filter and the ranking use),
+#' `padj_method` (which correction that was) and `q_storey` (clusterProfiler's
+#' Storey q-value, `NA` where pi0 could not be fitted - which is common for
+#' small gene-set collections). `qvalue` is kept as an alias of `p_adjusted`
+#' so existing scripts and exports keep working.
 #' @param universe Background gene set for the hypergeometric test. `"all_genes"`
 #'  (default) uses every gene measured in any layer, asking whether a module is
 #'  enriched relative to the transcriptome. `"network"` uses only the genes that

@@ -74,6 +74,37 @@ setValidity("HCoCenaExperiment", function(object) {
       base::length(object@config@layer$layer_id)) {
       errors <- c(errors, "`cutoff` length in `config@layer` must match number of layers.")
     }
+    cutoffs <- suppressWarnings(base::as.numeric(object@config@layer$cutoff))
+    finite_cutoffs <- cutoffs[base::is.finite(cutoffs)]
+    if (base::length(finite_cutoffs) > 0 &&
+      (base::min(finite_cutoffs) < -1 || base::max(finite_cutoffs) > 1)) {
+      errors <- c(errors, "Correlation cutoffs in `config@layer$cutoff` must lie in [-1, 1].")
+    }
+  }
+
+  # `layer_id` must identify a layer, so duplicates are not allowed. setequal()
+  # above compares the name sets and would accept the same duplicate appearing
+  # in all three places.
+  if (base::nrow(object@config@layer) > 0 &&
+    "layer_id" %in% base::colnames(object@config@layer)) {
+    ids <- base::as.character(object@config@layer$layer_id)
+    if (base::anyDuplicated(ids) > 0) {
+      errors <- c(errors, "`config@layer$layer_id` must be unique.")
+    }
+  }
+
+  # The graph slot is typed ANY so that it can be empty. That also let anything
+  # else through: the check below simply skipped a non-igraph object, so a
+  # character string in this slot passed validation.
+  if (!base::is.null(object@integration@graph) &&
+    !inherits(object@integration@graph, "igraph")) {
+    errors <- c(
+      errors,
+      base::paste0(
+        "`integration@graph` must be an `igraph` object or NULL, not ",
+        base::class(object@integration@graph)[[1]], "."
+      )
+    )
   }
 
   if (!is.null(object@integration@graph) && inherits(object@integration@graph, "igraph")) {

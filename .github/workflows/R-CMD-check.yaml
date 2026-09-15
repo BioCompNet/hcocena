@@ -12,7 +12,18 @@ permissions:
 
 jobs:
   R-CMD-check:
-    runs-on: ubuntu-latest
+    # Development happens on Windows (see CLAUDE.md) while Bioconductor builds
+    # on Linux, so both are checked.
+    runs-on: ${{ matrix.config.os }}
+    name: R-CMD-check (${{ matrix.config.os }})
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { os: ubuntu-latest }
+          - { os: windows-latest }
+
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
@@ -34,4 +45,45 @@ jobs:
 
       - uses: r-lib/actions/check-r-package@v2
         with:
-          error-on: '"error"'
+          # The package currently checks clean, so keep it that way: a new
+          # warning should fail the build rather than accumulate quietly.
+          error-on: '"warning"'
+
+  BiocCheck:
+    # Bioconductor's own checks, which R CMD check does not cover.
+    runs-on: ubuntu-latest
+    name: BiocCheck
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::rcmdcheck
+            bioc::BiocCheck
+          needs: check
+
+      - name: Build the source tarball
+        run: R CMD build --no-build-vignettes .
+        shell: bash
+
+      - name: Run BiocCheck
+        run: |
+          tarball=$(ls -1 hcocena_*.tar.gz | head -n 1)
+          Rscript -e "res <- BiocCheck::BiocCheck('${tarball}'); \
+            n_err <- length(res[['error']]); n_warn <- length(res[['warning']]); \
+            cat(sprintf('BiocCheck: %d ERRORS, %d WARNINGS, %d NOTES\n', \
+              n_err, n_warn, length(res[['note']]))); \
+            if (n_err > 0 || n_warn > 0) quit(status = 1)"
+        shell: bash

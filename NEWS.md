@@ -1,5 +1,45 @@
 # hcocena 0.99.7
 
+## Reliability of the analysis state
+
+- Results are discarded when the inputs or parameters they were computed from
+  change. `hc_read_data()`, `hc_set_layer_settings()` and `hc_set_cutoff()`
+  drop everything downstream along data -> correlation -> layer network/GFC ->
+  integration -> modules -> downstream analyses, but only when something
+  actually changed, so a repeated call with identical arguments keeps the
+  analysis. Previously a finished object survived having all its counts
+  replaced, and setting a new cutoff left the object reporting a cutoff its
+  network had not been built with.
+- Downstream analyses report a missing module assignment instead of failing
+  inside `apply()`.
+- `hc_set_cutoff()` resolves named vectors by name only, against both the
+  layer names set in `hc_define_layers()` and the internal ids. Names were
+  matched against the internal ids alone, so naming a layer as the user sees it
+  fell through to positional assignment - with the cutoffs swapped whenever the
+  named order differed. A named value no longer spills onto layers it did not
+  name. Unknown or duplicate names, mixed named/unnamed input, values outside
+  `[-1, 1]` and a length that is neither 1 nor the layer count are now errors.
+- Imported correlation and p-value matrices are aligned by gene name instead of
+  by position, so files sorted differently no longer attach p-values to the
+  wrong gene pairs, and are checked for squareness, numeric content, unique
+  gene names and plausible value ranges. A single layer is handled like several
+  layers: `NA` means "do not import" everywhere.
+- Enrichment results name each statistic for what it is: `p_adjusted` (the
+  requested correction, and what the filter uses), `padj_method`, and
+  `q_storey` (clusterProfiler's Storey q-value, `NA` where pi0 could not be
+  fitted). `qvalue` remains as a documented alias of `p_adjusted`.
+- S4 calls no longer overwrite a variable called `hcobject` in the user's
+  workspace. The bridge mirrored its whole legacy object into `.GlobalEnv`
+  whenever it found one there, a leftover from the removed legacy API.
+- Validation rejects a non-`igraph` object in `integration@graph`, cutoffs
+  outside `[-1, 1]`, and duplicate layer ids.
+- CI checks Windows as well as Linux, fails on warnings, and runs BiocCheck.
+  The README badge pointed at a workflow file that did not exist.
+
+A full analysis captured before and after these changes - cutoffs, edge list
+and weights, module membership, GFCs, enrichment, module significance, GFC
+tables, hub genes - is identical in every field.
+
 ## Methodological options
 
 - `hc_functional_enrichment(universe = )` chooses the background of the

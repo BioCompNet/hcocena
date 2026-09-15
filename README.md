@@ -1,6 +1,6 @@
 # hcocena
 
-[![bioc-check](https://github.com/BioCompNet/hcocena/actions/workflows/bioc-check.yaml/badge.svg)](https://github.com/BioCompNet/hcocena/actions/workflows/bioc-check.yaml)
+[![R-CMD-check](https://github.com/BioCompNet/hcocena/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/BioCompNet/hcocena/actions/workflows/R-CMD-check.yaml)
 
 `hcocena` is an R package for horizontal integration and downstream analysis of
 transcriptomics datasets. It provides a modern S4 workflow built around

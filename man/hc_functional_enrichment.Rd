@@ -163,6 +163,16 @@ Updated \code{HCoCenaExperiment}.
 \description{
 Functional enrichment (S4 API)
 }
+\section{Significance columns}{
+
+The result tables carry \code{pvalue} (raw), \code{p_adjusted} (corrected with the
+method given in \code{padj}, and what the \code{qval} filter and the ranking use),
+\code{padj_method} (which correction that was) and \code{q_storey} (clusterProfiler's
+Storey q-value, \code{NA} where pi0 could not be fitted - which is common for
+small gene-set collections). \code{qvalue} is kept as an alias of \code{p_adjusted}
+so existing scripts and exports keep working.
+}
+
 \examples{
 hc <- readRDS(system.file("extdata", "hc_clustered.rds", package = "hcocena"))
 gmt <- tempfile(fileext = ".gmt")

@@ -1355,6 +1355,13 @@
     "module_label",
     "rank",
     "term",
+    # `p_adjusted` is the value the requested `padj` method produced and what
+    # the filtering uses; `q_storey` is clusterProfiler's Storey q-value where
+    # it could be computed; `qvalue` is kept as an alias of `p_adjusted` for
+    # compatibility. `padj_method` records which correction was applied.
+    "p_adjusted",
+    "padj_method",
+    "q_storey",
     "qvalue",
     "p.adjust",
     "pvalue",
@@ -1370,6 +1377,9 @@
       module_label = base::character(0),
       rank = base::integer(0),
       term = base::character(0),
+      p_adjusted = base::numeric(0),
+      padj_method = base::character(0),
+      q_storey = base::numeric(0),
       qvalue = base::numeric(0),
       p.adjust = base::numeric(0),
       pvalue = base::numeric(0),
@@ -1396,6 +1406,9 @@
         "module_label",
         "rank",
         "Description",
+        "p_adjusted",
+        "padj_method",
+        "q_storey",
         "qvalue",
         "p.adjust",
         "pvalue",
@@ -1475,17 +1488,34 @@
 
         if (!base::is.null(enrich) && !base::is.null(enrich@result) && base::nrow(enrich@result) > 0) {
           tmp_all <- enrich@result
-          # clusterProfiler's `qvalue` column is a Storey q-value computed by the
-          # qvalue package, independently of `pAdjustMethod`. Everything
-          # downstream (ranking, the qval filter, the plots) keys off `qvalue`,
-          # so the user-selected `padj` method had no effect on which terms were
-          # called significant -- and `qvalue` is NA whenever the p-value
-          # distribution is too degenerate to fit pi0, which silently dropped
-          # every term for small gene-set collections. Use the requested
-          # correction instead.
-          if ("p.adjust" %in% base::colnames(tmp_all)) {
-            tmp_all$qvalue <- .hc_as_numeric_safely(tmp_all$p.adjust)
+          # Three different quantities used to share two column names here.
+          #
+          # clusterProfiler returns `pvalue`, `p.adjust` (corrected by the
+          # requested `pAdjustMethod`) and `qvalue` (a Storey q-value from the
+          # qvalue package, computed independently of that method). Everything
+          # downstream keyed off `qvalue`, so the user's `padj` choice had no
+          # effect on which terms were called significant - and `qvalue` is NA
+          # whenever the p-value distribution is too degenerate to fit pi0,
+          # which silently dropped every term for small gene-set collections.
+          #
+          # `p_adjusted` now carries the value the requested method produced
+          # and is what the filtering and ranking use; `q_storey` keeps the
+          # Storey q-value where it exists; `padj_method` records which
+          # correction was applied. `qvalue` stays as an alias of `p_adjusted`
+          # so existing scripts, exports and the cell-type annotation keep
+          # working, and is documented as such.
+          if ("qvalue" %in% base::colnames(tmp_all)) {
+            tmp_all$q_storey <- .hc_as_numeric_safely(tmp_all$qvalue)
+          } else {
+            tmp_all$q_storey <- NA_real_
           }
+          tmp_all$p_adjusted <- if ("p.adjust" %in% base::colnames(tmp_all)) {
+            .hc_as_numeric_safely(tmp_all$p.adjust)
+          } else {
+            .hc_as_numeric_safely(tmp_all$pvalue)
+          }
+          tmp_all$padj_method <- base::as.character(padj)
+          tmp_all$qvalue <- tmp_all$p_adjusted
           tmp_all <- tmp_all[base::order(tmp_all$qvalue, tmp_all$p.adjust, tmp_all$pvalue, tmp_all$Description), , drop = FALSE]
           tmp_all$cluster <- c
           tmp_all$module_label <- module_label_map_current[[c]]

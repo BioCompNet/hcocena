@@ -137,25 +137,25 @@ hcobject <- NULL
   invisible(value)
 }
 
+#' Decide which environments the bridge reads from and writes to
+#'
+#' This used to consult `.GlobalEnv`: if a list called `hcobject` happened to
+#' exist there it became a read source, and every bridge write was mirrored
+#' into it. That dated from the legacy API, where the user's global `hcobject`
+#' *was* the analysis. The legacy entry points are gone and every modern call
+#' binds its own object into the namespace first, so the only thing the global
+#' lookup still did was overwrite an unrelated variable in the user's
+#' workspace - `hc_get_module_scores()` or `hc_find_hubs()` on an S4 object
+#' silently replaced a global `hcobject` that had nothing to do with the call.
+#'
+#' The bridge now stays inside the package namespace. `mirror_envo` is honoured
+#' when a caller passes one explicitly, so a deliberate mirror is still
+#' possible; nothing is inferred from the global environment.
+#' @noRd
 .hc_resolve_bridge_envs <- function(envo = .hc_bridge_state_env(),
                                     mirror_envo = NULL) {
-  source_envo <- envo
-  if (!.hc_has_usable_bridge_hcobject(envo = source_envo) &&
-    .hc_has_usable_bridge_hcobject(envo = .GlobalEnv)) {
-    source_envo <- .GlobalEnv
-    if (base::is.null(mirror_envo) && !base::identical(envo, .GlobalEnv)) {
-      mirror_envo <- envo
-    }
-  }
-
-  if (base::is.null(mirror_envo) &&
-    .hc_has_usable_bridge_hcobject(envo = .GlobalEnv) &&
-    !base::identical(source_envo, .GlobalEnv)) {
-    mirror_envo <- .GlobalEnv
-  }
-
   list(
-    source_envo = source_envo,
+    source_envo = envo,
     mirror_envo = mirror_envo
   )
 }

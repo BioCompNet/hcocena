@@ -34,6 +34,9 @@ LLM-assisted module interpretation.
 - Analysis templates are kept in [`inst/scripts/workflows/`](inst/scripts/workflows/)
 - CI for R CMD check and BiocCheck (release and Bioconductor devel) is defined
   in [`.github/workflows/R-CMD-check.yaml`](.github/workflows/R-CMD-check.yaml)
+- The Docker image (RStudio with hcocena and bundled reference files) and the
+  development history before the Bioconductor submission are maintained in
+  [BioCompNet/hcocena-dev](https://github.com/BioCompNet/hcocena-dev)
 
 ## Contributors
 

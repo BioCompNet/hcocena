@@ -1,0 +1,8 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^README\.Rmd$
+^\.github$
+^.*\.Rcheck$
+^.*\.BiocCheck$
+^hcocena_.*\.tar\.gz$
+^Rplots\.pdf$

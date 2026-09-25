@@ -1,0 +1,18 @@
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rproj
+*.tar.gz
+*.Rcheck/
+*.BiocCheck/
+inst/doc/
+Rplots.pdf
+tests/testthat/Rplots.pdf
+tests/testthat/_snaps/
+
+# Local agent notes and tooling
+CLAUDE.md
+.agents/
+.claude/
+.codex/

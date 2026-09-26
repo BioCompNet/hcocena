@@ -1,3 +1,9 @@
+# hcocena 0.99.9
+
+- No code changes. Version bump to re-run the Bioconductor build: the
+  previous BiocCheck run stopped before checking the package, because
+  downloading a resource from bioconductor.org timed out (HTTP 504).
+
 # hcocena 0.99.8
 
 ## New accessors and example data

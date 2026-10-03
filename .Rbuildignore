@@ -6,3 +6,4 @@
 ^.*\.BiocCheck$
 ^hcocena_.*\.tar\.gz$
 ^Rplots\.pdf$
+^omnipathr-log$
